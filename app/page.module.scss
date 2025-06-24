@@ -1,168 +1,362 @@
-.page {
-  --gray-rgb: 0, 0, 0;
-  --gray-alpha-200: rgba(var(--gray-rgb), 0.08);
-  --gray-alpha-100: rgba(var(--gray-rgb), 0.05);
+// Color Palette
+$dark-bg: #171923;
+$dark-card: #2d3748;
+$accent-blue: #3182ce;
+$accent-green: #38a169;
+$text-primary: #e2e8f0;
+$text-secondary: #ffffff;
+$white: #ffffff;
+$border-color: #4a5568;
 
-  --button-primary-hover: #383838;
-  --button-secondary-hover: #f2f2f2;
+// --- FONT ASSIGNMENTS ---
+// To change fonts, update the variables in `app/layout.tsx`
+// and then update the two lines below to match.
 
-  display: grid;
-  grid-template-rows: 20px 1fr 20px;
-  align-items: center;
-  justify-items: center;
-  min-height: 100svh;
-  padding: 80px;
-  gap: 64px;
-  font-family: var(--font-geist-sans);
-}
+// Option 1 (Default): Modern Body, Pixel Heading
+$body-font: var(--font-poppins);
+//$heading-font: var(--font-pixelify);
 
-@media (prefers-color-scheme: dark) {
-  .page {
-    --gray-rgb: 255, 255, 255;
-    --gray-alpha-200: rgba(var(--gray-rgb), 0.145);
-    --gray-alpha-100: rgba(var(--gray-rgb), 0.06);
+// Option 2: Classic Sans-Serif Body, 8-Bit Heading
+// $body-font: var(--font-inter);
+ $heading-font: var(--font-press-start);
 
-    --button-primary-hover: #ccc;
-    --button-secondary-hover: #1a1a1a;
-  }
-}
 
-.main {
+// Base
+.home {
   display: flex;
   flex-direction: column;
-  gap: 32px;
-  grid-row-start: 2;
+  font-family: $body-font;
+  background-color: $dark-bg;
+  color: $text-primary;
 }
 
-.main ol {
-  font-family: var(--font-geist-mono);
-  padding-left: 0;
-  margin: 0;
-  font-size: 14px;
-  line-height: 24px;
-  letter-spacing: -0.01em;
-  list-style-position: inside;
+// Hero Section
+.hero {
+  width: 100%;
+  padding: 12rem 1rem;
+  background: linear-gradient(180deg, rgba($dark-bg, 0.9), $dark-bg),
+  radial-gradient(circle at top, $dark-card, transparent 70%);
+  text-align: center;
+  border-bottom: 1px solid $border-color;
+
+  &__container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  &__title {
+    font-family: $heading-font;
+    font-size: 3.5rem; // Adjusted for Pixelify Sans
+    font-weight: 400;
+    letter-spacing: 1px;
+    color: $white;
+    text-shadow: 0 0 15px rgba($accent-blue, 0.4);
+    @media (min-width: 768px) {
+      font-size: 5.5rem; // Adjusted for Pixelify Sans
+    }
+  }
+
+  &__subtitle {
+    font-size: 1.25rem;
+    max-width: 48rem;
+    color: $text-secondary;
+    line-height: 1.6;
+    text-shadow: 0 0 15px rgba($accent-blue, 0.7);
+    @media (min-width: 768px) {
+      font-size: 1.5rem;
+    }
+  }
+
+  &__buttons {
+    // ... (no changes in this block)
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 2rem;
+    @media (min-width: 640px) {
+      flex-direction: row;
+      gap: 1.5rem;
+    }
+  }
 }
 
-.main li:not(:last-of-type) {
-  margin-bottom: 8px;
-}
-
-.main code {
-  font-family: inherit;
-  background: var(--gray-alpha-100);
-  padding: 2px 4px;
-  border-radius: 4px;
-  font-weight: 600;
-}
-
-.ctas {
-  display: flex;
-  gap: 16px;
-}
-
-.ctas a {
-  appearance: none;
-  border-radius: 128px;
-  height: 48px;
-  padding: 0 20px;
-  border: none;
-  border: 1px solid transparent;
-  transition:
-    background 0.2s,
-    color 0.2s,
-    border-color 0.2s;
-  cursor: pointer;
-  display: flex;
+// Buttons
+.button {
+  // ... (no changes in this block)
+  display: inline-flex;
+  height: 3rem;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
-  line-height: 20px;
-  font-weight: 500;
-}
+  padding: 0 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s ease-in-out;
+  border: 2px solid transparent;
 
-a.primary {
-  background: var(--foreground);
-  color: var(--background);
-  gap: 8px;
-}
-
-a.secondary {
-  border-color: var(--gray-alpha-200);
-  min-width: 158px;
-}
-
-.footer {
-  grid-row-start: 3;
-  display: flex;
-  gap: 24px;
-}
-
-.footer a {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.footer img {
-  flex-shrink: 0;
-}
-
-/* Enable hover only on non-touch devices */
-@media (hover: hover) and (pointer: fine) {
-  a.primary:hover {
-    background: var(--button-primary-hover);
-    border-color: transparent;
+  &--primary {
+    background-color: $accent-blue;
+    color: $white;
+    &:hover {
+      background-color: lighten($accent-blue, 5%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba($accent-blue, 0.3);
+    }
   }
 
-  a.secondary:hover {
-    background: var(--button-secondary-hover);
-    border-color: transparent;
-  }
-
-  .footer a:hover {
-    text-decoration: underline;
-    text-underline-offset: 4px;
+  &--outline {
+    background-color: transparent;
+    border-color: $border-color;
+    color: $text-primary;
+    &:hover {
+      background-color: $dark-card;
+      border-color: $accent-blue;
+      color: $white;
+    }
   }
 }
 
-@media (max-width: 600px) {
-  .page {
-    padding: 32px;
-    padding-bottom: 80px;
+// Features Section
+.features {
+  // ... (no changes in this block)
+  width: 100%;
+  padding: 6rem 1rem;
+  background-color: $dark-bg;
+
+  &__container {
+    max-width: 1200px;
+    margin: 0 auto;
   }
 
-  .main {
-    align-items: center;
-  }
-
-  .main ol {
+  &__title {
+    font-family: $heading-font;
+    font-size: 3rem; // Adjusted
+    font-weight: 400;
     text-align: center;
+    margin-bottom: 4rem;
+    color: $text-primary;
+    @media (min-width: 768px) {
+      font-size: 3.5rem; // Adjusted
+    }
   }
 
-  .ctas {
-    flex-direction: column;
+  &__grid {
+    // ... (no changes in this block)
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(3, 1fr);
+    }
   }
 
-  .ctas a {
-    font-size: 14px;
-    height: 40px;
-    padding: 0 16px;
+  &__item {
+    // ... (no changes in this block)
+    background: $dark-card;
+    border: 1px solid $border-color;
+    border-radius: 12px;
+    padding: 2.5rem 2rem;
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+
+    &:hover {
+      transform: translateY(-8px);
+      border-color: $accent-blue;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    }
   }
 
-  a.secondary {
-    min-width: auto;
-  }
-
-  .footer {
-    flex-wrap: wrap;
+  &__icon {
+    // ... (no changes in this block)
+    height: 4rem;
+    width: 4rem;
+    margin: 0 auto 1.5rem;
+    border-radius: 12px;
+    background: linear-gradient(45deg, $accent-blue, $accent-green);
+    color: $white;
+    display: flex;
     align-items: center;
     justify-content: center;
+    svg {
+      width: 2rem;
+      height: 2rem;
+    }
+  }
+
+  &__item_title {
+    font-family: $body-font;
+    font-weight: 700;
+    font-size: 1.25rem;
+    margin-bottom: 0.75rem;
+    color: $text-primary;
+  }
+
+  &__item_desc {
+    // ... (no changes in this block)
+    color: $text-secondary;
+    line-height: 1.6;
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  .logo {
-    filter: invert();
+// Benefits Section
+.benefits {
+  // ... (no changes in this block)
+  width: 100%;
+  padding: 6rem 1rem;
+  background-color: $dark-card;
+  border-top: 1px solid $border-color;
+  border-bottom: 1px solid $border-color;
+
+  &__container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4rem;
+    position: relative;
+    @media (min-width: 992px) {
+      flex-direction: row;
+      align-items: center;
+    }
+  }
+
+  &__content {
+    flex: 1;
+  }
+
+  &__title {
+    font-family: $heading-font;
+    font-size: 3rem; // Adjusted
+    font-weight: 400;
+    margin-bottom: 2rem;
+    color: $text-primary;
+    @media (min-width: 768px) {
+      font-size: 3.5rem; // Adjusted
+    }
+  }
+
+  &__list {
+    // ... (no changes in this block)
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  &__list_item {
+    // ... (no changes in this block)
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  &__list_icon {
+    // ... (no changes in this block)
+    color: $accent-green;
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+
+  &__image_container {
+    // ... (no changes in this block)
+    flex: 1;
+    position: relative;
+    height: 350px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid $border-color;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    @media (min-width: 768px) {
+      height: 450px;
+    }
+  }
+}
+
+// CTA Section
+.cta {
+  // ... (no changes in this block)
+  width: 100%;
+  padding: 6rem 1rem;
+  background: linear-gradient(45deg, #2a4860, #3874a1);
+  color: $white;
+  text-align: center;
+
+  &__container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  &__title {
+    font-family: $heading-font;
+    font-weight: 400;
+    font-size: 3rem; // Adjusted
+    margin-bottom: 1.5rem;
+    @media (min-width: 768px) {
+      font-size: 3.5rem; // Adjusted
+    }
+  }
+
+  &__subtitle {
+    // ... (no changes in this block)
+    font-size: 1.25rem;
+    color: $text-secondary;
+    margin-bottom: 3rem;
+    max-width: 48rem;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.6;
+  }
+
+  .button {
+    // ... (no changes in this block)
+    background-color: $white;
+    color: #2a4860;
+    border-color: transparent;
+    &:hover {
+      background-color: $text-primary;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+  }
+}
+
+// Footer
+.footer {
+  // ... (no changes in this block)
+  background-color: $dark-bg;
+  color: $text-secondary;
+  padding: 3rem 1rem;
+  text-align: center;
+  border-top: 1px solid $border-color;
+
+  &__container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    align-items: center;
+  }
+
+  &__links {
+    display: flex;
+    gap: 1.5rem;
+    a {
+      color: $text-primary;
+      text-decoration: none;
+      transition: color 0.2s;
+      &:hover {
+        color: $accent-blue;
+      }
+    }
+  }
+
+  &__copy {
+    font-size: 0.9rem;
   }
 }

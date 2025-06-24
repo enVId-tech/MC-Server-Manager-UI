@@ -1,32 +1,30 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { poppins, pixelifySans, inter, pressStart2P } from './fonts';
 import "./globals.scss";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "Minecraft Server Manager Website",
-  description: "Created by Erick Tran - enVId Tech",
+    title: "Minecraft Server Automation",
+    description: "Create, manage, and deploy Minecraft servers automatically.",
 };
 
 export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        {children}
-      </body>
-    </html>
-  );
+                                       children,
+                                   }: {
+    children: React.ReactNode;
+}) {
+    // --- FONT COMBINATIONS ---
+    // To use a different combination, comment out the active line
+    // and uncomment one of the options below.
+
+    // Option 1 (Default): Modern Body, Pixel Heading
+    // const fontClasses = `${poppins.variable} ${pixelifySans.variable}`;
+
+    // Option 2: Classic Sans-Serif Body, 8-Bit Heading
+    const fontClasses = `${inter.variable} ${poppins.variable}`;
+
+    return (
+        <html lang="en">
+        <body className={fontClasses}>{children}</body>
+        </html>
+    );
 }
