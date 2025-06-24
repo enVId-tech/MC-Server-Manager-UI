@@ -1,34 +1,18 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import styles from "./page.module.scss";
+import HeroSection from "@/app/_components/HeroSection";
 
 // Images
 import mcServer from '@/public/minecraft-server.png';
-import backgroundImage from '@/public/main-bg.png';
+// The background image is now handled in HeroSection.tsx
 
 export default function Home() {
     return (
         <>
             <main className={styles.home}>
-                {/* Hero Section */}
-                <section className={styles.hero} style={{ backgroundImage: `url(${backgroundImage.src})` }}>
-                    <div className={styles.hero__container}>
-                        <h1 className={styles.hero__title}>
-                            Minecraft Servers Made Simple
-                        </h1>
-                        <p className={styles.hero__subtitle}>
-                            Create, manage, and deploy Minecraft servers automatically with Docker and Portainer.
-                        </p>
-                        <div className={styles.hero__buttons}>
-                            <Link href="/get-started" className={`${styles.button} ${styles['button--primary']}`}>
-                                Get Started
-                            </Link>
-                            <Link href="/documentation" className={`${styles.button} ${styles['button--outline']}`}>
-                                Documentation
-                            </Link>
-                        </div>
-                    </div>
-                </section>
+                {/* Hero Section with Parallax Effect */}
+                <HeroSection />
 
                 {/* Features Section */}
                 <section className={styles.features}>
@@ -116,7 +100,7 @@ export default function Home() {
                         <Link href="/contact">Contact</Link>
                     </div>
                     <div className={styles.footer__copy}>
-                        &copy; {new Date().getFullYear()} enVId Tech. All Rights Reserved.
+                        &copy; {new Date().getFullYear()} <a href={"https://github.com/enVId-tech"} target="_blank">enVId Tech</a>. All Rights Reserved.
                     </div>
                 </div>
             </footer>

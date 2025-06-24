@@ -32,14 +32,37 @@ $body-font: var(--font-poppins);
 
 // Hero Section
 .hero {
+  position: relative;
   width: 100%;
   padding: 12rem 1rem;
-  background: linear-gradient(180deg, rgba($dark-bg, 0.9), $dark-bg),
-  radial-gradient(circle at top, $dark-card, transparent 70%);
   text-align: center;
   border-bottom: 1px solid $border-color;
+  overflow: hidden; // Contains the moving background
+
+  &__background {
+    position: absolute;
+    // Inset expands the div to cover the parent, with extra height
+    // to prevent gaps during the parallax scroll.
+    inset: -25% 0 -25% 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    z-index: 0; // Places the background behind the content and overlay
+    // The background-image and transform are applied via inline styles in the component
+  }
+
+  // This pseudo-element creates the gradient overlay
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba($dark-bg, 0.001), rgba($dark-bg, 0.8));
+    z-index: 1; // Places the overlay above the background image
+  }
 
   &__container {
+    position: relative; // Ensures content is on top of the overlay
+    z-index: 2;
     max-width: 1200px;
     margin: 0 auto;
     display: flex;
@@ -50,13 +73,13 @@ $body-font: var(--font-poppins);
 
   &__title {
     font-family: $heading-font;
-    font-size: 3.5rem; // Adjusted for Pixelify Sans
+    font-size: 3.5rem;
     font-weight: 400;
     letter-spacing: 1px;
     color: $white;
     text-shadow: 0 0 15px rgba($accent-blue, 0.4);
     @media (min-width: 768px) {
-      font-size: 5.5rem; // Adjusted for Pixelify Sans
+      font-size: 5.5rem;
     }
   }
 
@@ -65,14 +88,13 @@ $body-font: var(--font-poppins);
     max-width: 48rem;
     color: $text-secondary;
     line-height: 1.6;
-    text-shadow: 0 0 15px rgba($accent-blue, 0.7);
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5); // Improved readability
     @media (min-width: 768px) {
       font-size: 1.5rem;
     }
   }
 
   &__buttons {
-    // ... (no changes in this block)
     display: flex;
     flex-direction: column;
     gap: 1rem;
@@ -358,5 +380,13 @@ $body-font: var(--font-poppins);
 
   &__copy {
     font-size: 0.9rem;
+    a {
+        color: $text-primary;
+        text-decoration: underline;
+        transition: color 0.2s;
+        &:hover {
+            color: $accent-blue;
+        }
+    }
   }
 }

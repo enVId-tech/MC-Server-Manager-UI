@@ -1,6 +1,8 @@
+// app/layout.tsx
 import type { Metadata } from "next";
-import { poppins, pixelifySans, inter, pressStart2P } from './fonts';
+import { poppins, pressStart2P } from './fonts'; // Adjust imports as needed
 import "./globals.scss";
+import Navbar from "@/app/_components/Navbar/Navbar";
 
 export const metadata: Metadata = {
     title: "Minecraft Server Automation",
@@ -12,19 +14,14 @@ export default function RootLayout({
                                    }: {
     children: React.ReactNode;
 }) {
-    // --- FONT COMBINATIONS ---
-    // To use a different combination, comment out the active line
-    // and uncomment one of the options below.
-
-    // Option 1 (Default): Modern Body, Pixel Heading
-    // const fontClasses = `${poppins.variable} ${pixelifySans.variable}`;
-
-    // Option 2: Classic Sans-Serif Body, 8-Bit Heading
-    const fontClasses = `${inter.variable} ${poppins.variable}`;
+    const fontClasses = `${poppins.variable} ${pressStart2P.variable}`;
 
     return (
         <html lang="en">
-        <body className={fontClasses}>{children}</body>
+        <body className={fontClasses}>
+        <Navbar />
+        {children}
+        </body>
         </html>
     );
 }
