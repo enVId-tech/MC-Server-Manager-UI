@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { FaRocket, FaCubes, FaBook } from 'react-icons/fa';
+import { FaRocket } from 'react-icons/fa';
 
 export default function Navbar() {
     return (

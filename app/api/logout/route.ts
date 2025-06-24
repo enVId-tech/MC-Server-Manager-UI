@@ -1,16 +1,16 @@
-import { NextRequest } from "next/server";
+import { NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
-    // Clear the session cookie by setting it to an empty value and past date
-    const response = new Response(null, {
-        status: 200,
-        headers: {
-            "Set-Cookie": "session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Strict",
-        },
-    });
+export async function POST() {
+    try {
+        const res = NextResponse.next();
 
-    // Redirect to the home page after logout
-    response.headers.set("Location", "/");
-
-    return response;
+        res.cookies.set('token', '', {
+            httpOnly: true,
+            expires: new Date(0),
+            path: '/',
+        });
+        return NextResponse.json({ message: 'Logout successful.' }, { status: 200 });
+    } catch (error) {
+        return NextResponse.json({ message: 'An error occurred.', error }, { status: 500 });
+    }
 }
