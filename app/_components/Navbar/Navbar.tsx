@@ -8,17 +8,9 @@ export default function Navbar() {
         <header className="navbar">
             <div className="container">
                 <Link href="/" className="logo">
-                    MC-Deploy
+                    MC Server Manager
                 </Link>
                 <nav className="links">
-                    <Link href="/#features" className="link">
-                        <FaCubes />
-                        <span>Features</span>
-                    </Link>
-                    <Link href="/documentation" className="link">
-                        <FaBook />
-                        <span>Docs</span>
-                    </Link>
                     <Link href="/get-started" className="link button">
                         <FaRocket />
                         <span>Get Started</span>

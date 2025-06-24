@@ -1,6 +1,5 @@
-// app/layout.tsx
 import type { Metadata } from "next";
-import { poppins, pressStart2P } from './fonts'; // Adjust imports as needed
+import { poppins, pressStart2P } from './fonts';
 import "./globals.scss";
 import Navbar from "@/app/_components/Navbar/Navbar";
 

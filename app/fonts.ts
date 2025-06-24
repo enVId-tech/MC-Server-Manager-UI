@@ -1,4 +1,3 @@
-// app/fonts.ts
 import { Inter, Lexend, Press_Start_2P, Silkscreen, Pixelify_Sans, Poppins } from 'next/font/google';
 
 // --- NON-BLOCKY FONT OPTIONS ---

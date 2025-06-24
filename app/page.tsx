@@ -5,8 +5,6 @@ import HeroSection from "@/app/_components/HeroSection";
 
 // Images
 import mcServer from '@/public/minecraft-server.png';
-// The background image is now handled in HeroSection.tsx
-
 export default function Home() {
     return (
         <>
