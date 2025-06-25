@@ -1,0 +1,204 @@
+@import "../../variables";
+
+.navbar {
+  display: none !important;
+}
+
+.dashboard {
+  min-height: 100vh;
+  background-color: $dark-bg;
+  color: $text-primary;
+  padding: 2rem 1rem;
+  padding-top: 5rem;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2.5rem;
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+}
+
+.pageTitle {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: $text-primary;
+  font-family: var(--font-press-start);
+}
+
+.sectionTitle {
+  font-size: 1.75rem;
+  margin-bottom: 1.5rem;
+  color: $text-primary;
+  font-family: var(--font-press-start);
+}
+
+.emptyState {
+  text-align: center;
+  padding: 3rem;
+  background-color: $dark-card;
+  border-radius: 8px;
+  color: $text-secondary;
+}
+
+.serverGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.serverCard {
+  padding: 1.5rem;
+  border-radius: 12px;
+  background-color: $dark-card;
+  border: 1px solid $border-color;
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    border-color: $accent-blue;
+  }
+}
+
+.serverName {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0.5rem 0 1rem;
+  color: $text-primary;
+}
+
+.serverDetails {
+  color: $text-secondary;
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+
+  p {
+    margin-bottom: 0.5rem;
+  }
+}
+
+.serverStatus {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+
+  &.online {
+    background-color: rgba($accent-green, 0.15);
+    color: lighten($accent-green, 20%);
+  }
+
+  &.offline {
+    background-color: rgba($accent-red, 0.15);
+    color: lighten($accent-red, 20%);
+  }
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.button {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+
+  &.primary {
+    background-color: $accent-blue;
+    color: white;
+
+    &:hover {
+      background-color: lighten($accent-blue, 5%);
+      box-shadow: 0 0 12px rgba($accent-blue, 0.4);
+    }
+  }
+
+  &.secondary {
+    background-color: rgba($border-color, 0.3);
+    color: $text-primary;
+
+    &:hover {
+      background-color: rgba($border-color, 0.5);
+    }
+  }
+
+  &.danger {
+    background-color: rgba($accent-red, 0.1);
+    color: lighten($accent-red, 15%);
+
+    &:hover {
+      background-color: rgba($accent-red, 0.2);
+    }
+  }
+}
+
+.createServerForm {
+  background-color: $dark-form;
+  padding: 2rem;
+  border-radius: 12px;
+  margin-bottom: 2.5rem;
+  border: 1px solid $border-color;
+}
+
+.formTitle {
+  font-size: 1.5rem;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  color: $text-primary;
+  font-family: var(--font-press-start);
+}
+
+.formGroup {
+  margin-bottom: 1.5rem;
+
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: $text-primary;
+  }
+
+  input, select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    border: 1px solid $border-color;
+    background-color: rgba($dark-bg, 0.7);
+    color: $text-primary;
+    transition: border-color 0.2s;
+
+    &:focus {
+      border-color: $accent-blue;
+      outline: none;
+    }
+  }
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+}
