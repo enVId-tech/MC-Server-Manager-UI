@@ -1,4 +1,4 @@
-import { Inter, Lexend, Press_Start_2P, Silkscreen, Pixelify_Sans, Poppins } from 'next/font/google';
+import { Inter, Press_Start_2P, Pixelify_Sans, Poppins } from 'next/font/google';
 
 // --- NON-BLOCKY FONT OPTIONS ---
 export const inter = Inter({

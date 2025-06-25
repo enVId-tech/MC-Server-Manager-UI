@@ -6,30 +6,30 @@ import styles from './get-started.module.scss';
 import { FaUserPlus, FaServer, FaRocket } from 'react-icons/fa';
 
 interface Step {
-    icon: React.ReactNode;
     title: string;
     description: string;
+    icon?: React.ReactNode;
 }
 
-const initialSteps = [
+const initialSteps: Step[] = [
     {
-        icon: <FaUserPlus />,
         title: 'Create Your Account',
         description: 'Sign up for a free account in seconds. No credit card is required to get started.',
+        icon: <FaUserPlus />,
     },
     {
-        icon: <FaServer />,
         title: 'Configure Your Server',
         description: 'Follow our simple guides to connect your server and configure your deployment settings.',
+        icon: <FaServer />,
     },
     {
-        icon: <FaRocket />,
         title: 'Deploy with One Click',
         description: 'Once configured, deploy your applications effortlessly and watch the magic happen.',
+        icon: <FaRocket />,
     },
 ];
 
-const detailedSteps: Step = [
+const detailedSteps: Step[] = [
     {
         title: 'Step 1: In-Depth Configuration',
         description: 'Dive deeper into the configuration options available. Customize environment variables, set up build commands, and link your repositories with ease. Our UI makes it simple.',
@@ -74,7 +74,7 @@ export default function GetStartedPage() {
             </section>
 
             <section className={styles.detailedSteps}>
-                {detailedSteps.map((step, index) => (
+                {detailedSteps.map((step: Step, index: number) => (
                     <div key={index} className={styles.detailedStep}>
                         <div className={styles.detailedStep__content}>
                             <h3 className={styles.detailedStep__title}>{step.title}</h3>
