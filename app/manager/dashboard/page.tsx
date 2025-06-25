@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import styles from './dashboard.module.scss';
 
-// Define server interfaces for better type checking
+// Define servers interfaces for better type checking
 interface Server {
     id: number;
     name: string;
@@ -33,34 +33,8 @@ const serverTypes: ServerType[] = [
     { id: 'custom', name: 'Custom' },
 ];
 
-const versions = ['1.19.3', '1.19.2', '1.18.2', '1.17.1', '1.16.5'];
-
 export default function Dashboard() {
     const [servers, setServers] = useState<Server[]>(initialServers);
-    const [showCreateForm, setShowCreateForm] = useState(false);
-    const [newServer, setNewServer] = useState({
-        name: '',
-        type: 'survival',
-        version: '1.19.3',
-        maxPlayers: 20,
-    });
-
-    const handleCreateServer = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const server: Server = {
-            id: Date.now(),
-            name: newServer.name,
-            type: newServer.type,
-            status: 'offline',
-            players: 0,
-            maxPlayers: newServer.maxPlayers,
-            version: newServer.version,
-        };
-
-        setServers([...servers, server]);
-        setNewServer({ name: '', type: 'survival', version: '1.19.3', maxPlayers: 20 });
-        setShowCreateForm(false);
-    };
 
     const handleStartServer = (id: number) => {
         setServers(servers.map(server =>
@@ -75,7 +49,7 @@ export default function Dashboard() {
     };
 
     const handleDeleteServer = (id: number) => {
-        if (window.confirm('Are you sure you want to delete this server? This action cannot be undone.')) {
+        if (window.confirm('Are you sure you want to delete this servers? This action cannot be undone.')) {
             setServers(servers.filter(server => server.id !== id));
         }
     };
@@ -87,81 +61,11 @@ export default function Dashboard() {
                     <h1 className={styles.pageTitle}>Server Manager</h1>
                     <button
                         className={`${styles.button} ${styles.primary}`}
-                        onClick={() => setShowCreateForm(!showCreateForm)}
+                        onClick={() => window.location.href = "/manager/servers/create"}
                     >
-                        {showCreateForm ? 'Cancel' : 'Create New Server'}
+                        Create New Server
                     </button>
                 </div>
-
-                {showCreateForm && (
-                    <div className={styles.createServerForm}>
-                        <h2 className={styles.formTitle}>Create New Server</h2>
-                        <form onSubmit={handleCreateServer}>
-                            <div className={styles.formGroup}>
-                                <label htmlFor="serverName">Server Name</label>
-                                <input
-                                    id="serverName"
-                                    type="text"
-                                    value={newServer.name}
-                                    onChange={(e) => setNewServer({...newServer, name: e.target.value})}
-                                    required
-                                />
-                            </div>
-
-                            <div className={styles.formGroup}>
-                                <label htmlFor="serverType">Server Type</label>
-                                <select
-                                    id="serverType"
-                                    value={newServer.type}
-                                    onChange={(e) => setNewServer({...newServer, type: e.target.value})}
-                                >
-                                    {serverTypes.map(type => (
-                                        <option key={type.id} value={type.id}>{type.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className={styles.formGroup}>
-                                <label htmlFor="serverVersion">Minecraft Version</label>
-                                <select
-                                    id="serverVersion"
-                                    value={newServer.version}
-                                    onChange={(e) => setNewServer({...newServer, version: e.target.value})}
-                                >
-                                    {versions.map(version => (
-                                        <option key={version} value={version}>{version}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className={styles.formGroup}>
-                                <label htmlFor="maxPlayers">Max Players</label>
-                                <input
-                                    id="maxPlayers"
-                                    type="number"
-                                    min="1"
-                                    max="100"
-                                    value={newServer.maxPlayers}
-                                    onChange={(e) => setNewServer({...newServer, maxPlayers: parseInt(e.target.value)})}
-                                    required
-                                />
-                            </div>
-
-                            <div className={styles.formActions}>
-                                <button
-                                    type="button"
-                                    className={`${styles.button} ${styles.secondary}`}
-                                    onClick={() => setShowCreateForm(false)}
-                                >
-                                    Cancel
-                                </button>
-                                <button type="submit" className={`${styles.button} ${styles.primary}`}>
-                                    Create Server
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                )}
 
                 <h2 className={styles.sectionTitle}>Your Servers</h2>
                 {servers.length === 0 ? (

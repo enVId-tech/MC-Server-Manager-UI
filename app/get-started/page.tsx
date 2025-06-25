@@ -19,7 +19,7 @@ const initialSteps: Step[] = [
     },
     {
         title: 'Configure Your Server',
-        description: 'Follow our simple guides to connect your server and configure your deployment settings.',
+        description: 'Follow our simple guides to connect your servers and configure your deployment settings.',
         icon: <FaServer />,
     },
     {

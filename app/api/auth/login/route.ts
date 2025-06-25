@@ -4,7 +4,7 @@ import User from '@/lib/objects/User';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-export async function POST(request: Request) {
+export async function POST(request: Request, response: NextResponse) {
     await dbConnect.connect();
     try {
         const { email, password } = await request.json();
@@ -29,14 +29,7 @@ export async function POST(request: Request) {
             { expiresIn: '1h' }
         );
 
-        const res = NextResponse.next();
-
-        res.cookies.set('token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV !== 'development',
-            maxAge: 60 * 60, // 1 hour
-            path: '/',
-        });
+        response.cookies.set('sessionToken', token, { maxAge: 60 * 60 })
 
         return NextResponse.json({ message: 'Login successful.' }, { status: 200 });
     } catch (error) {

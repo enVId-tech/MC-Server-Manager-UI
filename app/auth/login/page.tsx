@@ -23,7 +23,7 @@ export default function LoginPage() {
 
         if (res.ok) {
             router.push('/manager/dashboard'); // Redirect to a protected dashboard page
-            router.refresh(); // Refresh to update server-side state if needed
+            router.refresh(); // Refresh to update servers-side state if needed
         } else {
             const data = await res.json();
             setError(data.message || 'An error occurred.');

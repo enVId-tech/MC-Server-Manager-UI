@@ -1,0 +1,325 @@
+@import "../../../variables";
+
+.serverGenerator {
+  min-height: 100vh;
+  background-color: $dark-bg;
+  color: $text-primary;
+  padding: 2rem 1rem;
+  padding-top: 9rem;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2.5rem;
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+}
+
+.pageTitle {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: $text-primary;
+  font-family: var(--font-press-start);
+}
+
+.formSection {
+  background-color: $dark-card;
+  padding: 2rem;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  border: 1px solid $border-color;
+}
+
+.sectionTitle {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: $text-primary;
+  font-family: var(--font-press-start);
+}
+
+.formGroup {
+  margin-bottom: 1.5rem;
+
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: $text-primary;
+  }
+
+  input, select, textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    border: 1px solid $border-color;
+    background-color: rgba($dark-bg, 0.7);
+    color: $text-primary;
+    transition: border-color 0.2s;
+
+    &:focus {
+      border-color: $accent-blue;
+      outline: none;
+    }
+  }
+
+  textarea {
+    min-height: 100px;
+    resize: vertical;
+  }
+}
+
+.radioGroup {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.radioOption {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+
+  input[type="radio"] {
+    width: auto;
+    margin: 0;
+  }
+}
+
+.checkboxGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.checkboxOption {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+
+  input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+  }
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+
+  @media (min-width: 768px) {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.fileUpload {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.uploadBox {
+  border: 2px dashed $border-color;
+  border-radius: 8px;
+  padding: 2rem;
+  text-align: center;
+  background-color: rgba($dark-bg, 0.5);
+  transition: all 0.3s ease;
+  cursor: pointer;
+
+  &:hover, &.dragActive {
+    border-color: $accent-blue;
+    background-color: rgba($accent-blue, 0.1);
+  }
+
+  p {
+    margin-top: 1rem;
+    color: $text-secondary;
+  }
+}
+
+.uploadedFile {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background-color: rgba($dark-bg, 0.7);
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+
+  .fileName {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .removeButton {
+    background: none;
+    border: none;
+    color: $accent-red;
+    cursor: pointer;
+
+    &:hover {
+      color: lighten($accent-red, 15%);
+    }
+  }
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid $border-color;
+}
+
+.tabButton {
+  padding: 0.75rem 1.5rem;
+  background: none;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  font-weight: 500;
+  position: relative;
+
+  &:after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background-color: transparent;
+    transition: background-color 0.2s;
+  }
+
+  &.active {
+    color: $text-primary;
+
+    &:after {
+      background-color: $accent-blue;
+    }
+  }
+
+  &:hover {
+    color: $text-primary;
+  }
+}
+
+.rangeWrapper {
+  position: relative;
+  padding-bottom: 1.5rem;
+
+  .rangeValue {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    font-size: 0.875rem;
+    color: $text-secondary;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    -webkit-appearance: none;
+    height: 8px;
+    border-radius: 4px;
+    background: $border-color;
+    outline: none;
+
+    &::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: $accent-blue;
+      cursor: pointer;
+    }
+
+    &::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: $accent-blue;
+      cursor: pointer;
+    }
+  }
+}
+
+.actionButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+
+  &.primary {
+    background-color: $accent-blue;
+    color: white;
+
+    &:hover {
+      background-color: lighten($accent-blue, 5%);
+      box-shadow: 0 0 12px rgba($accent-blue, 0.4);
+    }
+  }
+
+  &.secondary {
+    background-color: rgba($border-color, 0.3);
+    color: $text-primary;
+
+    &:hover {
+      background-color: rgba($border-color, 0.5);
+    }
+  }
+}
+
+.serverPreview {
+  background-color: $dark-card;
+  padding: 2rem;
+  border-radius: 12px;
+  margin-top: 2rem;
+  border: 1px solid $border-color;
+
+  .previewInfo {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+
+    @media (min-width: 768px) {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .previewDetail {
+    margin-bottom: 0.5rem;
+
+    span {
+      color: $text-secondary;
+      margin-right: 0.5rem;
+    }
+  }
+}
