@@ -1,0 +1,106 @@
+@import "../variables";
+
+.auth-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem;
+  padding-top: 120px; // Account for navbar and add extra space
+  background-color: $dark-bg;
+}
+
+.auth-form {
+  width: 100%;
+  max-width: 450px;
+  padding: 2.5rem;
+  background-color: $dark-card;
+  border: 1px solid $border-color;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  text-align: center;
+
+  &__title {
+    font-family: $heading-font;
+    font-size: 2rem;
+    font-weight: 400;
+    color: $white;
+    margin-bottom: 2rem;
+    text-shadow: 0 0 10px rgba($accent-blue, 0.3);
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+    text-align: left;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  input {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    background-color: $dark-bg;
+    border: 1px solid $border-color;
+    border-radius: 8px;
+    color: $white;
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+
+    &:focus {
+      outline: none;
+      border-color: $accent-blue;
+      box-shadow: 0 0 0 3px rgba($accent-blue, 0.3);
+    }
+  }
+
+  .message {
+    padding: 0.75rem;
+    margin-top: 1.5rem;
+    border-radius: 8px;
+    font-weight: 500;
+
+    &--error {
+      color: #f87171;
+      background-color: rgba(239, 68, 68, 0.1);
+    }
+
+    &--success {
+      color: #4ade80;
+      background-color: rgba(52, 211, 153, 0.1);
+    }
+  }
+
+  .redirect-link {
+    margin-top: 2rem;
+    color: $text-secondary;
+    a {
+      color: $accent-blue;
+      font-weight: 600;
+      text-decoration: none;
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
+  button {
+    background-color: #3182ce;
+    color: #ffffff;
+    padding: 0.5rem 1.25rem;
+    border-radius: 8px;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+    border-style: none;
+
+    &:hover {
+      background-color: lighten(#3182ce, 5%);
+      color: #ffffff;
+      transform: translateY(-2px);
+    }
+  }
+}

@@ -18,7 +18,7 @@ export async function POST(request: Request) {
         const newUser = new User({
             email,
             password: hashedPassword,
-            isActive: false, // Account is inactive by default
+            isActive: false,
         });
 
         await newUser.save();

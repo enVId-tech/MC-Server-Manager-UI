@@ -1,0 +1,16 @@
+// Colors
+$dark-bg: #171923;
+$dark-card: #1f2937;
+$border-color: #4a5568;
+$white: #ffffff;
+$text-primary: #e2e8f0;
+$text-secondary: #a0aec0;
+$accent-blue: #3182ce;
+$error-red: #f87171;
+$success-green: #4ade80;
+
+// Fonts
+// These CSS variables are assumed to be defined in your layout
+// via the next/font package (e.g., poppins, pressStart2P).
+$heading-font: var(--font-press-start-2p);
+$body-font: var(--font-poppins);

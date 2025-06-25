@@ -38,8 +38,8 @@ export default function HeroSection() {
                     <Link href="/get-started" className={`${styles.button} ${styles['button--primary']}`}>
                         Get Started
                     </Link>
-                    <Link href="/documentation" className={`${styles.button} ${styles['button--outline']}`}>
-                        Documentation
+                    <Link href={"/auth/login"} className={`${styles.button} ${styles['button--primary']}`}>
+                        Login
                     </Link>
                 </div>
             </div>
