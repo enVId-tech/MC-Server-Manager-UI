@@ -1,23 +1,21 @@
-import { NextResponse } from 'next/server';
+import {NextRequest, NextResponse} from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/lib/objects/User';
-import bcrypt from 'bcryptjs';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     await dbConnect.connect();
     try {
         const { email, password } = await request.json();
 
         const existingUser = await User.findOne({ email });
+
         if (existingUser) {
             return NextResponse.json({ message: 'User with this email already exists.' }, { status: 409 });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
-
         const newUser = new User({
-            email,
-            password: hashedPassword,
+            email: email,
+            password: password,
             isActive: false,
         });
 

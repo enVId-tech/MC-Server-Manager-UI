@@ -17,7 +17,7 @@ export default function SignupPage() {
         setMessage('');
         setError('');
 
-        const res = await fetch('/api/signup', {
+        const res = await fetch('/api/auth/signup', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password }),
@@ -27,7 +27,7 @@ export default function SignupPage() {
 
         if (res.ok) {
             setMessage(data.message);
-            setTimeout(() => router.push('/login'), 3000);
+            setTimeout(() => router.push('/auth/login'), 3000);
         } else {
             setError(data.message || 'An error occurred.');
         }

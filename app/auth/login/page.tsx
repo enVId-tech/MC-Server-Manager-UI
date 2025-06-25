@@ -15,14 +15,14 @@ export default function LoginPage() {
         e.preventDefault();
         setError('');
 
-        const res = await fetch('/api/login', {
+        const res = await fetch('/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password }),
         });
 
         if (res.ok) {
-            router.push('/dashboard'); // Redirect to a protected dashboard page
+            router.push('/manager/dashboard'); // Redirect to a protected dashboard page
             router.refresh(); // Refresh to update server-side state if needed
         } else {
             const data = await res.json();

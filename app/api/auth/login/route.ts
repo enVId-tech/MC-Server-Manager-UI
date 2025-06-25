@@ -11,7 +11,7 @@ export async function POST(request: Request) {
 
         const user = await User.findOne({ email });
         if (!user) {
-            return NextResponse.json({ message: 'Invalid credentials.' }, { status: 401 });
+            return NextResponse.json({ message: 'Invalid credentials (no such email).' }, { status: 401 });
         }
 
         if (!user.isActive) {
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
         const isPasswordCorrect = await bcrypt.compare(password, user.password);
         if (!isPasswordCorrect) {
-            return NextResponse.json({ message: 'Invalid credentials.' }, { status: 401 });
+            return NextResponse.json({ message: 'Invalid credentials (wrong password).' }, { status: 401 });
         }
 
         const token = jwt.sign(

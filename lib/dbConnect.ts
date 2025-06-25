@@ -1,41 +1,38 @@
-// Connect to the mongoDB database
-import { MongoClient } from 'mongodb';
+import mongoose from "mongoose";
 
-class DBConnect {
-    client: MongoClient;
+class DbConnect {
+    private static instance: DbConnect;
+    private isConnected: boolean = false;
 
-    constructor() {
-        this.client = new MongoClient(
-            process.env.MONGODB_URI || 'mongodb://localhost:27017'
-        );
+    public static getInstance(): DbConnect {
+        if (!DbConnect.instance) {
+            DbConnect.instance = new DbConnect();
+        }
+        return DbConnect.instance;
     }
 
     public async connect() {
-        if (!await this.client.connect()) {
-            await this.client.connect();
+        if (!this.isConnected) {
+            try {
+                await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017', {
+                    dbName: process.env.MONGODB_DB,
+                });
+                this.isConnected = true;
+                console.log('Database connected successfully');
+            } catch (error) {
+                console.error('Database connection error:', error);
+            }
         }
-        return this.client.db(process.env.MONGODB_DB);
     }
 
     public async disconnect() {
-        if (await this.client.connect()) {
-            await this.client.close();
+        if (this.isConnected) {
+            await mongoose.disconnect();
+            this.isConnected = false;
+            console.log('Database disconnected successfully');
         }
-    }
-
-    public async getCollection(collectionName: string) {
-        const db = await this.connect();
-        return db.collection(collectionName);
-    }
-
-    public async getClient() {
-        return this.client;
-    }
-
-    async close() {
-        await this.disconnect();
     }
 }
 
-const dbConnect = new DBConnect();
+const dbConnect: DbConnect = DbConnect.getInstance();
 export default dbConnect;
