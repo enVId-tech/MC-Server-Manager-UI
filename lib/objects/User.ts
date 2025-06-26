@@ -26,6 +26,10 @@ const UserSchema: Schema = new Schema({
         type: Boolean,
         default: false,
     },
+    sessionToken: {
+        type: String,
+        default: null,
+    },
 }, {
     timestamps: true,
 });

@@ -1,4 +1,5 @@
-@import "../../../variables";
+@use "../../../variables" as *;
+@use "sass:color";
 
 .serverGenerator {
   min-height: 100vh;
@@ -176,7 +177,7 @@
     cursor: pointer;
 
     &:hover {
-      color: lighten($accent-red, 15%);
+      color: color.scale($accent-red, $lightness: 15%);
     }
   }
 }
@@ -282,7 +283,7 @@
     color: white;
 
     &:hover {
-      background-color: lighten($accent-blue, 5%);
+      background-color: color.scale($accent-blue, $lightness: 5%);
       box-shadow: 0 0 12px rgba($accent-blue, 0.4);
     }
   }

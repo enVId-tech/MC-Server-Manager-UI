@@ -1,6 +1,7 @@
 "use client";
-import React, { useState } from 'react';
+import React, {useEffect, useState} from 'react';
 import styles from './dashboard.module.scss';
+import {useRouter} from "next/navigation";
 
 // Define servers interfaces for better type checking
 interface Server {
@@ -35,6 +36,35 @@ const serverTypes: ServerType[] = [
 
 export default function Dashboard() {
     const [servers, setServers] = useState<Server[]>(initialServers);
+    const router = useRouter();
+
+    useEffect(() => {
+        const checkAuth = () => {
+            const res = fetch('/api/auth/check', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            res.then(response => {
+                if (!response.ok) {
+                    router.push('/auth/login'); // Redirect to login if already logged in
+                }
+            }).catch(error => {
+                console.error('Error checking authentication:', error);
+            });
+        }
+
+        checkAuth();
+
+        window.addEventListener('cookies', checkAuth);
+
+        return () => {
+            window.removeEventListener('cookies', checkAuth);
+        };
+    }, [router]);
+
 
     const handleStartServer = (id: number) => {
         setServers(servers.map(server =>

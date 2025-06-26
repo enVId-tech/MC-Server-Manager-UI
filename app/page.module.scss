@@ -1,3 +1,5 @@
+@use 'sass:color';
+
 // Color Palette
 $dark-bg: #171923;
 $dark-card: #2d3748;
@@ -125,7 +127,7 @@ $body-font: var(--font-poppins);
     background-color: $accent-blue;
     color: $white;
     &:hover {
-      background-color: lighten($accent-blue, 5%);
+      background-color: color.scale($accent-blue, $lightness: 5%);
       transform: translateY(-2px);
       box-shadow: 0 4px 20px rgba($accent-blue, 0.3);
     }

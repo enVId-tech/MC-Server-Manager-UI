@@ -1,4 +1,5 @@
-@import "../../variables";
+@use "../../variables" as *;
+@use "sass:color";
 
 .navbar {
   display: none !important;
@@ -101,12 +102,11 @@
 
   &.online {
     background-color: rgba($accent-green, 0.15);
-    color: lighten($accent-green, 20%);
+    color: color.scale($accent-green, $lightness: 20%);
   }
-
   &.offline {
     background-color: rgba($accent-red, 0.15);
-    color: lighten($accent-red, 20%);
+    color: color.scale($accent-red, $lightness: 20%);
   }
 }
 
@@ -130,7 +130,7 @@
     color: white;
 
     &:hover {
-      background-color: lighten($accent-blue, 5%);
+      background-color: color.scale($accent-blue, $lightness: 5%);
       box-shadow: 0 0 12px rgba($accent-blue, 0.4);
     }
   }
@@ -146,7 +146,7 @@
 
   &.danger {
     background-color: rgba($accent-red, 0.1);
-    color: lighten($accent-red, 15%);
+    color: color.scale($accent-red, $lightness: 15%);
 
     &:hover {
       background-color: rgba($accent-red, 0.2);

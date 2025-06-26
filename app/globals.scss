@@ -1,5 +1,5 @@
-@import "./_components/Navbar/Navbar.module";
-@import "./auth/auth.module";
+@use "./_components/Navbar/Navbar.module";
+@use "./auth/auth.module";
 
 :root {
   --background: #ffffff;
