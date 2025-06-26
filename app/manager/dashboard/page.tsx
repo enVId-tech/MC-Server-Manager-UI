@@ -2,6 +2,7 @@
 import React, {useEffect, useState} from 'react';
 import styles from './dashboard.module.scss';
 import {useRouter} from "next/navigation";
+import dashboardBg from "@/public/dashboard-bg.png";
 
 // Define servers interfaces for better type checking
 interface Server {
@@ -85,8 +86,8 @@ export default function Dashboard() {
     };
 
     return (
-        <main className={styles.dashboard}>
-            <div className={styles.container}>
+        <main className={styles.dashboard} style={{ backgroundImage: `url(${dashboardBg.src})` }}>
+            <div className={styles.container} >
                 <div className={styles.header}>
                     <h1 className={styles.pageTitle}>Server Manager</h1>
                     <button

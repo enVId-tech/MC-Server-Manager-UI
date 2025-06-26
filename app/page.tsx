@@ -100,6 +100,9 @@ export default function Home() {
                     <div className={styles.footer__copy}>
                         &copy; {new Date().getFullYear()} <a href={"https://github.com/enVId-tech"} target="_blank">enVId Tech</a>. All Rights Reserved.
                     </div>
+                    <div className={styles.footer__copy}>
+                        This website is not an official Minecraft website and is not associated with Mojang Studios or Microsoft. All product and company names are trademarks or registered trademarks of their respective holders. Use of these names does not imply any affiliation or endorsement by them.
+                    </div>
                 </div>
             </footer>
         </>
