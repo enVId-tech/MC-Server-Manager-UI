@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './Navbar.module.scss';
 import mcSvgLogo from '@/public/minecraft-server.png';
+import { MdOutlineSettings } from 'react-icons/md';
 
 export default function Navbar() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -86,6 +87,10 @@ export default function Navbar() {
                         <span className={styles.link}>Loading...</span>
                     ) : isLoggedIn ? (
                         <>
+                            <Link href="/account" className={styles.link}>
+                                <MdOutlineSettings />
+                                <span>Account</span>
+                            </Link>
                             <Link href="/manager/dashboard" className={styles.link}>
                                 <FaServer />
                                 <span>Dashboard</span>

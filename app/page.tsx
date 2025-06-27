@@ -84,7 +84,7 @@ export default function Home() {
                     <div className={styles.cta__container}>
                         <h2 className={styles.cta__title}>Ready to Create Your Server?</h2>
                         <p className={styles.cta__subtitle}>Get your server up and running in minutes with our simple deployment tool.</p>
-                        <Link href="/register" className={styles.button}>
+                        <Link href="/auth/signup" className={styles.button}>
                             Create Your Server Now
                         </Link>
                     </div>

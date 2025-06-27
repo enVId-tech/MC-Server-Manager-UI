@@ -1,0 +1,562 @@
+@use "../variables" as *;
+@use "sass:color";
+
+.accountPage {
+    min-height: 100vh;
+    background-color: $dark-bg;
+    color: $text-primary;
+    padding: 2rem 1rem;
+    padding-top: 9rem;
+    background-image: url('/settings-bg.png');
+    background-position: center;
+    background-size: cover;
+    background-blend-mode: overlay;
+    position: relative;
+
+    &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba($dark-bg, 0.15);
+        z-index: 0;
+    }
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 3px solid rgba($accent-blue, 0.3);
+}
+
+.pageTitle {
+    font-size: 2.5rem;
+    font-weight: 600;
+    font-family: $heading-font;
+    color: $text-primary;
+    text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+
+    @media (max-width: 640px) {
+        font-size: 2rem;
+    }
+}
+
+.accountContainer {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 2rem;
+
+    @media (max-width: 1024px) {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+}
+
+// Sidebar Styles
+.sidebar {
+    background: linear-gradient(135deg,
+            rgba($dark-card, 0.95) 0%,
+            rgba(color.adjust($dark-card, $lightness: 5%), 0.95) 100%);
+    border: 2px solid rgba($accent-blue, 0.3);
+    border-radius: 12px;
+    padding: 1.5rem;
+    height: fit-content;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.userInfo {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid rgba($border-color, 0.3);
+}
+
+.avatar {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, $accent-blue, color.adjust($accent-blue, $lightness: 15%));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    box-shadow: 0 4px 15px rgba($accent-blue, 0.3);
+}
+
+.userDetails {
+    h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: $text-primary;
+        margin-bottom: 0.25rem;
+    }
+
+    p {
+        font-size: 0.9rem;
+        color: $text-secondary;
+    }
+}
+
+.navigation {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.navButton {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: $text-secondary;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.95rem;
+    font-weight: 500;
+    text-align: left;
+
+    &:hover {
+        background: rgba($accent-blue, 0.1);
+        border-color: rgba($accent-blue, 0.3);
+        color: $text-primary;
+        transform: translateX(4px);
+    }
+
+    &.active {
+        background: linear-gradient(135deg, $accent-blue, color.adjust($accent-blue, $lightness: 10%));
+        border-color: $accent-blue;
+        color: white;
+        box-shadow: 0 4px 15px rgba($accent-blue, 0.3);
+
+        .navIcon {
+            filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+        }
+    }
+}
+
+.navIcon {
+    font-size: 1.1rem;
+    transition: all 0.3s ease;
+}
+
+// Main Content Styles
+.mainContent {
+    background: linear-gradient(135deg,
+            rgba($dark-card, 0.95) 0%,
+            rgba(color.adjust($dark-card, $lightness: 5%), 0.95) 100%);
+    border: 2px solid rgba($accent-blue, 0.3);
+    border-radius: 12px;
+    padding: 2rem;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+
+    @media (max-width: 640px) {
+        padding: 1.5rem;
+    }
+}
+
+.tabContent {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.sectionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+
+    @media (max-width: 640px) {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+}
+
+.sectionTitle {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: $text-primary;
+    font-family: $heading-font;
+    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+.editButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: 1px solid $border-color;
+    border-radius: 6px;
+    color: $text-secondary;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+
+    &:hover {
+        border-color: $accent-blue;
+        color: $accent-blue;
+        transform: translateY(-2px);
+    }
+
+    &.active {
+        background: $error-red;
+        border-color: $error-red;
+        color: white;
+    }
+}
+
+// Form Styles
+.profileCard,
+.settingsCard,
+.securityCard {
+    background: rgba($dark-form, 0.7);
+    border: 1px solid rgba($border-color, 0.3);
+    border-radius: 10px;
+    padding: 2rem;
+    backdrop-filter: blur(5px);
+}
+
+.formGroup {
+    margin-bottom: 1.5rem;
+
+    label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: $text-primary;
+        font-size: 0.95rem;
+    }
+}
+
+.input,
+.select {
+    width: 100%;
+    padding: 0.875rem;
+    background: rgba($dark-bg, 0.8);
+    border: 1px solid $border-color;
+    border-radius: 6px;
+    color: $text-primary;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+
+    &:focus {
+        outline: none;
+        border-color: $accent-blue;
+        box-shadow: 0 0 0 3px rgba($accent-blue, 0.1);
+    }
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    &::placeholder {
+        color: $text-secondary;
+    }
+}
+
+.statsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin: 2rem 0;
+}
+
+.statCard {
+    background: rgba($accent-blue, 0.1);
+    border: 1px solid rgba($accent-blue, 0.3);
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+
+    h4 {
+        font-size: 0.85rem;
+        color: $text-secondary;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    p {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: $accent-blue;
+    }
+}
+
+.formActions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba($border-color, 0.3);
+}
+
+.saveButton,
+.passwordButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1.5rem;
+    background: linear-gradient(135deg, $accent-blue, color.adjust($accent-blue, $lightness: 10%));
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba($accent-blue, 0.4);
+    }
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    &.loading {
+        opacity: 0.8;
+        cursor: wait;
+    }
+}
+
+// Settings Styles
+.settingGroup {
+    margin-bottom: 2.5rem;
+
+    &:last-child {
+        margin-bottom: 0;
+    }
+
+    h3 {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: $text-primary;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid rgba($border-color, 0.3);
+        padding-bottom: 0.5rem;
+    }
+}
+
+.settingItem {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid rgba($border-color, 0.2);
+
+    &:last-child {
+        border-bottom: none;
+    }
+
+    @media (max-width: 640px) {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+}
+
+.settingInfo {
+    flex: 1;
+
+    label {
+        font-size: 1rem;
+        font-weight: 500;
+        color: $text-primary;
+        margin-bottom: 0.25rem;
+    }
+
+    p {
+        font-size: 0.85rem;
+        color: $text-secondary;
+        line-height: 1.4;
+    }
+}
+
+// Toggle Switch
+.toggle {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 28px;
+    cursor: pointer;
+
+    input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+
+        &:checked+.slider {
+            background-color: $accent-blue;
+
+            &:before {
+                transform: translateX(22px);
+            }
+        }
+    }
+}
+
+.slider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: $border-color;
+    transition: 0.3s;
+    border-radius: 28px;
+
+    &:before {
+        position: absolute;
+        content: "";
+        height: 22px;
+        width: 22px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+}
+
+// Password Form
+.passwordForm {
+    .formGroup {
+        margin-bottom: 1rem;
+    }
+
+    .passwordButton {
+        margin-top: 1rem;
+    }
+}
+
+// Danger Zone
+.dangerZone {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 2px solid rgba($error-red, 0.3);
+
+    h3 {
+        color: $error-red;
+        font-size: 1.2rem;
+        margin-bottom: 1rem;
+    }
+}
+
+.dangerAction {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    background: rgba($error-red, 0.1);
+    border: 1px solid rgba($error-red, 0.3);
+    border-radius: 8px;
+
+    @media (max-width: 640px) {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+}
+
+.dangerInfo {
+    h4 {
+        font-size: 1rem;
+        color: $text-primary;
+        margin-bottom: 0.25rem;
+    }
+
+    p {
+        font-size: 0.85rem;
+        color: $text-secondary;
+    }
+}
+
+.dangerButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    background: transparent;
+    border: 1px solid $error-red;
+    border-radius: 6px;
+    color: $error-red;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+
+    &:hover {
+        background: $error-red;
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 15px rgba($error-red, 0.3);
+    }
+}
+
+// Responsive Design
+@media (max-width: 1024px) {
+    .sidebar {
+        order: 2;
+    }
+
+    .mainContent {
+        order: 1;
+    }
+}
+
+@media (max-width: 640px) {
+    .accountPage {
+        padding: 1rem 0.5rem;
+        padding-top: 8rem;
+    }
+
+    .pageTitle {
+        font-size: 1.8rem;
+    }
+
+    .profileCard,
+    .settingsCard,
+    .securityCard {
+        padding: 1.5rem;
+    }
+
+    .statsGrid {
+        grid-template-columns: 1fr;
+    }
+}

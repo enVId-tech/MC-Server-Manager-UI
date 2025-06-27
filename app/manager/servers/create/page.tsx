@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import styles from './create.module.scss';
 import { FiUpload, FiTrash2, FiSettings, FiServer, FiGlobe, FiPackage, FiFileText } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
+import createBackground from "@/public/dashboard-bg.png";
 
 // Types
 interface ServerConfig {
@@ -443,7 +444,7 @@ export default function ServerGenerator() {
   };
 
   return (
-    <main className={styles.serverGenerator}>
+    <main className={styles.serverGenerator} style={{ backgroundImage: `url('${createBackground.src}')` }}>
       <div className={styles.container}>
         <div className={styles.header}>
           <h1 className={styles.pageTitle}>Create New Server</h1>
@@ -467,7 +468,7 @@ export default function ServerGenerator() {
               <h2 className={styles.sectionTitle}>Server Configuration</h2>
               <div className={styles.formRow}>
                 <div className={styles.formGroup}>
-                  <label htmlFor="name">Server Name *</label>
+                  <label htmlFor="name">Server Name</label>
                   <input
                     type="text"
                     id="name"

@@ -3,33 +3,26 @@
 
 .serverGenerator {
   min-height: 100vh;
-  background-color: $dark-bg;
+  background-color: rgba($dark-bg, 0.5);
   color: $text-primary;
   padding: 2rem 1rem;
   padding-top: 9rem;
-  background-image: url('/stone-bg.png');
-  background-size: 400px;
-  background-repeat: repeat;
+  background-size: cover;
+  background-position: center;
   background-blend-mode: overlay;
   position: relative;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba($dark-bg, 0.85);
-    z-index: 0;
-  }
 }
 
 .container {
-  max-width: 1200px;
+  max-width: 1300px;
   margin: 0 auto;
+  padding: 3rem 3rem 2rem 3rem;
   position: relative;
   z-index: 1;
+  background-color: rgba($dark-bg, 0.8);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid $border-color;
+  border-radius: 12px;
 }
 
 .header {
@@ -66,6 +59,14 @@
   position: relative;
   overflow: hidden;
   
+  // CSS Custom Properties for dynamic theming
+  --select-bg: #{rgba($dark-bg, 0.8)};
+  --select-border: #{$border-color};
+  --select-accent: #{$accent-blue};
+  --select-text: #{$text-primary};
+  --select-hover-bg: #{rgba($dark-bg, 0.85)};
+  --select-focus-bg: #{rgba($dark-bg, 0.95)};
+  
   &::before {
     content: '';
     position: absolute;
@@ -74,6 +75,31 @@
     width: 100%;
     height: 4px;
     background: linear-gradient(90deg, $accent-blue, darken($accent-blue, 20%));
+  }
+  
+  // Enhanced dropdown animation container
+  .dropdown-container {
+    position: relative;
+    overflow: visible;
+    
+    &::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, 
+        transparent, 
+        rgba($accent-blue, 0.3), 
+        transparent);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    &:has(select:focus)::after {
+      opacity: 1;
+    }
   }
 }
 
@@ -87,6 +113,7 @@
 
 .formGroup {
   margin-bottom: 1.5rem;
+  position: relative; // For potential custom dropdown positioning
 
   label {
     display: block;
@@ -96,9 +123,75 @@
     font-family: var(--font-poppins);
     font-size: 0.95rem;
     letter-spacing: 0.5px;
+    position: relative;
+    
+    // Add a subtle accent for required fields
+    &[for$="name"]::after {
+      content: ' *';
+      color: $accent-red;
+      font-weight: 600;
+    }
   }
 
-  input, select, textarea {
+  // Custom dropdown wrapper for additional styling options
+  &.select-wrapper {
+    position: relative;
+    
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      right: 15px;
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 6px solid $accent-blue;
+      transform: translateY(-50%);
+      pointer-events: none;
+      transition: all 0.3s ease;
+    }
+    
+    &:hover::after {
+      border-top-color: lighten($accent-blue, 10%);
+      transform: translateY(-50%) scale(1.1);
+    }
+    
+    select:focus + &::after {
+      border-top-color: lighten($accent-blue, 15%);
+      transform: translateY(-50%) rotate(180deg);
+    }
+  }
+
+  // Enhanced styling for form groups with selects
+  &:has(select) {
+    .select-enhancement {
+      position: relative;
+      
+      &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, 
+          rgba($accent-blue, 0.05) 0%, 
+          rgba($accent-blue, 0.02) 50%, 
+          rgba($accent-blue, 0.05) 100%);
+        border-radius: 6px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+      }
+      
+      &:hover::before {
+        opacity: 1;
+      }
+    }
+  }
+
+  input, textarea {
     width: 100%;
     padding: 0.75rem 1rem;
     border-radius: 6px;
@@ -116,6 +209,161 @@
     
     &:hover:not(:focus) {
       border-color: lighten($border-color, 10%);
+    }
+  }
+
+  // Enhanced Select Dropdown Styling
+  select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    padding-right: 2.5rem; // Space for custom arrow
+    border-radius: 6px;
+    border: 1px solid $border-color;
+    background-color: rgba($dark-bg, 0.8);
+    background-image: 
+      linear-gradient(45deg, transparent 50%, $accent-blue 50%),
+      linear-gradient(135deg, $accent-blue 50%, transparent 50%);
+    background-position: 
+      calc(100% - 15px) calc(1em + 2px),
+      calc(100% - 10px) calc(1em + 2px);
+    background-size: 
+      5px 5px,
+      5px 5px;
+    background-repeat: no-repeat;
+    color: $text-primary;
+    transition: all 0.3s ease;
+    font-family: var(--font-poppins);
+    font-weight: 500;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    
+    // Custom gradient background for depth
+    background-blend-mode: normal, normal, overlay;
+    background-color: 
+      rgba($dark-bg, 0.9),
+      rgba($dark-card, 0.3);
+    
+    &:focus {
+      border-color: $accent-blue;
+      outline: none;
+      box-shadow: 
+        0 0 0 2px rgba($accent-blue, 0.3),
+        inset 0 1px 3px rgba(0, 0, 0, 0.2);
+      background-color: rgba($dark-bg, 0.95);
+      
+      // Animated arrow on focus
+      background-image: 
+        linear-gradient(45deg, transparent 50%, lighten($accent-blue, 15%) 50%),
+        linear-gradient(135deg, lighten($accent-blue, 15%) 50%, transparent 50%);
+    }
+    
+    &:hover:not(:focus) {
+      border-color: lighten($border-color, 15%);
+      background-color: rgba($dark-bg, 0.85);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      
+      // Subtle arrow color change on hover
+      background-image: 
+        linear-gradient(45deg, transparent 50%, lighten($accent-blue, 10%) 50%),
+        linear-gradient(135deg, lighten($accent-blue, 10%) 50%, transparent 50%);
+    }
+    
+    &:active {
+      transform: translateY(0);
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    
+    // Style for disabled state
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      background-color: rgba($dark-bg, 0.5);
+      
+      &:hover {
+        transform: none;
+        border-color: $border-color;
+        box-shadow: none;
+      }
+    }
+    
+    // Options styling (limited browser support but adds polish where available)
+    option {
+      background-color: $dark-card;
+      color: $text-primary;
+      padding: 0.5rem 1rem;
+      border: none;
+      font-family: var(--font-poppins);
+      
+      &:hover, &:focus {
+        background-color: rgba($accent-blue, 0.2);
+        color: $text-primary;
+      }
+      
+      &:checked {
+        background-color: $accent-blue;
+        color: white;
+        font-weight: 600;
+      }
+    }
+    
+    // Firefox specific styling
+    @-moz-document url-prefix() {
+      background-image: none;
+      padding-right: 1rem;
+      
+      &:after {
+        content: '▼';
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: $accent-blue;
+        font-size: 0.8rem;
+        pointer-events: none;
+      }
+    }
+    
+    // Mobile-specific dropdown enhancements
+    @media (max-width: 768px) {
+      padding: 1rem;
+      font-size: 1rem; // Slightly larger for mobile
+      
+      &:focus {
+        // Enhanced focus state for mobile
+        box-shadow: 
+          0 0 0 3px rgba($accent-blue, 0.4),
+          0 4px 12px rgba(0, 0, 0, 0.15);
+        transform: translateY(-2px);
+      }
+    }
+    
+    // Tablet specific adjustments
+    @media (min-width: 769px) and (max-width: 1024px) {
+      padding: 0.85rem 1.1rem;
+      padding-right: 2.7rem;
+    }
+    
+    // High contrast mode support
+    @media (prefers-contrast: high) {
+      border-width: 2px;
+      border-color: $text-primary;
+      
+      &:focus {
+        border-color: $accent-blue;
+        box-shadow: 0 0 0 2px $accent-blue;
+      }
+    }
+    
+    // Reduced motion support
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+      
+      &:hover {
+        transform: none;
+      }
     }
   }
 
