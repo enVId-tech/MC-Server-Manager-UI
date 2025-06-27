@@ -40,8 +40,15 @@ const ServerSchema: Schema = new Schema({
         trim: true,
         maxlength: [50, 'Server name cannot exceed 50 characters.'],
     },
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    }
 }, {
     timestamps: true,
 });
 
-export default models.Server || model<IServer>('servers', ServerSchema);
+// Fix: Use consistent model name and proper caching pattern
+const Server = models.Server || model<IServer>('Server', ServerSchema);
+
+export default Server;

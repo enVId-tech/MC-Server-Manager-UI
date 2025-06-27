@@ -19,7 +19,9 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Your account has not been activated yet.' }, { status: 403 });
         }
 
+        // Check if the password is correct
         const isPasswordCorrect = await bcrypt.compare(password, user.password);
+        
         if (!isPasswordCorrect) {
             return NextResponse.json({ message: 'Invalid credentials (wrong password).' }, { status: 401 });
         }

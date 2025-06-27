@@ -258,6 +258,10 @@
         color: $text-primary;
         font-size: 0.95rem;
     }
+
+    .saveButton {
+        margin-top: 1rem;
+    }
 }
 
 .input,
@@ -529,6 +533,397 @@
     }
 }
 
+// Delete Account Modal Styles
+.modalOverlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(0, 0, 0, 0.8) !important;
+  backdrop-filter: blur(8px) !important;
+  z-index: 999999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 1rem !important;
+  animation: fadeInOverlay 0.3s ease-out;
+  
+  // Force it to be above everything
+  isolation: isolate;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+@keyframes fadeInOverlay {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+  }
+}
+
+.deleteModal {
+  background: linear-gradient(135deg, 
+    rgba($dark-card, 0.98) 0%, 
+    rgba(color.adjust($dark-card, $lightness: 3%), 0.98) 100%) !important;
+  border: 2px solid $error-red !important;
+  border-radius: 16px !important;
+  max-width: 600px !important;
+  width: 100% !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba($error-red, 0.2) !important;
+  animation: slideInModal 0.4s ease-out;
+  position: relative !important;
+  z-index: 1000000 !important;
+  
+  // Force new stacking context
+  isolation: isolate;
+  will-change: transform;
+  transform: translateZ(0);
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, $error-red, lighten($error-red, 10%));
+    border-radius: 16px 16px 0 0;
+  }
+}
+
+@keyframes slideInModal {
+  from {
+    opacity: 0;
+    transform: translateY(-50px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2rem 2rem 1rem;
+  border-bottom: 1px solid rgba($error-red, 0.3);
+  
+  h2 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: $error-red;
+    font-family: $heading-font;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: $text-secondary;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  
+  &:hover {
+    background: rgba($error-red, 0.1);
+    color: $error-red;
+    transform: scale(1.1);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.modalContent {
+  padding: 1.5rem 2rem 2rem;
+}
+
+.warningSection {
+  margin-bottom: 2rem;
+}
+
+.warningBox {
+  background: linear-gradient(135deg, 
+    rgba($error-red, 0.15) 0%, 
+    rgba($error-red, 0.08) 100%);
+  border: 2px solid rgba($error-red, 0.4);
+  border-radius: 12px;
+  padding: 2rem;
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, $error-red, lighten($error-red, 15%));
+    border-radius: 12px 12px 0 0;
+  }
+  
+  h3 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: $error-red;
+    margin-bottom: 1rem;
+    text-align: center;
+    font-family: $heading-font;
+  }
+  
+  p {
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+    color: $text-primary;
+    
+    strong {
+      color: $error-red;
+      font-weight: 700;
+    }
+  }
+  
+  ul {
+    margin: 1.5rem 0;
+    padding-left: 0;
+    list-style: none;
+    
+    li {
+      padding: 0.5rem 0;
+      font-size: 0.95rem;
+      color: $text-primary;
+      line-height: 1.4;
+      
+      &::before {
+        content: '';
+        margin-right: 0.5rem;
+      }
+    }
+  }
+}
+
+.finalWarning {
+  background: rgba($error-red, 0.2);
+  border: 1px solid $error-red;
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: $error-red;
+  margin-top: 1rem;
+  animation: pulseWarning 2s infinite;
+}
+
+@keyframes pulseWarning {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba($error-red, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba($error-red, 0.6);
+  }
+}
+
+.confirmationSection {
+  h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: $text-primary;
+    margin-bottom: 1rem;
+  }
+  
+  p {
+    color: $text-secondary;
+    margin-bottom: 1.5rem;
+    line-height: 1.5;
+  }
+}
+
+.confirmationSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.step {
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: $text-primary;
+    font-size: 0.95rem;
+    
+    strong {
+      color: $accent-blue;
+      background: rgba($accent-blue, 0.1);
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+  }
+}
+
+.deleteText {
+  color: $error-red;
+  font-weight: 700;
+  background: rgba($error-red, 0.1);
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.confirmInput {
+  width: 100%;
+  padding: 0.875rem;
+  background: rgba($dark-bg, 0.8);
+  border: 2px solid $border-color;
+  border-radius: 8px;
+  color: $text-primary;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+  
+  &:focus {
+    outline: none;
+    border-color: $error-red;
+    box-shadow: 0 0 0 3px rgba($error-red, 0.2);
+    background: rgba($dark-bg, 0.95);
+  }
+  
+  &::placeholder {
+    color: $text-secondary;
+  }
+  
+  // Valid state styling
+  &[value]:not([value=""]) {
+    border-color: $success-green;
+    
+    &:focus {
+      border-color: $success-green;
+      box-shadow: 0 0 0 3px rgba($success-green, 0.2);
+    }
+  }
+}
+
+.modalActions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba($border-color, 0.3);
+  
+  @media (max-width: 640px) {
+    flex-direction: column;
+  }
+}
+
+.cancelButton {
+  flex: 1;
+  padding: 0.875rem 1.5rem;
+  background: transparent;
+  border: 2px solid $border-color;
+  border-radius: 8px;
+  color: $text-primary;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  
+  &:hover {
+    background: rgba($border-color, 0.1);
+    border-color: lighten($border-color, 10%);
+    transform: translateY(-1px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+.confirmDeleteButton {
+  flex: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  background: linear-gradient(135deg, $error-red, color.adjust($error-red, $lightness: -10%));
+  border: 2px solid $error-red;
+  border-radius: 8px;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, 
+      color.adjust($error-red, $lightness: 5%), 
+      color.adjust($error-red, $lightness: -5%));
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba($error-red, 0.4);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    background: rgba($error-red, 0.3);
+    border-color: rgba($error-red, 0.3);
+  }
+  
+  &.loading {
+    opacity: 0.8;
+    cursor: wait;
+    
+    &::after {
+      content: '';
+      width: 16px;
+      height: 16px;
+      border: 2px solid transparent;
+      border-top: 2px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-left: 0.5rem;
+    }
+  }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 // Responsive Design
 @media (max-width: 1024px) {
     .sidebar {
@@ -559,4 +954,63 @@
     .statsGrid {
         grid-template-columns: 1fr;
     }
+    
+    .deleteModal {
+    margin: 1rem;
+    max-width: calc(100% - 2rem);
+  }
+  
+  .modalHeader {
+    padding: 1.5rem 1.5rem 1rem;
+    
+    h2 {
+      font-size: 1.5rem;
+    }
+  }
+  
+  .modalContent {
+    padding: 1rem 1.5rem 1.5rem;
+  }
+  
+  .warningBox {
+    padding: 1.5rem;
+    
+    h3 {
+      font-size: 1.1rem;
+    }
+  }
+  
+  .confirmationSteps {
+    gap: 1rem;
+  }
+}
+
+// High contrast mode support
+@media (prefers-contrast: high) {
+  .deleteModal {
+    border-width: 3px;
+  }
+  
+  .warningBox {
+    border-width: 3px;
+  }
+  
+  .confirmInput {
+    border-width: 3px;
+  }
+}
+
+// Reduced motion support
+@media (prefers-reduced-motion: reduce) {
+  .modalOverlay,
+  .deleteModal,
+  .pulseWarning {
+    animation: none;
+  }
+  
+  .confirmDeleteButton:hover,
+  .cancelButton:hover,
+  .closeButton:hover {
+    transform: none;
+  }
 }

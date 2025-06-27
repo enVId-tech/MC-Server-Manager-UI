@@ -3,7 +3,7 @@ import dbConnect from '@/lib/dbConnect';
 import User from '@/lib/objects/User';
 
 export async function POST(request: NextRequest) {
-    await dbConnect;
+    await dbConnect();
     try {
         const { email, password } = await request.json();
 
@@ -12,6 +12,8 @@ export async function POST(request: NextRequest) {
         if (existingUser) {
             return NextResponse.json({ message: 'User with this email already exists.' }, { status: 409 });
         }
+
+        
 
         const newUser = new User({
             email: email,
