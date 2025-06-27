@@ -76,13 +76,6 @@ export async function PUT(request: NextRequest) {
         // Save the updated user information
         await existingUser.save();
 
-        // Update the session token in the cookies
-        const updatedToken = jwt.sign(
-            { id: existingUser._id, email: existingUser.email },
-            process.env.JWT_SECRET || 'default',
-            { expiresIn: '1h' }
-        );
-
         return NextResponse.json({ message: 'User information updated successfully.' }, { status: 200 });
     } catch (error) {
         return NextResponse.json({ message: 'An error occurred.', error }, { status: 500 });

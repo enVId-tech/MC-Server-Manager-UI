@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './account.module.scss';
-import { FiUser, FiLock, FiSave, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { FiUser, FiLock, FiSave, FiTrash2 } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
 
 interface UserProfile {
@@ -10,6 +10,12 @@ interface UserProfile {
     joinDate: string;
     totalServers: number;
     activeServers: number;
+}
+
+interface ServerData {
+    isOnline: boolean;
+    // Add other server properties as needed
+    [key: string]: unknown;
 }
 
 export default function AccountPage() {
@@ -58,7 +64,7 @@ export default function AccountPage() {
                 email: data.user.email || userProfile.email,
                 joinDate: data.user.createdAt || userProfile.joinDate,
                 totalServers: data.ownedServers.length || userProfile.totalServers,
-                activeServers: data.ownedServers.filter((server: any) => server.isOnline).length || userProfile.activeServers
+                activeServers: data.ownedServers.filter((server: ServerData) => server.isOnline).length || userProfile.activeServers
             });
         } catch (error) {
             console.error('Error fetching account settings:', error);
@@ -451,7 +457,7 @@ export default function AccountPage() {
 
                                         <div className={styles.step}>
                                             <label htmlFor="confirmText">
-                                                3. Type <span className={styles.deleteText}>"DELETE MY ACCOUNT"</span> to confirm:
+                                                3. Type <span className={styles.deleteText}>&ldquo;DELETE MY ACCOUNT&rdquo;</span> to confirm:
                                             </label>
                                             <input
                                                 type="text"
