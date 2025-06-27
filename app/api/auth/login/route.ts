@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 export async function POST(request: Request) {
-    await dbConnect.connect();
+    await dbConnect();
     try {
         const { email, password } = await request.json();
 
@@ -50,7 +50,5 @@ export async function POST(request: Request) {
     } catch (error) {
         console.error('Login error:', error);
         return NextResponse.json({ message: 'An error occurred.', error: (error as Error).message }, { status: 500 });
-    } finally {
-        await dbConnect.disconnect();
     }
 }

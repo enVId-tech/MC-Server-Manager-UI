@@ -4,7 +4,7 @@ import User from "@/lib/objects/User";
 import jwt from "jsonwebtoken";
 
 export async function DELETE(request: NextRequest) { // Removed 'response: NextResponse'
-    await dbConnect.connect();
+    await dbConnect();
     try {
         // Get the user from the request cookies
         const token = request.cookies.get('sessionToken')?.value;
@@ -41,7 +41,5 @@ export async function DELETE(request: NextRequest) { // Removed 'response: NextR
         }
 
         return NextResponse.json({ message: 'An unknown error occurred during logout.' }, { status: 500 });
-    } finally {
-        await dbConnect.disconnect();
     }
 }

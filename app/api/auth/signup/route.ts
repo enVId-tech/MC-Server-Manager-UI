@@ -3,7 +3,7 @@ import dbConnect from '@/lib/dbConnect';
 import User from '@/lib/objects/User';
 
 export async function POST(request: NextRequest) {
-    await dbConnect.connect();
+    await dbConnect;
     try {
         const { email, password } = await request.json();
 

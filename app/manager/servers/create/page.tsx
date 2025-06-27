@@ -25,40 +25,8 @@ interface ServerConfig {
   plugins: File[];
   mods: File[];
   customOptions: string;
+  [key: string]: unknown;
 }
-
-// World type options
-const worldTypes = [
-  { id: 'default', name: 'Default' },
-  { id: 'flat', name: 'Superflat' },
-  { id: 'largeBiomes', name: 'Large Biomes' },
-  { id: 'amplified', name: 'Amplified' },
-  { id: 'buffet', name: 'Buffet' }
-];
-
-// Game mode options
-let gameModes = [
-  { value: 'survival', label: 'Survival' },
-  { value: 'creative', label: 'Creative' },
-  { value: 'adventure', label: 'Adventure' },
-  { value: 'spectator', label: 'Spectator' }
-];
-
-// Difficulty options
-let difficulties = [
-  { value: 'peaceful', label: 'Peaceful' },
-  { value: 'easy', label: 'Easy' },
-  { value: 'normal', label: 'Normal' },
-  { value: 'hard', label: 'Hard' }
-];
-
-// World features options
-const worldFeatures = [
-  { name: 'generateStructures', label: 'Generate Structures (villages, temples, etc.)' },
-  { name: 'allowNether', label: 'Enable Nether' },
-  { name: 'allowEnd', label: 'Enable The End' },
-  { name: 'pvp', label: 'Enable PvP' }
-];
 
 // Reusable Components
 interface RadioGroupProps {
@@ -240,29 +208,45 @@ interface ServerTypes {
   name: string;
 }
 
+interface WorldType {
+  id: string;
+  name: string;
+}
+
 export default function ServerGenerator() {
   const [activeTab, setActiveTab] = useState('general');
   const [serverConfig, setServerConfig] = useState<ServerConfig>({
     name: '',
-    serverType: 'vanilla',
-    version: '1.19.4',
+    serverType: '',
+    version: '',
     seed: '',
     maxPlayers: 20,
     description: '',
     gameMode: 'survival',
     difficulty: 'normal',
     worldType: 'default',
+    // Initialize all checkbox properties with default values
     generateStructures: true,
     allowNether: true,
     allowEnd: true,
     pvp: true,
+    // Add any other checkbox properties that might come from your API
+    allowFlight: false,
+    enableCommandBlocks: false,
+    forceGamemode: false,
+    hardcore: false,
+    onlineMode: true,
+    whiteList: false,
+    // Range inputs
     spawnProtection: 16,
     viewDistance: 10,
+    // File inputs
     worldFiles: null,
     plugins: [],
     mods: [],
     customOptions: ''
   });
+
   const [fullyLoaded, setFullyLoaded] = useState(false);
 
   const router = useRouter();
@@ -272,6 +256,11 @@ export default function ServerGenerator() {
   const modsRef = useRef<HTMLInputElement>(null);
   const [versions, setVersions] = useState<string[]>([]);
   const [serverTypes, setServerTypes] = useState<ServerTypes[]>([]);
+  const [worldTypes, setWorldTypes] = useState<WorldType[]>([]);
+  const [gameModes, setGameModes] = useState<{ value: string; label: string }[]>([]);
+  const [difficulties, setDifficulties] = useState<{ value: string; label: string }[]>([]);
+  const [worldFeatures, setWorldFeatures] = useState<{ name: string; label: string }[]>([]);
+  const [serverOptions, setServerOptions] = useState<{ name: string; label: string }[]>([]);
 
   const fetchServerSettings = async () => {
     try {
@@ -286,38 +275,71 @@ export default function ServerGenerator() {
       }
 
       const data = await response.json();
-
       console.log('Fetched server settings:', data);
 
+      // Set the fetched data
       setVersions(data.versions || []);
       setServerTypes(data.serverTypes || []);
+      setWorldTypes(data.worldTypes || []);
+      setGameModes(data.gameModes || []);
+      setDifficulties(data.difficulties || []);
+      setWorldFeatures(data.worldFeatures || []);
+      setServerOptions(data.serverOptions || []);
 
-      // setServerConfig(data);
+      // Initialize serverConfig with any missing properties from the fetched options
+      setServerConfig(prevConfig => {
+        const newConfig = { ...prevConfig };
+
+        // Initialize world features
+        data.worldFeatures?.forEach((feature: { name: string }) => {
+          if (!(feature.name in newConfig)) {
+            newConfig[feature.name] = true; // Default to true for world features
+          }
+        });
+
+        // Initialize server options
+        data.serverOptions?.forEach((option: { name: string }) => {
+          if (!(option.name in newConfig)) {
+            newConfig[option.name] = false; // Default to false for server options
+          }
+        });
+
+        // Initialize server type and version if not set
+        if (!newConfig.serverType && data.serverTypes && data.serverTypes.length > 0) {
+          newConfig.serverType = data.serverTypes[0].id; // Default to first server type
+        }
+
+        if (!newConfig.version && data.versions && data.versions.length > 0) {
+          newConfig.version = data.versions[0]; // Default to first version
+        }
+
+        return newConfig;
+      });
+
     } catch (error) {
       console.error('Error fetching server settings:', error);
     }
   };
 
-  const checkAuth = () => {
-    const res = fetch('/api/auth/check', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    res.then(response => {
-      if (!response.ok) {
-        router.push('/'); // Redirect to home page if not authenticated
-      }
-    }).catch(error => {
-      console.error('Error checking authentication:', error);
-    });
-
-    setFullyLoaded(true);
-  }
-
   useEffect(() => {
+    const checkAuth = () => {
+      const res = fetch('/api/auth/check', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      res.then(response => {
+        if (!response.ok) {
+          router.push('/'); // Redirect to home page if not authenticated
+        }
+      }).catch(error => {
+        console.error('Error checking authentication:', error);
+      });
+
+      setFullyLoaded(true);
+    }
     // Fetch initial server settings from the API
     fetchServerSettings();
 
@@ -328,7 +350,7 @@ export default function ServerGenerator() {
     return () => {
       window.removeEventListener('storage', checkAuth);
     };
-  }, []);
+  }, [router]);
 
   // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -542,6 +564,13 @@ export default function ServerGenerator() {
                 onChange={handleChange}
                 label="Difficulty"
               />
+
+              <CheckboxGroup
+                serverConfig={serverConfig}
+                onChange={handleChange}
+                label="Server Options"
+                options={serverOptions}
+              />
             </div>
           )}
 
@@ -671,7 +700,7 @@ export default function ServerGenerator() {
             <div className={styles.formSection}>
               <h2 className={styles.sectionTitle}>Plugins & Mods</h2>
 
-              {(serverConfig.serverType === 'spigot' || serverConfig.serverType === 'paper') && (
+              {(serverConfig.serverType === 'spigot' || serverConfig.serverType === 'paper' || serverConfig.serverType === 'bukkit' || serverConfig.serverType === 'purpur') && (
                 <FileUploadSection
                   label="Plugins"
                   files={serverConfig.plugins}

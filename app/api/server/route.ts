@@ -9,7 +9,7 @@ import Server from "@/lib/objects/Server";
   */
 
 export async function GET(request: Request) {
-    await dbConnect.connect();
+    await dbConnect();
     try {
         // Fetch servers that match the user's email
         const sessionToken = request.headers.get("sessionToken");
@@ -38,7 +38,5 @@ export async function GET(request: Request) {
     } catch (error) {
         console.error("Error fetching server configuration:", error);
         return NextResponse.json({ error: "Failed to fetch server configuration." }, { status: 500 });
-    } finally {
-        await dbConnect.disconnect();
     }
 }

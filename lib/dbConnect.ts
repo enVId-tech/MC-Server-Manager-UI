@@ -1,56 +1,57 @@
 import mongoose from 'mongoose';
 
-class DbConnect {
-    private isConnected: boolean = false;
-    private connectionPromise: Promise<void> | null = null;
+const MONGODB_URI = process.env.MONGODB_URI;
 
-    public async connect(): Promise<void> {
-        if (this.isConnected) {
-            return;
-        }
-
-        if (this.connectionPromise) {
-            return this.connectionPromise;
-        }
-
-        this.connectionPromise = this._connect();
-        return this.connectionPromise;
-    }
-
-    private async _connect(): Promise<void> {
-        try {
-            if (!process.env.MONGODB_URI) {
-                throw new Error('MONGODB_URI environment variable is not defined');
-            }
-
-            await mongoose.connect(process.env.MONGODB_URI);
-            this.isConnected = true;
-            this.connectionPromise = null;
-            console.log('Database connected successfully');
-        } catch (error) {
-            this.connectionPromise = null;
-            console.error('Database connection error:', error);
-            throw error;
-        }
-    }
-
-    public async disconnect(): Promise<void> {
-        if (this.isConnected && mongoose.connection.readyState === 1) {
-            try {
-                await mongoose.disconnect();
-                this.isConnected = false;
-                console.log('Database disconnected successfully');
-            } catch (error) {
-                console.error('Database disconnection error:', error);
-                throw error;
-            }
-        }
-    }
-
-    public get connection() {
-        return mongoose.connection;
-    }
+interface CachedConnection {
+    conn: typeof mongoose | null;
+    promise: Promise<typeof mongoose> | null;
 }
 
-const dbConnect = new DbConnect();
+interface GlobalWithMongoose extends Global {
+    mongoose?: CachedConnection;
+}
+
+// Type-safe global access
+const globalWithMongoose = global as GlobalWithMongoose;
+
+const cached: CachedConnection = globalWithMongoose.mongoose || { conn: null, promise: null };
+
+if (!globalWithMongoose.mongoose) {
+    globalWithMongoose.mongoose = cached;
+}
+
+async function dbConnect(): Promise<typeof mongoose> {
+    if (cached.conn) {
+        return cached.conn;
+    }
+
+    if (!process.env.MONGODB_URI) {
+        throw new Error('MONGODB_URI is not defined in the environment variables.');
+    }
+
+    if (!cached.promise) {
+        const opts = {
+            bufferCommands: false,
+        };
+
+        cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose) => {
+            console.log('Database connected successfully');
+            return mongoose;
+        }).catch((error) => {
+            console.error('Database connection error:', error);
+            cached.promise = null;
+            throw error;
+        });
+    }
+
+    try {
+        cached.conn = await cached.promise;
+    } catch (e) {
+        cached.promise = null;
+        throw e;
+    }
+
+    return cached.conn;
+}
+
 export default dbConnect;

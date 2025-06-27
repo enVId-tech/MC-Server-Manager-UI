@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 import User from "@/lib/objects/User";
 
 export async function GET(request: NextRequest) {
-    await dbConnect.connect();
+    await dbConnect();
     try {
         const token = request.cookies.get('sessionToken')?.value;
 
@@ -34,7 +34,5 @@ export async function GET(request: NextRequest) {
     } catch (error) {
         console.error('Session check error:', error);
         return NextResponse.json({ message: 'An error occurred while checking the session.', error: (error as Error).message }, { status: 500 });
-    } finally {
-        await dbConnect.disconnect();
     }
 }

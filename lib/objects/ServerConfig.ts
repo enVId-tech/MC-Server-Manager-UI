@@ -1,29 +1,40 @@
 import { Schema, Document, models, model } from 'mongoose';
 
 export interface IServerConfig extends Document {
-    configType?: string; // 'versions', 'serverTypes', etc.
-    versions?: string[]; // Array of 64 Minecraft versions
-    serverTypes?: string[]; // Array of 6+ server types
-    [key: string]: any; // Allow additional dynamic properties
+    versions?: string[];
+    serverTypes?: Array<{ id: string; name: string }>;
+    [key: string]: unknown; // Allow any additional properties
 }
 
 const ServerConfigSchema: Schema = new Schema({
-    configType: {
-        type: String,
-        required: false,
-    },
     versions: [{
         type: String,
     }],
     serverTypes: [{
-        type: String,
+        id: { type: String },
+        name: { type: String }
     }],
+    worldTypes: [{
+        id: { type: String },
+        name: { type: String }
+    }],
+    gameModes: [{
+        value: { type: String },
+        label: { type: String }
+    }],
+    difficulties: [{
+        value: { type: String },
+        label: { type: String }
+    }],
+    worldFeatures: [{
+        name: { type: String },
+        label: { type: String }
+    }]
 }, {
     strict: false, // Allow fields not defined in schema
     timestamps: true,
 });
 
-// Fix: Check if the model already exists before creating it
-const ServerConfig = models.ServerConfig || model<IServerConfig>('serverconfigs', ServerConfigSchema);
+const ServerConfig = models.ServerConfig || model<IServerConfig>('ServerConfig', ServerConfigSchema);
 
 export default ServerConfig;
