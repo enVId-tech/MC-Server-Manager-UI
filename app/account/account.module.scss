@@ -42,14 +42,19 @@
 }
 
 .pageTitle {
-    font-size: 2.5rem;
+    font-size: 1.6rem;
     font-weight: 600;
     font-family: $heading-font;
     color: $text-primary;
     text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+    line-height: 1.2;
 
-    @media (max-width: 640px) {
+    @media (min-width: $mobile) {
         font-size: 2rem;
+    }
+    
+    @media (min-width: $tablet) {
+        font-size: 2.5rem;
     }
 }
 

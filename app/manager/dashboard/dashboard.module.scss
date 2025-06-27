@@ -9,31 +9,57 @@
   min-height: 100vh;
   background-color: rgba($dark-bg, 0.5);
   color: $text-primary;
-  padding: 2rem 1rem;
-  padding-top: 9rem;
+  padding: 1rem 0.5rem;
+  padding-top: 8rem;
   background-position: center;
   background-size: cover;
+  
+  @media (min-width: $mobile) {
+    padding: 1.5rem 0.75rem;
+    padding-top: 8.5rem;
+  }
+  
+  @media (min-width: $tablet) {
+    padding: 2rem 1rem;
+    padding-top: 9rem;
+  }
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 1.5rem 1.5rem 0 1.5rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   background-color: rgba($dark-bg, 0.8);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   border: 1px solid $border-color;
   border-radius: 12px;
+  
+  @media (min-width: $mobile) {
+    padding: 1.25rem;
+  }
+  
+  @media (min-width: $tablet) {
+    padding: 1.5rem 1.5rem 0 1.5rem;
+  }
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2.5rem;
+  margin-bottom: 1.5rem;
+  
+  @media (min-width: $mobile) {
+    margin-bottom: 2rem;
+  }
+  
+  @media (min-width: $tablet) {
+    margin-bottom: 2.5rem;
+  }
 
-  @media (max-width: 640px) {
+  @media (max-width: $mobile) {
     flex-direction: column;
     align-items: flex-start;
     gap: 1rem;
@@ -41,41 +67,85 @@
 }
 
 .pageTitle {
-  font-size: 2.5rem;
+  font-size: 1.4rem;
   font-weight: 700;
   color: $text-primary;
   font-family: var(--font-press-start);
+  line-height: 1.2;
+  
+  @media (min-width: $mobile) {
+    font-size: 1.8rem;
+  }
+  
+  @media (min-width: $tablet) {
+    font-size: 2.2rem;
+  }
 }
 
 .sectionTitle {
-  font-size: 1.75rem;
-  margin-bottom: 1.5rem;
+  font-size: 1rem;
+  margin-bottom: 1rem;
   color: $text-primary;
   font-family: var(--font-press-start);
+  line-height: 1.2;
+  
+  @media (min-width: $mobile) {
+    font-size: 1.2rem;
+    margin-bottom: 1.25rem;
+  }
+  
+  @media (min-width: $tablet) {
+    font-size: 1.4rem;
+    margin-bottom: 1.5rem;
+  }
 }
 
 .emptyState {
   text-align: center;
-  padding: 3rem;
-  margin-bottom: 2rem;
+  padding: 2rem 1rem;
+  margin-bottom: 1.5rem;
   background-color: $dark-card;
   border-radius: 8px;
   color: $text-secondary;
+  
+  @media (min-width: $mobile) {
+    padding: 2.5rem 1.5rem;
+  }
+  
+  @media (min-width: $tablet) {
+    padding: 3rem;
+    margin-bottom: 2rem;
+  }
 }
 
 .serverGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  
+  @media (min-width: $mobile) {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.25rem;
+  }
+  
+  @media (min-width: $tablet) {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
 }
 
 .serverCard {
-  padding: 1.5rem;
+  padding: 1.25rem;
   border-radius: 12px;
   background-color: $dark-card;
   border: 1px solid $border-color;
   transition: all 0.3s ease;
+  
+  @media (min-width: $mobile) {
+    padding: 1.5rem;
+  }
 
   &:hover {
     transform: translateY(-5px);
@@ -85,16 +155,25 @@
 }
 
 .serverName {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   font-weight: 600;
   margin: 0.5rem 0 1rem;
   color: $text-primary;
+  
+  @media (min-width: $mobile) {
+    font-size: 1.25rem;
+  }
 }
 
 .serverDetails {
   color: $text-secondary;
-  font-size: 0.95rem;
-  margin-bottom: 1.5rem;
+  font-size: 0.85rem;
+  margin-bottom: 1.25rem;
+  
+  @media (min-width: $mobile) {
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+  }
 
   p {
     margin-bottom: 0.5rem;

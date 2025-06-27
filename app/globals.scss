@@ -1,5 +1,6 @@
 @use "./_components/Navbar/Navbar.module";
 @use "./auth/auth.module";
+@use "./variables" as *;
 
 :root {
   --background: #ffffff;
@@ -17,6 +18,7 @@ html,
 body {
   max-width: 100vw;
   overflow-x: hidden;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -25,6 +27,15 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+  
+  // Improve touch targets on mobile
+  @media (max-width: $tablet) {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }
 
 * {
@@ -36,10 +47,102 @@ body {
 a {
   color: inherit;
   text-decoration: none;
+  
+  // Improve touch targets
+  @media (max-width: $tablet) {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+// Improve button touch targets on mobile
+button {
+  @media (max-width: $tablet) {
+    min-height: 44px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+// Improve input accessibility on mobile
+input, textarea, select {
+  @media (max-width: $tablet) {
+    min-height: 44px;
+    font-size: 16px; // Prevents zoom on iOS
+  }
+}
+
+// Responsive text scaling
+html {
+  font-size: 14px;
+  
+  @media (min-width: $mobile) {
+    font-size: 15px;
+  }
+  
+  @media (min-width: $tablet) {
+    font-size: 16px;
+  }
+  
+  @media (min-width: $desktop) {
+    font-size: 16px;
+  }
+}
+
+// Mobile-specific utility classes
+@media (max-width: $tablet) {
+  .mobile-hidden {
+    display: none !important;
+  }
+  
+  .mobile-only {
+    display: block !important;
+  }
+  
+  .mobile-full-width {
+    width: 100% !important;
+  }
+  
+  .mobile-center {
+    text-align: center !important;
+  }
+}
+
+@media (min-width: $tablet) {
+  .desktop-hidden {
+    display: none !important;
+  }
+  
+  .mobile-only {
+    display: none !important;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
   html {
     color-scheme: dark;
+  }
+}
+
+// High contrast mode support
+@media (prefers-contrast: high) {
+  * {
+    border-color: currentColor !important;
+    outline-color: currentColor !important;
+  }
+}
+
+// Reduced motion support
+@media (prefers-reduced-motion: reduce) {
+  *, 
+  *::before, 
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

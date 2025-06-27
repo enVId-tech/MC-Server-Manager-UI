@@ -11,6 +11,21 @@
   background-position: center;
   background-blend-mode: overlay;
   position: relative;
+  
+  // Enable smooth scrolling and improve touch performance
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+
+  // Ultra-narrow screens (foldable devices like Z Flip 5)
+  @media (max-width: 380px) {
+    padding: 1rem 0.5rem;
+    padding-top: 8rem;
+    
+    // Prevent horizontal scrolling issues
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
+  }
 }
 
 .container {
@@ -23,6 +38,19 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   border: 1px solid $border-color;
   border-radius: 12px;
+
+  // Mobile optimization
+  @media (max-width: 640px) {
+    padding: 2rem 1.5rem 1.5rem 1.5rem;
+    margin: 0 0.5rem;
+  }
+
+  // Ultra-narrow screens (foldable devices)
+  @media (max-width: 380px) {
+    padding: 1.5rem 1rem 1rem 1rem;
+    margin: 0 0.25rem;
+    border-radius: 8px;
+  }
 }
 
 .header {
@@ -47,6 +75,18 @@
   font-family: var(--font-press-start);
   text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.5);
   letter-spacing: -0.5px;
+
+  // Mobile responsive font sizes
+  @media (max-width: 640px) {
+    font-size: 1.8rem;
+  }
+
+  // Ultra-narrow screens (foldable devices)
+  @media (max-width: 380px) {
+    font-size: 1.4rem;
+    letter-spacing: -0.3px;
+    line-height: 1.3;
+  }
 }
 
 .formSection {
@@ -75,6 +115,19 @@
     width: 100%;
     height: 4px;
     background: linear-gradient(90deg, $accent-blue, darken($accent-blue, 20%));
+  }
+
+  // Mobile optimizations
+  @media (max-width: 640px) {
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  // Ultra-narrow screens (foldable devices)
+  @media (max-width: 380px) {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 8px;
   }
   
   // Enhanced dropdown animation container
@@ -109,11 +162,29 @@
   color: $text-primary;
   font-family: var(--font-press-start);
   letter-spacing: -0.5px;
+
+  // Mobile responsive font sizes
+  @media (max-width: 640px) {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+  }
+
+  // Ultra-narrow screens (foldable devices)
+  @media (max-width: 380px) {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.3px;
+  }
 }
 
 .formGroup {
   margin-bottom: 1.5rem;
   position: relative; // For potential custom dropdown positioning
+
+  // Ultra-narrow screens adjustments
+  @media (max-width: 380px) {
+    margin-bottom: 1rem;
+  }
 
   label {
     display: block;
@@ -124,6 +195,12 @@
     font-size: 0.95rem;
     letter-spacing: 0.5px;
     position: relative;
+
+    // Mobile font size adjustments
+    @media (max-width: 380px) {
+      font-size: 0.9rem;
+      margin-bottom: 0.4rem;
+    }
     
     // Add a subtle accent for required fields
     &[for$="name"]::after {
@@ -200,6 +277,16 @@
     color: $text-primary;
     transition: all 0.3s ease;
     font-family: var(--font-poppins);
+    min-height: 44px; // Consistent minimum height
+    box-sizing: border-box; // Include padding in width calculation
+
+    // Better mobile input handling
+    @media (max-width: 380px) {
+      padding: 0.75rem 0.85rem;
+      font-size: 16px; // Prevent zoom on iOS
+      border-radius: 6px;
+      min-height: 48px; // Slightly larger for better touch
+    }
 
     &:focus {
       border-color: $accent-blue;
@@ -238,6 +325,8 @@
     appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
+    min-height: 44px; // Consistent minimum height
+    box-sizing: border-box; // Include padding in width calculation
     
     // Custom gradient background for depth
     background-blend-mode: normal, normal, overlay;
@@ -328,8 +417,9 @@
     
     // Mobile-specific dropdown enhancements
     @media (max-width: 768px) {
-      padding: 1rem;
-      font-size: 1rem; // Slightly larger for mobile
+      padding: 0.85rem 1rem;
+      padding-right: 2.5rem;
+      font-size: 16px; // Prevent iOS zoom
       
       &:focus {
         // Enhanced focus state for mobile
@@ -337,6 +427,26 @@
           0 0 0 3px rgba($accent-blue, 0.4),
           0 4px 12px rgba(0, 0, 0, 0.15);
         transform: translateY(-2px);
+      }
+    }
+
+    // Ultra-narrow screens: specific optimizations
+    @media (max-width: 380px) {
+      padding: 0.75rem 0.85rem;
+      padding-right: 2.2rem;
+      font-size: 16px; // Prevent iOS zoom
+      border-radius: 6px;
+      min-height: 48px; // Consistent with other inputs
+      
+      &:focus {
+        box-shadow: 
+          0 0 0 2px rgba($accent-blue, 0.4),
+          0 2px 8px rgba(0, 0, 0, 0.1);
+        transform: none; // Disable transform on narrow screens
+      }
+      
+      &:hover {
+        transform: none; // Disable hover transform
       }
     }
     
@@ -379,6 +489,13 @@
   width: 100%;
   align-items: center;
 
+  // Ultra-narrow screens: stack vertically
+  @media (max-width: 380px) {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+
   input {
     width: 90%;
     padding: 0.75rem 1rem;
@@ -389,6 +506,15 @@
     color: $text-primary;
     transition: all 0.3s ease;
     font-family: var(--font-poppins);
+
+    // Full width on narrow screens
+    @media (max-width: 380px) {
+      width: 100%;
+      margin-right: 0;
+      margin-bottom: 0.5rem;
+      padding: 0.65rem 0.85rem;
+      font-size: 1rem; // Prevent iOS zoom
+    }
     
     &:focus {
       border-color: $accent-blue;
@@ -407,31 +533,79 @@
   gap: 1.25rem;
   flex-wrap: wrap;
   margin-top: 0.75rem;
+
+  // Ultra-narrow screens: stack vertically with smaller gaps
+  @media (max-width: 380px) {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
 }
 
 .radioOption {
   display: flex !important;
   align-items: center;
   cursor: pointer;
-  padding: 0.6rem 0.8rem;
+  padding: 0.75rem 1rem;
   border-radius: 6px;
   transition: all 0.2s ease;
   border: 2px solid transparent;
+  min-height: 48px; // Consistent minimum height
+  box-sizing: border-box; // Include padding and border in height
+
+  // Ultra-narrow screens: full width with proper padding
+  @media (max-width: 380px) {
+    padding: 0.75rem 0.85rem;
+    width: 100%;
+    min-height: 48px;
+  }
   
   input[type="radio"] {
     appearance: none;
     -webkit-appearance: none;
-    width: auto;
+    -moz-appearance: none;
+    width: 20px;
     height: 20px;
-    padding: 12.5px;
+    min-width: 20px; // Prevent flex shrinking
+    min-height: 20px; // Prevent flex shrinking
     border: 2px solid $border-color;
-    border-radius: 100%;
+    border-radius: 50%; // Perfect circle
     background-color: rgba($dark-bg, 0.5);
     position: relative;
     cursor: pointer;
-    margin-right: 0.6rem;
+    margin-right: 0.75rem;
     transition: all 0.2s ease;
     flex-shrink: 0;
+    box-sizing: border-box; // Include border in dimensions
+    display: inline-block; // Ensure consistent rendering
+    vertical-align: middle; // Align properly with text
+    outline: none; // Remove default outline
+
+    // Force consistent circle shape across all devices and browsers
+    @media (max-width: 380px) {
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      min-height: 20px;
+      margin-right: 0.75rem;
+      border-radius: 50%; // Reaffirm circle shape
+    }
+    
+    // Additional cross-browser resets for perfect circle
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    
+    // Firefox specific resets
+    &::-moz-focus-inner {
+      border: 0;
+      padding: 0;
+    }
+    
+    // Ensure the radio button maintains circular shape
+    border-style: solid;
+    border-width: 2px;
     
     &:checked {
       border-color: $accent-blue;
@@ -443,11 +617,14 @@
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        width: 10px;
-        height: 10px;
+        width: 8px;
+        height: 8px;
+        min-width: 8px;
+        min-height: 8px;
         background-color: $accent-blue;
-        border-radius: 50%;
+        border-radius: 50%; // Perfect circle for the dot
         box-shadow: 0 0 5px rgba($accent-blue, 0.5);
+        display: block; // Ensure the dot is displayed
       }
     }
     
@@ -463,6 +640,12 @@
     font-weight: 500;
     transition: all 0.2s ease;
     line-height: 1.2;
+    font-size: 0.95rem;
+
+    // Consistent text size on narrow screens
+    @media (max-width: 380px) {
+      font-size: 0.95rem;
+    }
   }
   
   &:hover {
@@ -471,6 +654,11 @@
     
     input[type="radio"] {
       border-color: lighten($border-color, 10%);
+    }
+
+    // Disable transform on touch devices to prevent layout issues
+    @media (max-width: 380px) {
+      transform: none;
     }
   }
   
@@ -495,25 +683,57 @@
   display: flex !important;
   align-items: center;
   cursor: pointer;
-  padding: 0.6rem 0.8rem;
+  padding: 0.75rem 1rem;
   border-radius: 6px;
-  border: 12.5px;
   transition: all 0.2s ease;
   border: 2px solid transparent;
+  min-height: 48px; // Consistent minimum height
+  box-sizing: border-box; // Include padding and border in height
+
+  // Ultra-narrow screens: proper padding
+  @media (max-width: 380px) {
+    padding: 0.75rem 0.85rem;
+    min-height: 48px;
+  }
   
   input[type="checkbox"] {
     appearance: none;
     -webkit-appearance: none;
+    -moz-appearance: none;
     width: 20px;
     height: 20px;
+    min-width: 20px; // Prevent flex shrinking
+    min-height: 20px; // Prevent flex shrinking
     border: 2px solid $border-color;
-    border-radius: 4px;
+    border-radius: 3px; // Consistent square with slight rounding
     background-color: rgba($dark-bg, 0.5);
     position: relative;
     cursor: pointer;
-    margin-right: 0.6rem;
+    margin-right: 0.75rem;
     transition: all 0.2s ease;
     flex-shrink: 0;
+    box-sizing: border-box; // Include border in dimensions
+    display: inline-block; // Ensure consistent rendering
+    vertical-align: middle; // Align properly with text
+
+    // Force consistent square shape across all devices and browsers
+    @media (max-width: 380px) {
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      min-height: 20px;
+      margin-right: 0.75rem;
+      border-radius: 3px; // Reaffirm square shape
+    }
+    
+    // Additional browser-specific resets for consistent square
+    &::-webkit-appearance {
+      display: none;
+    }
+    
+    &::-moz-appearance {
+      display: none;
+    }
     
     &:checked {
       border-color: $accent-blue;
@@ -522,13 +742,14 @@
       &::after {
         content: '';
         position: absolute;
-        top: 25%;
-        left: 40%;
-        width: 5px;
-        height: 9px;
+        top: 40%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(45deg);
+        width: 6px;
+        height: 10px;
         border: solid white;
         border-width: 0 2px 2px 0;
-        transform: rotate(45deg);
+        display: block; // Ensure the checkmark is displayed
       }
     }
     
@@ -544,6 +765,12 @@
     font-weight: 500;
     transition: all 0.2s ease;
     line-height: 1.2;
+    font-size: 0.95rem;
+
+    // Consistent text size on narrow screens
+    @media (max-width: 380px) {
+      font-size: 0.95rem;
+    }
   }
   
   &:hover {
@@ -552,6 +779,11 @@
     
     input[type="checkbox"] {
       border-color: lighten($border-color, 10%);
+    }
+
+    // Disable transform on touch devices
+    @media (max-width: 380px) {
+      transform: none;
     }
   }
   
@@ -574,6 +806,12 @@
   @media (min-width: 768px) {
     grid-template-columns: 1fr 1fr;
   }
+
+  // Smaller gap on ultra-narrow screens
+  @media (max-width: 380px) {
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+  }
 }
 
 .fileUpload {
@@ -594,6 +832,11 @@
   position: relative;
   overflow: hidden;
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
+
+  // Ultra-narrow screens: smaller padding
+  @media (max-width: 380px) {
+    padding: 1.5rem 1rem;
+  }
 
   &:hover, &.dragActive {
     border-color: $accent-blue;
@@ -659,6 +902,13 @@
   transition: all 0.2s ease;
   position: relative;
   overflow: hidden;
+
+  // Ultra-narrow screens: smaller padding and gap
+  @media (max-width: 380px) {
+    padding: 0.7rem 1rem;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
   
   &::before {
     content: '';
@@ -675,6 +925,11 @@
     background-color: rgba($dark-bg, 0.8);
     border-color: $border-color;
     transform: translateX(3px);
+
+    // Disable transform on narrow screens
+    @media (max-width: 380px) {
+      transform: none;
+    }
   }
 
   .fileName {
@@ -684,6 +939,12 @@
     text-overflow: ellipsis;
     font-family: var(--font-poppins);
     padding-left: 0.5rem;
+
+    // Smaller font on narrow screens
+    @media (max-width: 380px) {
+      font-size: 0.9rem;
+      padding-left: 0.25rem;
+    }
   }
 
   .removeButton {
@@ -700,10 +961,21 @@
     border-radius: 50%;
     background-color: rgba($dark-bg, 0.3);
 
+    // Slightly smaller on narrow screens
+    @media (max-width: 380px) {
+      width: 28px;
+      height: 28px;
+    }
+
     &:hover {
       color: lighten($accent-red, 10%);
       background-color: rgba($accent-red, 0.15);
       transform: scale(1.1) rotate(90deg);
+
+      // Less dramatic effect on narrow screens
+      @media (max-width: 380px) {
+        transform: scale(1.05);
+      }
     }
     
     &:active {
@@ -720,6 +992,21 @@
   position: relative;
   overflow-x: auto;
   padding-bottom: 2px;
+  
+  // Ultra-narrow screens: enable horizontal scrolling with better spacing
+  @media (max-width: 380px) {
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    padding: 0 0.5rem 2px 0.5rem;
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+    
+    // Hide scrollbar but keep functionality
+    &::-webkit-scrollbar {
+      height: 0px;
+      background: transparent;
+    }
+  }
   
   &::after {
     content: '';
@@ -747,10 +1034,26 @@
   align-items: center;
   gap: 0.75rem;
   overflow: hidden;
+  flex-shrink: 0; // Prevent tabs from shrinking too much
+  min-height: 48px; // Consistent minimum height
+
+  // Ultra-narrow screens: consistent sizing
+  @media (max-width: 380px) {
+    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    min-width: fit-content;
+    min-height: 48px;
+  }
   
   .tabIcon {
     font-size: 1.35rem;
     transition: transform 0.3s ease;
+
+    // Consistent icon size on narrow screens
+    @media (max-width: 380px) {
+      font-size: 1.2rem;
+    }
   }
 
   &:after {
@@ -789,12 +1092,22 @@
     .tabIcon {
       transform: scale(1.2);
       color: $accent-blue;
+
+      // Less dramatic scaling on narrow screens
+      @media (max-width: 380px) {
+        transform: scale(1.1);
+      }
     }
   }
 
   &:hover:not(.active) {
     color: lighten($text-secondary, 25%);
     transform: translateY(-2px);
+    
+    // Disable transform on touch devices to prevent layout issues
+    @media (max-width: 380px) {
+      transform: none;
+    }
     
     &:after {
       background-color: rgba($accent-blue, 0.3);
@@ -807,6 +1120,10 @@
     
     .tabIcon {
       transform: translateY(-2px);
+
+      @media (max-width: 380px) {
+        transform: none;
+      }
     }
   }
   
@@ -821,6 +1138,13 @@
   margin-top: 0.5rem;
   padding-top: 0.5rem;
 
+  // Ultra-narrow screens: smaller padding
+  @media (max-width: 380px) {
+    padding-bottom: 1rem;
+    margin-top: 0.25rem;
+    padding-top: 0.25rem;
+  }
+
   .rangeValue {
     position: absolute;
     bottom: 0;
@@ -834,18 +1158,25 @@
     border-radius: 4px;
     min-width: 2.5rem;
     text-align: center;
+
+    // Smaller on narrow screens
+    @media (max-width: 380px) {
+      font-size: 0.85rem;
+      padding: 0.1rem 0.4rem;
+      min-width: 2rem;
+    }
   }
 
   input[type="range"] {
     width: 100%;
     -webkit-appearance: none;
     appearance: none;
-    height: 10px;
-    border-radius: 5px;
+    height: 8px;
+    border-radius: 4px;
     background: linear-gradient(to right, rgba($accent-blue, 0.7), rgba($accent-blue, 0.3));
     outline: none;
-    margin: 0.5rem 0;
-    padding: 10px 2px;
+    margin: 0.75rem 0;
+    padding: 0;
     position: relative;
     
     &:focus {
@@ -863,7 +1194,6 @@
       box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
       transition: all 0.15s ease;
       border: 2px solid rgba(255, 255, 255, 0.8);
-      margin: -7px 0 0 0; // Center the thumb
       
       &:hover {
         transform: scale(1.15);
@@ -898,32 +1228,13 @@
     }
     
     &::-webkit-slider-runnable-track {
-      height: 10px;
-      border-radius: 5px;
+      height: 8px;
+      border-radius: 4px;
     }
     
     &::-moz-range-track {
-      height: 10px;
-      border-radius: 5px;
-    }
-    
-    // Marks along the slider track
-    &::before, &::after {
-      content: '';
-      position: absolute;
-      height: 15px;
-      width: 2px;
-      background-color: rgba($border-color, 0.7);
-      top: 50%;
-      transform: translateY(-50%);
-    }
-    
-    &::before {
-      left: 0;
-    }
-    
-    &::after {
-      right: 0;
+      height: 8px;
+      border-radius: 4px;
     }
   }
 }
@@ -942,6 +1253,12 @@
       text-align: center;
     }
   }
+
+  // Ultra-narrow screens: smaller margin and gap
+  @media (max-width: 380px) {
+    margin-top: 1.5rem;
+    gap: 0.75rem;
+  }
 }
 
 .button {
@@ -956,6 +1273,19 @@
   letter-spacing: 0.5px;
   position: relative;
   overflow: hidden;
+  min-height: 48px; // Consistent minimum height
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  // Ultra-narrow screens: consistent sizing
+  @media (max-width: 380px) {
+    padding: 0.75rem 1rem;
+    font-size: 0.95rem;
+    border-radius: 6px;
+    min-height: 48px;
+    width: 100%;
+  }
   
   &::before {
     content: '';
@@ -982,6 +1312,12 @@
       background-color: darken($accent-blue, 5%);
       box-shadow: 0 6px 14px rgba($accent-blue, 0.5);
       transform: translateY(-2px);
+
+      // Disable transform on narrow screens to prevent layout shifts
+      @media (max-width: 380px) {
+        transform: none;
+        box-shadow: 0 4px 12px rgba($accent-blue, 0.4);
+      }
     }
     
     &:active {
@@ -998,6 +1334,12 @@
     &:hover {
       background-color: rgba($border-color, 0.3);
       transform: translateY(-2px);
+
+      // Disable transform on narrow screens
+      @media (max-width: 380px) {
+        transform: none;
+        background-color: rgba($border-color, 0.4);
+      }
     }
     
     &:active {
@@ -1013,11 +1355,18 @@
   margin-top: 2rem;
   border: 1px solid $border-color;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  background-image: url('/dirt-bg.png');
+  background-image: url('/minecraft-server.png');
   background-size: 100px;
   background-repeat: repeat;
   background-blend-mode: overlay;
   position: relative;
+
+  // Ultra-narrow screens optimizations
+  @media (max-width: 380px) {
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+    border-radius: 8px;
+  }
   
   &::before {
     content: '';
@@ -1029,6 +1378,10 @@
     background-color: rgba($dark-card, 0.9);
     z-index: 0;
     border-radius: 12px;
+
+    @media (max-width: 380px) {
+      border-radius: 8px;
+    }
   }
   
   .sectionTitle {
@@ -1046,6 +1399,11 @@
     @media (min-width: 768px) {
       grid-template-columns: 1fr 1fr;
     }
+
+    // Ultra-narrow screens: smaller gap
+    @media (max-width: 380px) {
+      gap: 1rem;
+    }
   }
 
   .previewDetail {
@@ -1055,15 +1413,80 @@
     display: flex;
     align-items: center;
 
+    // Ultra-narrow screens: smaller font and margin
+    @media (max-width: 380px) {
+      font-size: 0.85rem;
+      margin-bottom: 0.5rem;
+    }
+
     span {
       color: $text-secondary;
       margin-right: 0.75rem;
       font-weight: 500;
+
+      @media (max-width: 380px) {
+        margin-right: 0.5rem;
+      }
     }
     
     svg {
       margin-right: 0.5rem;
       color: $accent-blue;
+
+      @media (max-width: 380px) {
+        margin-right: 0.25rem;
+        width: 16px;
+        height: 16px;
+      }
+    }
+  }
+}
+
+// Utility classes for mobile optimization
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.touch-action-manipulation {
+  touch-action: manipulation;
+}
+
+// Ultra-narrow screen-specific utility classes
+@media (max-width: 380px) {
+  .mobile-stack {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  
+  .mobile-full-width {
+    width: 100% !important;
+  }
+  
+  .mobile-compact {
+    padding: 0.5rem !important;
+    margin: 0.25rem 0 !important;
+  }
+  
+  .mobile-text-small {
+    font-size: 0.85rem !important;
+  }
+}
+
+// Mobile-friendly touch targets and focus styles
+.mobileOptimized {
+  @media (max-width: 380px) {
+    // Ensure tap targets are at least 44px (Apple's recommendation)
+    button, input, select, textarea {
+      min-height: 44px;
+    }
+    
+    // Exception for range inputs which are handled differently
+    input[type="range"] {
+      min-height: auto;
+      min-width: auto;
     }
   }
 }
