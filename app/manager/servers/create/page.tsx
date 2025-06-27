@@ -1,7 +1,8 @@
 "use client";
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import styles from './create.module.scss';
 import { FiUpload, FiTrash2, FiSettings, FiServer, FiGlobe, FiPackage, FiFileText } from 'react-icons/fi';
+import { useRouter } from 'next/navigation';
 
 // Types
 interface ServerConfig {
@@ -26,21 +27,6 @@ interface ServerConfig {
   customOptions: string;
 }
 
-// Minecraft version options
-const versions = [
-  '1.20.1', '1.19.4', '1.19.3', '1.19.2', '1.18.2',
-  '1.17.1', '1.16.5', '1.15.2', '1.14.4', '1.12.2'
-];
-
-// Server type options
-const serverTypes = [
-  { id: 'vanilla', name: 'Vanilla' },
-  { id: 'spigot', name: 'Spigot' },
-  { id: 'paper', name: 'Paper' },
-  { id: 'forge', name: 'Forge' },
-  { id: 'fabric', name: 'Fabric' }
-];
-
 // World type options
 const worldTypes = [
   { id: 'default', name: 'Default' },
@@ -49,6 +35,210 @@ const worldTypes = [
   { id: 'amplified', name: 'Amplified' },
   { id: 'buffet', name: 'Buffet' }
 ];
+
+// Game mode options
+let gameModes = [
+  { value: 'survival', label: 'Survival' },
+  { value: 'creative', label: 'Creative' },
+  { value: 'adventure', label: 'Adventure' },
+  { value: 'spectator', label: 'Spectator' }
+];
+
+// Difficulty options
+let difficulties = [
+  { value: 'peaceful', label: 'Peaceful' },
+  { value: 'easy', label: 'Easy' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'hard', label: 'Hard' }
+];
+
+// World features options
+const worldFeatures = [
+  { name: 'generateStructures', label: 'Generate Structures (villages, temples, etc.)' },
+  { name: 'allowNether', label: 'Enable Nether' },
+  { name: 'allowEnd', label: 'Enable The End' },
+  { name: 'pvp', label: 'Enable PvP' }
+];
+
+// Reusable Components
+interface RadioGroupProps {
+  name: string;
+  options: { value: string; label: string }[];
+  selectedValue: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  label: string;
+}
+
+const RadioGroup: React.FC<RadioGroupProps> = ({ name, options, selectedValue, onChange, label }) => (
+  <div className={styles.formGroup}>
+    <label>{label}</label>
+    <div className={styles.radioGroup}>
+      {options.map(option => (
+        <label key={option.value} className={styles.radioOption}>
+          <input
+            type="radio"
+            name={name}
+            value={option.value}
+            checked={selectedValue === option.value}
+            onChange={onChange}
+          />
+          {option.label}
+        </label>
+      ))}
+    </div>
+  </div>
+);
+
+interface CheckboxGroupProps {
+  serverConfig: ServerConfig;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  label: string;
+  options: { name: string; label: string }[];
+}
+
+const CheckboxGroup: React.FC<CheckboxGroupProps> = ({ serverConfig, onChange, label, options }) => (
+  <div className={styles.formGroup}>
+    <label>{label}</label>
+    <div className={styles.checkboxGroup}>
+      {options.map(option => (
+        <label key={option.name} className={styles.checkboxOption}>
+          <input
+            type="checkbox"
+            name={option.name}
+            checked={serverConfig[option.name as keyof ServerConfig] as boolean}
+            onChange={onChange}
+          />
+          {option.label}
+        </label>
+      ))}
+    </div>
+  </div>
+);
+
+interface RangeInputProps {
+  id: string;
+  name: string;
+  label: string;
+  min: number;
+  max: number;
+  value: number;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  unit: string;
+}
+
+const RangeInput: React.FC<RangeInputProps> = ({ id, name, label, min, max, value, onChange, unit }) => (
+  <div className={styles.formGroup}>
+    <label htmlFor={id}>{label}</label>
+    <div className={styles.rangeWrapper}>
+      <input
+        type="range"
+        id={id}
+        name={name}
+        min={min}
+        max={max}
+        value={value}
+        onChange={onChange}
+      />
+      <span className={styles.rangeValue}>{value} {unit}</span>
+    </div>
+  </div>
+);
+
+interface FileUploadSectionProps {
+  label: string;
+  files: File[];
+  onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onRemove: (index: number) => void;
+  fileRef: React.RefObject<HTMLInputElement | null>;
+  fileType: string;
+  uploadText: string;
+}
+
+const FileUploadSection: React.FC<FileUploadSectionProps> = ({
+  label, files, onUpload, onRemove, fileRef, fileType, uploadText
+}) => (
+  <div className={styles.formGroup}>
+    <label>{label}</label>
+    <div className={styles.fileUpload}>
+      <div
+        className={styles.uploadBox}
+        onClick={() => fileRef.current?.click()}
+      >
+        <FiUpload size={32} />
+        <p>{uploadText}</p>
+      </div>
+      <input
+        type="file"
+        ref={fileRef}
+        style={{ display: 'none' }}
+        accept={fileType}
+        multiple
+        onChange={onUpload}
+      />
+
+      {files.length > 0 && (
+        <div>
+          <p>Uploaded {label}:</p>
+          {files.map((file, index) => (
+            <div key={index} className={styles.uploadedFile}>
+              <FiFileText />
+              <span className={styles.fileName}>{file.name}</span>
+              <button
+                type="button"
+                className={styles.removeButton}
+                onClick={() => onRemove(index)}
+              >
+                <FiTrash2 />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+interface PreviewDetailProps {
+  label: string;
+  value: string | number;
+}
+
+const PreviewDetail: React.FC<PreviewDetailProps> = ({ label, value }) => (
+  <p className={styles.previewDetail}>
+    <span>{label}:</span> {value}
+  </p>
+);
+
+// Tab configuration
+const tabs = [
+  { id: 'general', label: 'General', icon: FiServer },
+  { id: 'world', label: 'World Settings', icon: FiGlobe },
+  { id: 'mods', label: 'Plugins & Mods', icon: FiPackage },
+  { id: 'advanced', label: 'Advanced', icon: FiSettings }
+];
+
+interface TabButtonProps {
+  tab: typeof tabs[0];
+  isActive: boolean;
+  onClick: () => void;
+}
+
+const TabButton: React.FC<TabButtonProps> = ({ tab, isActive, onClick }) => (
+  <button
+    className={`${styles.tabButton} ${isActive ? styles.active : ''}`}
+    onClick={onClick}
+  >
+    <tab.icon className={styles.tabIcon} /> {tab.label}
+  </button>
+);
+
+// Main Component
+
+// Interfaces for ServerConfig
+interface ServerTypes {
+  id: string;
+  name: string;
+}
 
 export default function ServerGenerator() {
   const [activeTab, setActiveTab] = useState('general');
@@ -73,10 +263,72 @@ export default function ServerGenerator() {
     mods: [],
     customOptions: ''
   });
+  const [fullyLoaded, setFullyLoaded] = useState(false);
+
+  const router = useRouter();
 
   const worldFileRef = useRef<HTMLInputElement>(null);
   const pluginsRef = useRef<HTMLInputElement>(null);
   const modsRef = useRef<HTMLInputElement>(null);
+  const [versions, setVersions] = useState<string[]>([]);
+  const [serverTypes, setServerTypes] = useState<ServerTypes[]>([]);
+
+  const fetchServerSettings = async () => {
+    try {
+      const response = await fetch('/api/server/config', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch server settings');
+      }
+
+      const data = await response.json();
+
+      console.log('Fetched server settings:', data);
+
+      setVersions(data.versions || []);
+      setServerTypes(data.serverTypes || []);
+
+      // setServerConfig(data);
+    } catch (error) {
+      console.error('Error fetching server settings:', error);
+    }
+  };
+
+  const checkAuth = () => {
+    const res = fetch('/api/auth/check', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    res.then(response => {
+      if (!response.ok) {
+        router.push('/'); // Redirect to home page if not authenticated
+      }
+    }).catch(error => {
+      console.error('Error checking authentication:', error);
+    });
+
+    setFullyLoaded(true);
+  }
+
+  useEffect(() => {
+    // Fetch initial server settings from the API
+    fetchServerSettings();
+
+    checkAuth();
+
+    window.addEventListener('storage', checkAuth);
+
+    return () => {
+      window.removeEventListener('storage', checkAuth);
+    };
+  }, []);
 
   // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -176,30 +428,14 @@ export default function ServerGenerator() {
         </div>
 
         <div className={styles.tabs}>
-          <button
-            className={`${styles.tabButton} ${activeTab === 'general' ? styles.active : ''}`}
-            onClick={() => setActiveTab('general')}
-          >
-            <FiServer className={styles.tabIcon} /> General
-          </button>
-          <button
-            className={`${styles.tabButton} ${activeTab === 'world' ? styles.active : ''}`}
-            onClick={() => setActiveTab('world')}
-          >
-            <FiGlobe className={styles.tabIcon} /> World Settings
-          </button>
-          <button
-            className={`${styles.tabButton} ${activeTab === 'mods' ? styles.active : ''}`}
-            onClick={() => setActiveTab('mods')}
-          >
-            <FiPackage className={styles.tabIcon} /> Plugins & Mods
-          </button>
-          <button
-            className={`${styles.tabButton} ${activeTab === 'advanced' ? styles.active : ''}`}
-            onClick={() => setActiveTab('advanced')}
-          >
-            <FiSettings className={styles.tabIcon} /> Advanced
-          </button>
+          {tabs.map(tab => (
+            <TabButton
+              key={tab.id}
+              tab={tab}
+              isActive={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+            />
+          ))}
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -226,7 +462,7 @@ export default function ServerGenerator() {
                   <select
                     id="serverType"
                     name="serverType"
-                    value={serverConfig.serverType}
+                    value={serverTypes.find(type => type.id === serverConfig.serverType)?.id || ''}
                     onChange={handleChange}
                   >
                     {serverTypes.map(type => (
@@ -277,96 +513,35 @@ export default function ServerGenerator() {
               </div>
 
               <div className={styles.formGroup}>
-                <label>Game Mode</label>
-                <div className={styles.radioGroup}>
-                  <label className={styles.radioOption}>
-                    <input
-                      type="radio"
-                      name="gameMode"
-                      value="survival"
-                      checked={serverConfig.gameMode === 'survival'}
-                      onChange={handleChange}
-                    />
-                    Survival
-                  </label>
-                  <label className={styles.radioOption}>
-                    <input
-                      type="radio"
-                      name="gameMode"
-                      value="creative"
-                      checked={serverConfig.gameMode === 'creative'}
-                      onChange={handleChange}
-                    />
-                    Creative
-                  </label>
-                  <label className={styles.radioOption}>
-                    <input
-                      type="radio"
-                      name="gameMode"
-                      value="adventure"
-                      checked={serverConfig.gameMode === 'adventure'}
-                      onChange={handleChange}
-                    />
-                    Adventure
-                  </label>
-                  <label className={styles.radioOption}>
-                    <input
-                      type="radio"
-                      name="gameMode"
-                      value="spectator"
-                      checked={serverConfig.gameMode === 'spectator'}
-                      onChange={handleChange}
-                    />
-                    Spectator
-                  </label>
+                <label htmlFor="customOptions">Server IP</label>
+                <div className={styles.customOptions}>
+                  <input
+                    type="text"
+                    id="customOptions"
+                    name="customOptions"
+                    value={serverConfig.customOptions}
+                    onChange={handleChange}
+                    placeholder="Enter a custom server IP"
+                  />
+                  .etran.dev
                 </div>
               </div>
 
-              <div className={styles.formGroup}>
-                <label>Difficulty</label>
-                <div className={styles.radioGroup}>
-                  <label className={styles.radioOption}>
-                    <input
-                      type="radio"
-                      name="difficulty"
-                      value="peaceful"
-                      checked={serverConfig.difficulty === 'peaceful'}
-                      onChange={handleChange}
-                    />
-                    Peaceful
-                  </label>
-                  <label className={styles.radioOption}>
-                    <input
-                      type="radio"
-                      name="difficulty"
-                      value="easy"
-                      checked={serverConfig.difficulty === 'easy'}
-                      onChange={handleChange}
-                    />
-                    Easy
-                  </label>
-                  <label className={styles.radioOption}>
-                    <input
-                      type="radio"
-                      name="difficulty"
-                      value="normal"
-                      checked={serverConfig.difficulty === 'normal'}
-                      onChange={handleChange}
-                    />
-                    Normal
-                  </label>
-                  <label className={styles.radioOption}>
-                    <input
-                      type="radio"
-                      name="difficulty"
-                      value="hard"
-                      checked={serverConfig.difficulty === 'hard'}
-                      onChange={handleChange}
-                    />
-                    Hard
-                  </label>
-                </div>
-              </div>
+              <RadioGroup
+                name="gameMode"
+                options={gameModes}
+                selectedValue={serverConfig.gameMode}
+                onChange={handleChange}
+                label="Game Mode"
+              />
+
+              <RadioGroup
+                name="difficulty"
+                options={difficulties}
+                selectedValue={serverConfig.difficulty}
+                onChange={handleChange}
+                label="Difficulty"
+              />
             </div>
           )}
 
@@ -460,79 +635,34 @@ export default function ServerGenerator() {
                 onChange={handleWorldFileUpload}
               />
 
-              <div className={styles.formGroup}>
-                <label>World Features</label>
-                <div className={styles.checkboxGroup}>
-                  <label className={styles.checkboxOption}>
-                    <input
-                      type="checkbox"
-                      name="generateStructures"
-                      checked={serverConfig.generateStructures}
-                      onChange={handleChange}
-                    />
-                    Generate Structures (villages, temples, etc.)
-                  </label>
-                  <label className={styles.checkboxOption}>
-                    <input
-                      type="checkbox"
-                      name="allowNether"
-                      checked={serverConfig.allowNether}
-                      onChange={handleChange}
-                    />
-                    Enable Nether
-                  </label>
-                  <label className={styles.checkboxOption}>
-                    <input
-                      type="checkbox"
-                      name="allowEnd"
-                      checked={serverConfig.allowEnd}
-                      onChange={handleChange}
-                    />
-                    Enable The End
-                  </label>
-                  <label className={styles.checkboxOption}>
-                    <input
-                      type="checkbox"
-                      name="pvp"
-                      checked={serverConfig.pvp}
-                      onChange={handleChange}
-                    />
-                    Enable PvP
-                  </label>
-                </div>
-              </div>
+              <CheckboxGroup
+                serverConfig={serverConfig}
+                onChange={handleChange}
+                label="World Features"
+                options={worldFeatures}
+              />
 
-              <div className={styles.formGroup}>
-                <label htmlFor="spawnProtection">Spawn Protection Radius</label>
-                <div className={styles.rangeWrapper}>
-                  <input
-                    type="range"
-                    id="spawnProtection"
-                    name="spawnProtection"
-                    min="0"
-                    max="64"
-                    value={serverConfig.spawnProtection}
-                    onChange={handleChange}
-                  />
-                  <span className={styles.rangeValue}>{serverConfig.spawnProtection} blocks</span>
-                </div>
-              </div>
+              <RangeInput
+                id="spawnProtection"
+                name="spawnProtection"
+                label="Spawn Protection Radius"
+                min={0}
+                max={64}
+                value={serverConfig.spawnProtection}
+                onChange={handleChange}
+                unit="blocks"
+              />
 
-              <div className={styles.formGroup}>
-                <label htmlFor="viewDistance">View Distance</label>
-                <div className={styles.rangeWrapper}>
-                  <input
-                    type="range"
-                    id="viewDistance"
-                    name="viewDistance"
-                    min="3"
-                    max="32"
-                    value={serverConfig.viewDistance}
-                    onChange={handleChange}
-                  />
-                  <span className={styles.rangeValue}>{serverConfig.viewDistance} chunks</span>
-                </div>
-              </div>
+              <RangeInput
+                id="viewDistance"
+                name="viewDistance"
+                label="View Distance"
+                min={3}
+                max={32}
+                value={serverConfig.viewDistance}
+                onChange={handleChange}
+                unit="chunks"
+              />
             </div>
           )}
 
@@ -542,87 +672,27 @@ export default function ServerGenerator() {
               <h2 className={styles.sectionTitle}>Plugins & Mods</h2>
 
               {(serverConfig.serverType === 'spigot' || serverConfig.serverType === 'paper') && (
-                <div className={styles.formGroup}>
-                  <label>Plugins</label>
-                  <div className={styles.fileUpload}>
-                    <div
-                      className={styles.uploadBox}
-                      onClick={() => pluginsRef.current?.click()}
-                    >
-                      <FiUpload size={32} />
-                      <p>Click to upload plugin files (.jar)</p>
-                    </div>
-                    <input
-                      type="file"
-                      ref={pluginsRef}
-                      style={{ display: 'none' }}
-                      accept=".jar"
-                      multiple
-                      onChange={handlePluginsUpload}
-                    />
-
-                    {serverConfig.plugins.length > 0 && (
-                      <div>
-                        <p>Uploaded Plugins:</p>
-                        {serverConfig.plugins.map((plugin, index) => (
-                          <div key={index} className={styles.uploadedFile}>
-                            <FiFileText />
-                            <span className={styles.fileName}>{plugin.name}</span>
-                            <button
-                              type="button"
-                              className={styles.removeButton}
-                              onClick={() => removePlugin(index)}
-                            >
-                              <FiTrash2 />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <FileUploadSection
+                  label="Plugins"
+                  files={serverConfig.plugins}
+                  onUpload={handlePluginsUpload}
+                  onRemove={removePlugin}
+                  fileRef={pluginsRef}
+                  fileType=".jar"
+                  uploadText="Click to upload plugin files (.jar)"
+                />
               )}
 
               {(serverConfig.serverType === 'forge' || serverConfig.serverType === 'fabric') && (
-                <div className={styles.formGroup}>
-                  <label>Mods</label>
-                  <div className={styles.fileUpload}>
-                    <div
-                      className={styles.uploadBox}
-                      onClick={() => modsRef.current?.click()}
-                    >
-                      <FiUpload size={32} />
-                      <p>Click to upload mod files (.jar)</p>
-                    </div>
-                    <input
-                      type="file"
-                      ref={modsRef}
-                      style={{ display: 'none' }}
-                      accept=".jar"
-                      multiple
-                      onChange={handleModsUpload}
-                    />
-
-                    {serverConfig.mods.length > 0 && (
-                      <div>
-                        <p>Uploaded Mods:</p>
-                        {serverConfig.mods.map((mod, index) => (
-                          <div key={index} className={styles.uploadedFile}>
-                            <FiFileText />
-                            <span className={styles.fileName}>{mod.name}</span>
-                            <button
-                              type="button"
-                              className={styles.removeButton}
-                              onClick={() => removeMod(index)}
-                            >
-                              <FiTrash2 />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <FileUploadSection
+                  label="Mods"
+                  files={serverConfig.mods}
+                  onUpload={handleModsUpload}
+                  onRemove={removeMod}
+                  fileRef={modsRef}
+                  fileType=".jar"
+                  uploadText="Click to upload mod files (.jar)"
+                />
               )}
 
               {serverConfig.serverType === 'vanilla' && (
@@ -658,41 +728,34 @@ export default function ServerGenerator() {
             <h2 className={styles.sectionTitle}>Server Preview</h2>
             <div className={styles.previewInfo}>
               <div>
-                <p className={styles.previewDetail}><span>Name:</span> {serverConfig.name || 'Unnamed Server'}</p>
-                <p className={styles.previewDetail}>
-                  <span>Type:</span>
-                  {serverTypes.find(t => t.id === serverConfig.serverType)?.name || 'Vanilla'}
-                </p>
-                <p className={styles.previewDetail}><span>Version:</span> {serverConfig.version}</p>
-                <p className={styles.previewDetail}><span>Game Mode:</span> {serverConfig.gameMode}</p>
-                <p className={styles.previewDetail}><span>Difficulty:</span> {serverConfig.difficulty}</p>
+                <PreviewDetail label="Name" value={serverConfig.name || 'Unnamed Server'} />
+                <PreviewDetail
+                  label="Type"
+                  value={serverTypes.find(t => t.id === serverConfig.serverType)?.name || 'Vanilla'}
+                />
+                <PreviewDetail label="Version" value={serverConfig.version} />
+                <PreviewDetail label="Game Mode" value={serverConfig.gameMode} />
+                <PreviewDetail label="Difficulty" value={serverConfig.difficulty} />
               </div>
               <div>
-                <p className={styles.previewDetail}>
-                  <span>World:</span>
-                  {serverConfig.worldFiles ? 'Custom World Import' : 'New Generated World'}
-                </p>
-                <p className={styles.previewDetail}>
-                  <span>Plugins:</span>
-                  {serverConfig.plugins.length} plugin(s)
-                </p>
-                <p className={styles.previewDetail}>
-                  <span>Mods:</span>
-                  {serverConfig.mods.length} mod(s)
-                </p>
-                <p className={styles.previewDetail}><span>Max Players:</span> {serverConfig.maxPlayers}</p>
+                <PreviewDetail
+                  label="World"
+                  value={serverConfig.worldFiles ? 'Custom World Import' : 'New Generated World'}
+                />
+                <PreviewDetail label="Plugins" value={`${serverConfig.plugins.length} plugin(s)`} />
+                <PreviewDetail label="Mods" value={`${serverConfig.mods.length} mod(s)`} />
+                <PreviewDetail label="Max Players" value={serverConfig.maxPlayers} />
               </div>
             </div>
           </div>
 
-          <div className={styles.actionButtons}>
-            <button type="button" className={`${styles.button} ${styles.secondary}`}>
-              Save as Template
-            </button>
-            <button type="submit" className={`${styles.button} ${styles.primary}`}>
-              Create Server
-            </button>
-          </div>
+          {fullyLoaded && (
+            <div className={styles.actionButtons}>
+              <button type="submit" className={`${styles.button} ${styles.primary}`}>
+                Create Server
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </main>

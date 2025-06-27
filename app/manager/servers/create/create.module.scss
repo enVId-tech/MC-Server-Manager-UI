@@ -125,6 +125,35 @@
   }
 }
 
+.customOptions {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  align-items: center;
+
+  input {
+    width: 90%;
+    padding: 0.75rem 1rem;
+    margin-right: 0.2rem;
+    border-radius: 6px;
+    border: 1px solid $border-color;
+    background-color: rgba($dark-bg, 0.7);
+    color: $text-primary;
+    transition: all 0.3s ease;
+    font-family: var(--font-poppins);
+    
+    &:focus {
+      border-color: $accent-blue;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba($accent-blue, 0.3);
+    }
+    
+    &:hover:not(:focus) {
+      border-color: lighten($border-color, 10%);
+    }
+  }
+}
+
 .radioGroup {
   display: flex;
   gap: 1.25rem;
