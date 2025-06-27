@@ -1,9 +1,19 @@
 "use client";
 import React, { useState, useRef, useEffect } from 'react';
-import styles from './create.module.scss';
-import { FiUpload, FiTrash2, FiSettings, FiServer, FiGlobe, FiPackage, FiFileText } from 'react-icons/fi';
+import styles from './create-main.module.scss';
+import { FiTrash2, FiSettings, FiServer, FiGlobe, FiPackage, FiFileText } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
 import createBackground from "@/public/dashboard-bg.png";
+
+// Import components
+import {
+  RadioGroup,
+  CheckboxGroup,
+  RangeInput,
+  FileUploadSection,
+  TabButton,
+  PreviewDetail
+} from '.';
 
 // Types
 interface ServerConfig {
@@ -29,155 +39,6 @@ interface ServerConfig {
   [key: string]: unknown;
 }
 
-// Reusable Components
-interface RadioGroupProps {
-  name: string;
-  options: { value: string; label: string }[];
-  selectedValue: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  label: string;
-}
-
-const RadioGroup: React.FC<RadioGroupProps> = ({ name, options, selectedValue, onChange, label }) => (
-  <div className={styles.formGroup}>
-    <label>{label}</label>
-    <div className={styles.radioGroup}>
-      {options.map(option => (
-        <label key={option.value} className={styles.radioOption}>
-          <input
-            type="radio"
-            name={name}
-            value={option.value}
-            checked={selectedValue === option.value}
-            onChange={onChange}
-          />
-          {option.label}
-        </label>
-      ))}
-    </div>
-  </div>
-);
-
-interface CheckboxGroupProps {
-  serverConfig: ServerConfig;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  label: string;
-  options: { name: string; label: string }[];
-}
-
-const CheckboxGroup: React.FC<CheckboxGroupProps> = ({ serverConfig, onChange, label, options }) => (
-  <div className={styles.formGroup}>
-    <label>{label}</label>
-    <div className={styles.checkboxGroup}>
-      {options.map(option => (
-        <label key={option.name} className={styles.checkboxOption}>
-          <input
-            type="checkbox"
-            name={option.name}
-            checked={serverConfig[option.name as keyof ServerConfig] as boolean}
-            onChange={onChange}
-          />
-          {option.label}
-        </label>
-      ))}
-    </div>
-  </div>
-);
-
-interface RangeInputProps {
-  id: string;
-  name: string;
-  label: string;
-  min: number;
-  max: number;
-  value: number;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  unit: string;
-}
-
-const RangeInput: React.FC<RangeInputProps> = ({ id, name, label, min, max, value, onChange, unit }) => (
-  <div className={styles.formGroup}>
-    <label htmlFor={id}>{label}</label>
-    <div className={styles.rangeWrapper}>
-      <input
-        type="range"
-        id={id}
-        name={name}
-        min={min}
-        max={max}
-        value={value}
-        onChange={onChange}
-      />
-      <span className={styles.rangeValue}>{value} {unit}</span>
-    </div>
-  </div>
-);
-
-interface FileUploadSectionProps {
-  label: string;
-  files: File[];
-  onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onRemove: (index: number) => void;
-  fileRef: React.RefObject<HTMLInputElement | null>;
-  fileType: string;
-  uploadText: string;
-}
-
-const FileUploadSection: React.FC<FileUploadSectionProps> = ({
-  label, files, onUpload, onRemove, fileRef, fileType, uploadText
-}) => (
-  <div className={styles.formGroup}>
-    <label>{label}</label>
-    <div className={styles.fileUpload}>
-      <div
-        className={styles.uploadBox}
-        onClick={() => fileRef.current?.click()}
-      >
-        <FiUpload size={32} />
-        <p>{uploadText}</p>
-      </div>
-      <input
-        type="file"
-        ref={fileRef}
-        style={{ display: 'none' }}
-        accept={fileType}
-        multiple
-        onChange={onUpload}
-      />
-
-      {files.length > 0 && (
-        <div>
-          <p>Uploaded {label}:</p>
-          {files.map((file, index) => (
-            <div key={index} className={styles.uploadedFile}>
-              <FiFileText />
-              <span className={styles.fileName}>{file.name}</span>
-              <button
-                type="button"
-                className={styles.removeButton}
-                onClick={() => onRemove(index)}
-              >
-                <FiTrash2 />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  </div>
-);
-
-interface PreviewDetailProps {
-  label: string;
-  value: string | number;
-}
-
-const PreviewDetail: React.FC<PreviewDetailProps> = ({ label, value }) => (
-  <p className={styles.previewDetail}>
-    <span>{label}:</span> {value}
-  </p>
-);
-
 // Tab configuration
 const tabs = [
   { id: 'general', label: 'General', icon: FiServer },
@@ -185,23 +46,6 @@ const tabs = [
   { id: 'mods', label: 'Plugins & Mods', icon: FiPackage },
   { id: 'advanced', label: 'Advanced', icon: FiSettings }
 ];
-
-interface TabButtonProps {
-  tab: typeof tabs[0];
-  isActive: boolean;
-  onClick: () => void;
-}
-
-const TabButton: React.FC<TabButtonProps> = ({ tab, isActive, onClick }) => (
-  <button
-    className={`${styles.tabButton} ${isActive ? styles.active : ''}`}
-    onClick={onClick}
-  >
-    <tab.icon className={styles.tabIcon} /> {tab.label}
-  </button>
-);
-
-// Main Component
 
 // Interfaces for ServerConfig
 interface ServerTypes {

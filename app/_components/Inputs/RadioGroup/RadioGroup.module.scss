@@ -1,0 +1,172 @@
+@use "../../../variables" as *;
+
+.formGroup {
+  margin-bottom: 1.5rem;
+  position: relative;
+
+  // Ultra-narrow screens adjustments
+  @media (max-width: 380px) {
+    margin-bottom: 1rem;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: $text-primary;
+    font-family: var(--font-poppins);
+    font-size: 0.95rem;
+    letter-spacing: 0.5px;
+    position: relative;
+
+    // Mobile font size adjustments
+    @media (max-width: 380px) {
+      font-size: 0.9rem;
+      margin-bottom: 0.4rem;
+    }
+  }
+}
+
+.radioGroup {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+
+  // Ultra-narrow screens: stack vertically with smaller gaps
+  @media (max-width: 380px) {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}
+
+.radioOption {
+  display: flex !important;
+  align-items: center;
+  cursor: pointer;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+  min-height: 48px; // Consistent minimum height
+  box-sizing: border-box; // Include padding and border in height
+
+  // Ultra-narrow screens: full width with proper padding
+  @media (max-width: 380px) {
+    padding: 0.75rem 0.85rem;
+    width: 100%;
+    min-height: 48px;
+  }
+  
+  input[type="radio"] {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    width: 20px;
+    height: 20px;
+    min-width: 20px; // Prevent flex shrinking
+    min-height: 20px; // Prevent flex shrinking
+    border: 2px solid $border-color;
+    border-radius: 50%; // Perfect circle
+    background-color: rgba($dark-bg, 0.5);
+    position: relative;
+    cursor: pointer;
+    margin-right: 0.75rem;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    box-sizing: border-box; // Include border in dimensions
+    display: inline-block; // Ensure consistent rendering
+    vertical-align: middle; // Align properly with text
+    outline: none; // Remove default outline
+
+    // Force consistent circle shape across all devices and browsers
+    @media (max-width: 380px) {
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      min-height: 20px;
+      margin-right: 0.75rem;
+      border-radius: 50%; // Reaffirm circle shape
+    }
+    
+    // Additional cross-browser resets for perfect circle
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    
+    // Firefox specific resets
+    &::-moz-focus-inner {
+      border: 0;
+      padding: 0;
+    }
+    
+    // Ensure the radio button maintains circular shape
+    border-style: solid;
+    border-width: 2px;
+    
+    &:checked {
+      border-color: $accent-blue;
+      background-color: $dark-bg;
+      
+      &::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 8px;
+        height: 8px;
+        min-width: 8px;
+        min-height: 8px;
+        background-color: $accent-blue;
+        border-radius: 50%; // Perfect circle for the dot
+        box-shadow: 0 0 5px rgba($accent-blue, 0.5);
+        display: block; // Ensure the dot is displayed
+      }
+    }
+    
+    &:focus {
+      box-shadow: 0 0 0 2px rgba($accent-blue, 0.3);
+      outline: none;
+    }
+  }
+  
+  span {
+    font-family: var(--font-poppins);
+    color: $text-primary;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    line-height: 1.2;
+    font-size: 0.95rem;
+
+    // Consistent text size on narrow screens
+    @media (max-width: 380px) {
+      font-size: 0.95rem;
+    }
+  }
+  
+  &:hover {
+    background-color: rgba($accent-blue, 0.1);
+    transform: translateY(-1px);
+    
+    input[type="radio"] {
+      border-color: lighten($border-color, 10%);
+    }
+
+    // Disable transform on touch devices to prevent layout issues
+    @media (max-width: 380px) {
+      transform: none;
+    }
+  }
+  
+  &:has(input:checked) {
+    background-color: rgba($accent-blue, 0.1);
+    border-color: rgba($accent-blue, 0.3);
+    
+    span {
+      color: $accent-blue;
+    }
+  }
+}

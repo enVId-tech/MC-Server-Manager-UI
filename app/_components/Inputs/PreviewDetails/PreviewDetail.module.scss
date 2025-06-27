@@ -1,0 +1,36 @@
+@use "../../../variables" as *;
+
+.previewDetail {
+  margin-bottom: 0.75rem;
+  font-family: var(--font-poppins);
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+
+  // Ultra-narrow screens: smaller font and margin
+  @media (max-width: 380px) {
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+  }
+
+  span {
+    color: $text-secondary;
+    margin-right: 0.75rem;
+    font-weight: 500;
+
+    @media (max-width: 380px) {
+      margin-right: 0.5rem;
+    }
+  }
+  
+  svg {
+    margin-right: 0.5rem;
+    color: $accent-blue;
+
+    @media (max-width: 380px) {
+      margin-right: 0.25rem;
+      width: 16px;
+      height: 16px;
+    }
+  }
+}

@@ -1,0 +1,114 @@
+@use "../../../variables" as *;
+
+.tabButton {
+  padding: 0.85rem 1.5rem;
+  background: none;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  font-weight: 500;
+  position: relative;
+  font-family: var(--font-poppins);
+  white-space: nowrap;
+  transition: all 0.25s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  overflow: hidden;
+  flex-shrink: 0; // Prevent tabs from shrinking too much
+  min-height: 48px; // Consistent minimum height
+
+  // Ultra-narrow screens: consistent sizing
+  @media (max-width: 380px) {
+    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    min-width: fit-content;
+    min-height: 48px;
+  }
+  
+  .tabIcon {
+    font-size: 1.35rem;
+    transition: transform 0.3s ease;
+
+    // Consistent icon size on narrow screens
+    @media (max-width: 380px) {
+      font-size: 1.2rem;
+    }
+  }
+
+  &:after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background-color: transparent;
+    transition: background-color 0.3s ease;
+    z-index: 1;
+  }
+  
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba($accent-blue, 0);
+    transition: all 0.25s ease;
+    z-index: -1;
+    transform: translateY(100%);
+  }
+
+  &.active {
+    color: $accent-blue;
+    font-weight: 600;
+
+    &:after {
+      background-color: $accent-blue;
+    }
+    
+    .tabIcon {
+      transform: scale(1.2);
+      color: $accent-blue;
+
+      // Less dramatic scaling on narrow screens
+      @media (max-width: 380px) {
+        transform: scale(1.1);
+      }
+    }
+  }
+
+  &:hover:not(.active) {
+    color: lighten($text-secondary, 25%);
+    transform: translateY(-2px);
+    
+    // Disable transform on touch devices to prevent layout issues
+    @media (max-width: 380px) {
+      transform: none;
+    }
+    
+    &:after {
+      background-color: rgba($accent-blue, 0.3);
+    }
+    
+    &::before {
+      transform: translateY(95%);
+      background-color: rgba($accent-blue, 0.05);
+    }
+    
+    .tabIcon {
+      transform: translateY(-2px);
+
+      @media (max-width: 380px) {
+        transform: none;
+      }
+    }
+  }
+  
+  &:active:not(.active) {
+    transform: translateY(0);
+  }
+}

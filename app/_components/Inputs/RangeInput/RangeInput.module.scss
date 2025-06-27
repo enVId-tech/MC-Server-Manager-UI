@@ -1,0 +1,256 @@
+@use "../../../variables" as *;
+
+.formGroup {
+  margin-bottom: 1.5rem;
+  position: relative;
+
+  // Ultra-narrow screens adjustments
+  @media (max-width: 380px) {
+    margin-bottom: 1rem;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: $text-primary;
+    font-family: var(--font-poppins);
+    font-size: 0.95rem;
+    letter-spacing: 0.5px;
+    position: relative;
+
+    // Mobile font size adjustments
+    @media (max-width: 380px) {
+      font-size: 0.9rem;
+      margin-bottom: 0.4rem;
+    }
+  }
+}
+
+.rangeWrapper {
+  position: relative;
+  padding-bottom: 1.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+
+  // Ultra-narrow screens: smaller padding
+  @media (max-width: 380px) {
+    padding-bottom: 1rem;
+    margin-top: 0.25rem;
+    padding-top: 0.25rem;
+  }
+
+  .rangeValue {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    font-size: 0.95rem;
+    color: $accent-blue;
+    font-family: var(--font-poppins);
+    font-weight: 600;
+    background-color: rgba($dark-bg, 0.6);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    min-width: 2.5rem;
+    text-align: center;
+
+    // Smaller on narrow screens
+    @media (max-width: 380px) {
+      font-size: 0.85rem;
+      padding: 0.1rem 0.4rem;
+      min-width: 2rem;
+    }
+  }
+}
+
+.rangeInput {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background: transparent;
+  outline: none;
+  margin: 0.75rem 0;
+  padding: 0;
+  position: relative;
+  cursor: pointer;
+  
+  // Track styling for WebKit browsers
+  &::-webkit-slider-track {
+    width: 100%;
+    height: 6px;
+    background: linear-gradient(
+      to right, 
+      $accent-blue 0%, 
+      $accent-blue calc(var(--value, 50) * 1%), 
+      rgba($border-color, 0.3) calc(var(--value, 50) * 1%), 
+      rgba($border-color, 0.3) 100%
+    );
+    border-radius: 3px;
+    border: none;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  // Track styling for Firefox
+  &::-moz-range-track {
+    width: 100%;
+    height: 6px;
+    background: rgba($border-color, 0.3);
+    border-radius: 3px;
+    border: none;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  // Progress fill for Firefox (requires JS to update)
+  &::-moz-range-progress {
+    height: 6px;
+    background: $accent-blue;
+    border-radius: 3px 0 0 3px;
+  }
+
+  // Thumb styling for WebKit browsers
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: $accent-blue;
+    cursor: pointer;
+    border: 3px solid white;
+    box-shadow: 
+      0 2px 8px rgba(0, 0, 0, 0.2),
+      0 0 0 1px rgba($accent-blue, 0.3);
+    transition: all 0.2s ease;
+    position: relative;
+    
+    &:hover {
+      transform: scale(1.1);
+      background: lighten($accent-blue, 8%);
+      box-shadow: 
+        0 3px 12px rgba(0, 0, 0, 0.3),
+        0 0 0 2px rgba($accent-blue, 0.4);
+    }
+    
+    &:active {
+      transform: scale(1.05);
+      background: darken($accent-blue, 5%);
+      box-shadow: 
+        0 1px 4px rgba(0, 0, 0, 0.3),
+        0 0 0 2px rgba($accent-blue, 0.5);
+    }
+  }
+
+  // Thumb styling for Firefox
+  &::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: $accent-blue;
+    cursor: pointer;
+    border: 3px solid white;
+    box-shadow: 
+      0 2px 8px rgba(0, 0, 0, 0.2),
+      0 0 0 1px rgba($accent-blue, 0.3);
+    transition: all 0.2s ease;
+    -moz-appearance: none;
+    
+    &:hover {
+      transform: scale(1.1);
+      background: lighten($accent-blue, 8%);
+      box-shadow: 
+        0 3px 12px rgba(0, 0, 0, 0.3),
+        0 0 0 2px rgba($accent-blue, 0.4);
+    }
+    
+    &:active {
+      transform: scale(1.05);
+      background: darken($accent-blue, 5%);
+      box-shadow: 
+        0 1px 4px rgba(0, 0, 0, 0.3),
+        0 0 0 2px rgba($accent-blue, 0.5);
+    }
+  }
+  
+  // Focus styling
+  &:focus {
+    outline: none;
+    
+    &::-webkit-slider-thumb {
+      box-shadow: 
+        0 2px 8px rgba(0, 0, 0, 0.2),
+        0 0 0 3px rgba($accent-blue, 0.4);
+    }
+    
+    &::-moz-range-thumb {
+      box-shadow: 
+        0 2px 8px rgba(0, 0, 0, 0.2),
+        0 0 0 3px rgba($accent-blue, 0.4);
+    }
+  }
+  
+  // Disabled state
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    
+    &::-webkit-slider-thumb {
+      cursor: not-allowed;
+      background: rgba($border-color, 0.5);
+      
+      &:hover {
+        transform: none;
+        background: rgba($border-color, 0.5);
+      }
+    }
+    
+    &::-moz-range-thumb {
+      cursor: not-allowed;
+      background: rgba($border-color, 0.5);
+      
+      &:hover {
+        transform: none;
+        background: rgba($border-color, 0.5);
+      }
+    }
+  }
+  
+  // Mobile touch improvements
+  @media (max-width: 768px) {
+    margin: 1rem 0;
+    
+    &::-webkit-slider-thumb {
+      width: 24px;
+      height: 24px;
+      
+      &:hover {
+        transform: scale(1.05); // Less dramatic on mobile
+      }
+    }
+    
+    &::-moz-range-thumb {
+      width: 24px;
+      height: 24px;
+      
+      &:hover {
+        transform: scale(1.05); // Less dramatic on mobile
+      }
+    }
+  }
+  
+  // Ultra-narrow screens
+  @media (max-width: 380px) {
+    margin: 0.75rem 0;
+    
+    &::-webkit-slider-thumb {
+      width: 22px;
+      height: 22px;
+    }
+    
+    &::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+    }
+  }
+}

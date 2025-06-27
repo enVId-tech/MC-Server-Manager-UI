@@ -62,3 +62,20 @@ export async function GET() {
         }, { status: 500 });
     }
 }
+
+// Writing a POST API route to handle creating a new server based on provided configuration from the client.
+export async function POST(request: Request) {
+    try {
+        const config = await request.json();
+
+        console.log("Creating new server with config:", config);
+
+        return NextResponse.json(config, { status: 201 });
+    } catch (error) {
+        console.error("Error creating server configuration:", error);
+        return NextResponse.json({
+            error: "Failed to create server configuration.",
+            details: error instanceof Error ? error.message : 'Unknown error'
+        }, { status: 500 });
+    }
+}
