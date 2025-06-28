@@ -354,8 +354,10 @@ export default function ServerGenerator() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    console.log('Submitting server configuration:', serverConfig);
+
     // Send server configuration to the API
-    fetch('/api/server/config', {
+    const response = fetch('/api/server/config', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -363,10 +365,22 @@ export default function ServerGenerator() {
       body: JSON.stringify(serverConfig),
     });
 
-    // Handle response
-    // For now, just log the server configuration
-    console.log('Server configuration:', serverConfig);
-    alert('Server creation request submitted! Check console for details.');
+    response.then(async res => {
+      if (res.status === 401) {
+        alert('You must be logged in to create a server configuration.');
+        router.push('/auth/login');
+      }
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to create server configuration');
+      }
+      const data = await res.json();
+
+      // Redirect to the server details page or show success message
+      console.log('Server created successfully:', data);
+      alert('Server creation request submitted! Check console for details.');
+    });
   };
 
   return (

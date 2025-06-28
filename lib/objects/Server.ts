@@ -1,7 +1,7 @@
 import { Schema, Document, models, model } from 'mongoose';
-import { IServerConfig } from './ServerConfig';
+import { ServerConfigData } from './ServerConfig';
 
-export interface IServer extends IServerConfig, Document {
+export interface IServer extends Document {
     email: string;
     uniqueId: string;
     isOnline: boolean;
@@ -9,14 +9,13 @@ export interface IServer extends IServerConfig, Document {
     folderPath: string;
     serverName: string;
     createdAt: Date;
-    serverConfig?: IServerConfig;
+    serverConfig: ServerConfigData;
 }
 
 const ServerSchema: Schema = new Schema({
     email: {
         type: String,
         required: [true, 'Email is required.'],
-        unique: true,
         trim: true,
         lowercase: true,
         match: [/.+\@.+\..+/, 'Please enter a valid email address.'],
@@ -58,6 +57,6 @@ const ServerSchema: Schema = new Schema({
 });
 
 // Fix: Use consistent model name and proper caching pattern
-const Server = models.Server || model<IServer>('Server', ServerSchema);
+const Server = models.servers || model<IServer>('servers', ServerSchema);
 
 export default Server;

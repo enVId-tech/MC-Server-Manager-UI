@@ -1,7 +1,20 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/dbConnect";
 import mongoose from "mongoose";
-import ServerConfig from "@/lib/objects/ServerConfig"; // For storing individual server configurations
+import Server from "@/lib/objects/Server";
+import jwt from "jsonwebtoken";
+import User from "@/lib/objects/User";
+import { ServerConfigData } from "@/lib/objects/ServerConfig";
+import BodyParser from "@/lib/bodyParser";
+
+// Configure body parsing for this API route
+export const config = {
+    api: {
+        bodyParser: {
+            sizeLimit: '10mb', // Set desired value here
+        },
+    },
+};
 
 // Internal function to get create config (not exported)
 async function getCreateConfig() {
@@ -44,11 +57,46 @@ export async function GET() {
 }
 
 // Writing a POST API route to handle creating a new server based on provided configuration from the client.
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
-        const config = await request.json();
+        // Apply body parsing to get the configuration object
+        // This will automatically parse the JSON body of the request
+        // and handle errors if the body is not valid JSON.
+        const config = await BodyParser.parseAuto(request);
 
         console.log("Received server configuration:", config);
+
+        // Connect to the database
+        await dbConnect();
+        const token = request.cookies.get('sessionToken')?.value;
+
+        if (!token) {
+            return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
+        }
+
+        // Verify the token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default');
+        if (!decoded) {
+            return NextResponse.json({ message: 'Invalid session token.' }, { status: 401 });
+        }
+
+        // Find the user by ID from the decoded token
+        const user = await User.findById((decoded as { id: string }).id);
+        if (!user) {
+            return NextResponse.json({ message: 'User not found.' }, { status: 404 });
+        }
+        const email: string = user.email;
+        if (!email) {
+            console.warn("User email not found in session.");
+            // If the email is not found, return an error response
+            // This is a critical error, as the server configuration requires an email
+            // to associate the server with the user.
+
+            // Delete the session token cookie if email is not found
+            const response = NextResponse.json({ error: "User email not found." }, { status: 401 });
+            response.cookies.delete('sessionToken');
+            return response;
+        }
 
         // Validate the configuration object
         if (!config || typeof config !== 'object' || Array.isArray(config)) {
@@ -64,13 +112,11 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Server type and version are required." }, { status: 400 });
         }
 
-        await dbConnect();
-
         // Check for existing server with the same name or subdomain
-        const existingServer = await ServerConfig.findOne({
+        const existingServer = await Server.findOne({
             $or: [
-                { name: config.name },
-                { subdomain: config.subdomain }
+                { serverName: config.name },
+                { subdomainName: `${config.subdomain}.etran.dev` }
             ]
         });
 
@@ -79,7 +125,7 @@ export async function POST(request: Request) {
         }
 
         // Create a new server configuration document with all properties
-        const newServerConfig = new ServerConfig({
+        const serverConfigData: ServerConfigData = {
             // Basic server information
             name: config.name,
             serverType: config.serverType,
@@ -138,19 +184,31 @@ export async function POST(request: Request) {
             
             // Memory and performance
             serverMemory: config.serverMemory || 1024
+        };
+
+        const newServer = new Server({
+            email: user.email,
+            uniqueId: new mongoose.Types.ObjectId().toString(), // Generate a unique ID
+            subdomainName: `${config.subdomain}.etran.dev`,
+            isOnline: false, // Default to offline when created
+            folderPath: `${process.env.FOLDER_PATH || '/servers/otherServers'}/${email.split('@')[0]}/${config.name}`,
+            serverName: config.name,
+            createdAt: new Date(),
+            serverConfig: serverConfigData // Embed the configuration directly
         });
 
-        const savedConfig = await newServerConfig.save();
+        // Save only the server (which includes the embedded configuration)
+        await newServer.save();
 
-        console.log("Successfully created server configuration:", savedConfig._id);
+        console.log("Successfully created server configuration:", newServer._id);
 
         return NextResponse.json({
             message: "Server configuration created successfully",
-            serverId: savedConfig._id,
+            serverId: newServer._id,
             config: {
-                name: savedConfig.name,
-                serverType: savedConfig.serverType,
-                version: savedConfig.version,
+                name: serverConfigData.name,
+                serverType: serverConfigData.serverType,
+                version: serverConfigData.version,
                 subdomain: config.subdomain
             }
         }, { status: 201 });
