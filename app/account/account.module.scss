@@ -600,7 +600,7 @@
     left: 0;
     right: 0;
     height: 4px;
-    background: linear-gradient(90deg, $error-red, lighten($error-red, 10%));
+    background: linear-gradient(90deg, $error-red, color.scale($error-red, $lightness:10%));
     border-radius: 16px 16px 0 0;
   }
 }
@@ -683,7 +683,7 @@
     left: 0;
     right: 0;
     height: 3px;
-    background: linear-gradient(90deg, $error-red, lighten($error-red, 15%));
+    background: linear-gradient(90deg, $error-red, color.scale($error-red, $lightness:15%));
     border-radius: 12px 12px 0 0;
   }
   
@@ -854,7 +854,7 @@
   
   &:hover {
     background: rgba($border-color, 0.1);
-    border-color: lighten($border-color, 10%);
+    border-color: color.scale($border-color, $lightness:10%);
     transform: translateY(-1px);
   }
   

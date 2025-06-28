@@ -1,4 +1,5 @@
 @use "../../../variables" as *;
+@use "sass:color";
 
 .formGroup {
   margin-bottom: 1.5rem;
@@ -133,7 +134,7 @@
     transform: translateY(-1px);
     
     input[type="checkbox"] {
-      border-color: lighten($border-color, 10%);
+      border-color: color.scale($border-color, $lightness:10%);
     }
 
     // Disable transform on touch devices

@@ -1,4 +1,5 @@
 @use "../../../variables" as *;
+@use "sass:color";
 
 .formGroup {
   margin-bottom: 1.5rem;
@@ -181,7 +182,7 @@
     }
 
     &:hover {
-      color: lighten($accent-red, 10%);
+      color: color.scale($accent-red, $lightness:10%);
       background-color: rgba($accent-red, 0.15);
       transform: scale(1.1) rotate(90deg);
 

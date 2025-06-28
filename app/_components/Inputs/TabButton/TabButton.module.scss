@@ -1,4 +1,5 @@
 @use "../../../variables" as *;
+@use "sass:color";
 
 .tabButton {
   padding: 0.85rem 1.5rem;
@@ -82,7 +83,7 @@
   }
 
   &:hover:not(.active) {
-    color: lighten($text-secondary, 25%);
+    color: color.scale($text-secondary, $lightness:25%);
     transform: translateY(-2px);
     
     // Disable transform on touch devices to prevent layout issues

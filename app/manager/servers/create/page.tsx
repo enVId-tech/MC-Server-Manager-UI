@@ -15,28 +15,74 @@ import {
   PreviewDetail
 } from '.';
 
-// Types
-interface ServerConfig {
-  name: string;
-  serverType: string;
-  version: string;
-  seed?: string;
-  maxPlayers: number;
-  description: string;
-  gameMode: string;
-  difficulty: string;
-  worldType: string;
-  generateStructures: boolean;
-  allowNether: boolean;
-  allowEnd: boolean;
-  pvp: boolean;
-  spawnProtection: number;
-  viewDistance: number;
-  worldFiles: File | null;
-  plugins: File[];
-  mods: File[];
-  customOptions: string;
-  [key: string]: unknown;
+// Types - Client-side form interface (without Mongoose Document methods)
+interface ClientServerConfig {
+    // Basic server information
+    name: string;
+    serverType: string;
+    version: string;
+    description: string;
+    
+    // World settings
+    seed?: string;
+    gameMode: string;
+    difficulty: string;
+    worldType: string;
+    worldGeneration: string;
+    worldFile?: File | null;
+    
+    // Player settings
+    maxPlayers: number;
+    whitelistEnabled: boolean;
+    onlineMode: boolean;
+    
+    // Game mechanics
+    pvpEnabled: boolean;
+    commandBlocksEnabled: boolean;
+    flightEnabled: boolean;
+    spawnAnimalsEnabled: boolean;
+    spawnMonstersEnabled: boolean;
+    spawnNpcsEnabled: boolean;
+    generateStructuresEnabled: boolean;
+    
+    // Network settings
+    port: number;
+    
+    // Performance settings
+    viewDistance: number;
+    simulationDistance: number;
+    spawnProtection: number;
+    
+    // Server management
+    rconEnabled: boolean;
+    rconPassword: string;
+    motd: string;
+    
+    // Resource settings
+    resourcePackUrl: string;
+    resourcePackSha1: string;
+    resourcePackPrompt: string;
+    forceResourcePack: boolean;
+    
+    // Advanced settings
+    enableJmxMonitoring: boolean;
+    syncChunkWrites: boolean;
+    enforceWhitelist: boolean;
+    preventProxyConnections: boolean;
+    hideOnlinePlayers: boolean;
+    broadcastRconToOps: boolean;
+    broadcastConsoleToOps: boolean;
+    
+    // Memory and performance
+    serverMemory: number;
+    
+    // Client-specific properties for form handling
+    plugins: File[];
+    mods: File[];
+    subdomain: string;
+    worldFiles?: File | null;
+    customOptions?: string;
+    [key: string]: unknown;
 }
 
 // Tab configuration
@@ -60,35 +106,51 @@ interface WorldType {
 
 export default function ServerGenerator() {
   const [activeTab, setActiveTab] = useState('general');
-  const [serverConfig, setServerConfig] = useState<ServerConfig>({
+  const [serverConfig, setServerConfig] = useState<ClientServerConfig>({
     name: '',
     serverType: '',
     version: '',
-    seed: '',
-    maxPlayers: 20,
     description: '',
+    seed: '',
     gameMode: 'survival',
     difficulty: 'normal',
     worldType: 'default',
-    // Initialize all checkbox properties with default values
-    generateStructures: true,
-    allowNether: true,
-    allowEnd: true,
-    pvp: true,
-    // Add any other checkbox properties that might come from your API
-    allowFlight: false,
-    enableCommandBlocks: false,
-    forceGamemode: false,
-    hardcore: false,
+    worldGeneration: 'new',
+    worldFile: null,
+    maxPlayers: 20,
+    whitelistEnabled: false,
     onlineMode: true,
-    whiteList: false,
-    // Range inputs
-    spawnProtection: 16,
+    pvpEnabled: true,
+    commandBlocksEnabled: false,
+    flightEnabled: false,
+    spawnAnimalsEnabled: true,
+    spawnMonstersEnabled: true,
+    spawnNpcsEnabled: true,
+    generateStructuresEnabled: true,
+    port: 25565,
     viewDistance: 10,
-    // File inputs
-    worldFiles: null,
+    simulationDistance: 10,
+    spawnProtection: 16,
+    rconEnabled: false,
+    rconPassword: '',
+    motd: 'A Minecraft Server',
+    resourcePackUrl: '',
+    resourcePackSha1: '',
+    resourcePackPrompt: '',
+    forceResourcePack: false,
+    enableJmxMonitoring: false,
+    syncChunkWrites: true,
+    enforceWhitelist: false,
+    preventProxyConnections: false,
+    hideOnlinePlayers: false,
+    broadcastRconToOps: true,
+    broadcastConsoleToOps: true,
+    serverMemory: 1024,
+    // Client-specific properties
     plugins: [],
     mods: [],
+    subdomain: '',
+    worldFiles: null,
     customOptions: ''
   });
 
@@ -120,7 +182,6 @@ export default function ServerGenerator() {
       }
 
       const data = await response.json();
-      console.log('Fetched server settings:', data);
 
       // Set the fetched data
       setVersions(data.versions || []);
@@ -282,7 +343,18 @@ export default function ServerGenerator() {
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Here you would implement the servers creation logic
+
+    // Send server configuration to the API
+    fetch('/api/server/config', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(serverConfig),
+    });
+
+    // Handle response
+    // For now, just log the server configuration
     console.log('Server configuration:', serverConfig);
     alert('Server creation request submitted! Check console for details.');
   };
@@ -380,18 +452,16 @@ export default function ServerGenerator() {
               </div>
 
               <div className={styles.formGroup}>
-                <label htmlFor="customOptions">Server IP</label>
-                <div className={styles.customOptions}>
-                  <input
-                    type="text"
-                    id="customOptions"
-                    name="customOptions"
-                    value={serverConfig.customOptions}
-                    onChange={handleChange}
-                    placeholder="Enter a custom server IP"
-                  />
-                  .etran.dev
-                </div>
+                <label htmlFor="subdomain">Server IP</label>
+                <input
+                  type="text"
+                  id="subdomain"
+                  name="subdomain"
+                  value={serverConfig.subdomain}
+                  onChange={handleChange}
+                  required
+                  placeholder="Enter a custom server IP"
+                />
               </div>
 
               <RadioGroup
@@ -424,37 +494,24 @@ export default function ServerGenerator() {
             <div className={styles.formSection}>
               <h2 className={styles.sectionTitle}>World Configuration</h2>
 
-              <div className={styles.formGroup}>
-                <label>World Generation</label>
-                <div className={styles.radioGroup}>
-                  <label className={styles.radioOption}>
-                    <input
-                      type="radio"
-                      name="worldGeneration"
-                      value="new"
-                      checked={!serverConfig.worldFiles}
-                      onChange={() => {
-                        removeWorldFile();
-                      }}
-                    />
-                    Generate New World
-                  </label>
-                  <label className={styles.radioOption}>
-                    <input
-                      type="radio"
-                      name="worldGeneration"
-                      value="import"
-                      checked={!!serverConfig.worldFiles}
-                      onChange={() => {
-                        if (worldFileRef.current) {
-                          worldFileRef.current.click();
-                        }
-                      }}
-                    />
-                    Import Existing World
-                  </label>
-                </div>
-              </div>
+              <RadioGroup
+                name="worldGeneration"
+                options={[
+                  { value: 'new', label: 'Generate New World' },
+                  { value: 'import', label: 'Import Existing World' }
+                ]}
+                selectedValue={!serverConfig.worldFiles ? 'new' : 'import'}
+                onChange={(e) => {
+                  if (e.target.value === 'new') {
+                    removeWorldFile();
+                  } else if (e.target.value === 'import') {
+                    if (worldFileRef.current) {
+                      worldFileRef.current.click();
+                    }
+                  }
+                }}
+                label="World Generation"
+              />
 
               {!serverConfig.worldFiles ? (
                 <>
@@ -585,7 +642,7 @@ export default function ServerGenerator() {
                 <textarea
                   id="customOptions"
                   name="customOptions"
-                  value={serverConfig.customOptions}
+                  value={serverConfig.customOptions as string}
                   onChange={handleChange}
                   placeholder="Enter additional server.properties options, one per line (e.g., allow-flight=true)"
                   rows={10}

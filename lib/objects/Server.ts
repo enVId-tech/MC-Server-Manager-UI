@@ -1,10 +1,15 @@
 import { Schema, Document, models, model } from 'mongoose';
+import { IServerConfig } from './ServerConfig';
 
-export interface IServer extends Document {
+export interface IServer extends IServerConfig, Document {
     email: string;
     uniqueId: string;
     isOnline: boolean;
     subdomainName: string;
+    folderPath: string;
+    serverName: string;
+    createdAt: Date;
+    serverConfig?: IServerConfig;
 }
 
 const ServerSchema: Schema = new Schema({
@@ -43,6 +48,10 @@ const ServerSchema: Schema = new Schema({
     createdAt: {
         type: Date,
         default: Date.now,
+    },
+    serverConfig: {
+        type: Schema.Types.Mixed, // Allow any structure for serverConfig
+        default: {},
     }
 }, {
     timestamps: true,

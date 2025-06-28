@@ -2,12 +2,12 @@
 import React from 'react';
 import styles from './CheckboxGroup.module.scss';
 
-interface ServerConfig {
+interface ConfigObject {
   [key: string]: unknown;
 }
 
 interface CheckboxGroupProps {
-  serverConfig: ServerConfig;
+  serverConfig: ConfigObject;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   label: string;
   options: { name: string; label: string }[];
@@ -22,7 +22,7 @@ const CheckboxGroup: React.FC<CheckboxGroupProps> = ({ serverConfig, onChange, l
           <input
             type="checkbox"
             name={option.name}
-            checked={serverConfig[option.name as keyof ServerConfig] as boolean}
+            checked={serverConfig[option.name] as boolean}
             onChange={onChange}
           />
           <span>{option.label}</span>

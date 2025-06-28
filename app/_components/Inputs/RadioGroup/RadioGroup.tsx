@@ -5,12 +5,12 @@ import styles from './RadioGroup.module.scss';
 interface RadioGroupProps {
   name: string;
   options: { value: string; label: string }[];
-  selectedValue: string;
+  selectedValue?: string | null;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   label: string;
 }
 
-const RadioGroup: React.FC<RadioGroupProps> = ({ name, options, selectedValue, onChange, label }) => (
+const RadioGroup: React.FC<RadioGroupProps> = ({ name, options, selectedValue = null, onChange, label }) => (
   <div className={styles.formGroup}>
     <label>{label}</label>
     <div className={styles.radioGroup}>

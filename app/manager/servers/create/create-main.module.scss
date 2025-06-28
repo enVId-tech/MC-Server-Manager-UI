@@ -212,7 +212,7 @@
     }
     
     &:hover:not(:focus) {
-      border-color: lighten($border-color, 10%);
+      border-color: color.scale($border-color, $lightness: 10%);
     }
   }
 
@@ -254,19 +254,19 @@
       background-color: rgba($dark-bg, 0.95);
       
       background-image: 
-        linear-gradient(45deg, transparent 50%, lighten($accent-blue, 15%) 50%),
-        linear-gradient(135deg, lighten($accent-blue, 15%) 50%, transparent 50%);
+        linear-gradient(45deg, transparent 50%, color.scale($accent-blue, $lightness:15%) 50%),
+        linear-gradient(135deg, color.scale($accent-blue, $lightness:15%) 50%, transparent 50%);
     }
     
     &:hover:not(:focus) {
-      border-color: lighten($border-color, 15%);
+      border-color: color.scale($border-color, $lightness:15%);
       background-color: rgba($dark-bg, 0.85);
       transform: translateY(-1px);
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       
       background-image: 
-        linear-gradient(45deg, transparent 50%, lighten($accent-blue, 10%) 50%),
-        linear-gradient(135deg, lighten($accent-blue, 10%) 50%, transparent 50%);
+        linear-gradient(45deg, transparent 50%, color.scale($accent-blue, $lightness:10%) 50%),
+        linear-gradient(135deg, color.scale($accent-blue, $lightness:10%) 50%, transparent 50%);
     }
 
     // Mobile-specific dropdown enhancements
@@ -350,7 +350,7 @@
     }
     
     &:hover:not(:focus) {
-      border-color: lighten($border-color, 10%);
+      border-color: color.scale($border-color, $lightness:10%);
     }
   }
 }
