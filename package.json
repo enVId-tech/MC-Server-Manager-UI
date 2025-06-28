@@ -6,12 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "update-schema": "node scripts/updateSchema.ts",
+    "update-schema:force": "NODE_ENV=development npx tsx scripts/updateSchema.ts"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "body-parser": "^2.2.0",
+    "dotenv": "^17.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.16.0",
     "next": "15.3.4",
@@ -32,5 +35,6 @@
     "eslint": "^9",
     "eslint-config-next": "15.3.4",
     "typescript": "^5"
-  }
+  },
+  "type": "module"
 }

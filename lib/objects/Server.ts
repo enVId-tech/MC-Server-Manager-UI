@@ -1,5 +1,5 @@
-import { Schema, Document, models, model } from 'mongoose';
-import { ServerConfigData } from './ServerConfig';
+import pkg from 'mongoose';
+import type { ServerConfigData } from './ServerConfig.ts';
 
 export interface IServer extends Document {
     email: string;
@@ -12,26 +12,29 @@ export interface IServer extends Document {
     serverConfig: ServerConfigData;
 }
 
-const ServerSchema: Schema = new Schema({
-    email: {
-        type: String,
-        required: [true, 'Email is required.'],
-        trim: true,
-        lowercase: true,
-        match: [/.+\@.+\..+/, 'Please enter a valid email address.'],
-    },
+const ServerSchema: pkg.Schema = new pkg.Schema({
     uniqueId: {
         type: String,
         required: [true, 'Unique ID is required.'],
         unique: true,
+        index: true
+    },
+    email: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        match: [/.+\@.+\..+/, 'Please enter a valid email address.'],
+        unique: false,
     },
     subdomainName: {
         type: String,
         required: [true, 'Subdomain name is required.'],
+        unique: true,
     },
     isOnline: {
         type: Boolean,
         default: false,
+        unique: false,
     },
     folderPath: {
         type: String,
@@ -43,20 +46,24 @@ const ServerSchema: Schema = new Schema({
         required: [true, 'Server name is required.'],
         trim: true,
         maxlength: [50, 'Server name cannot exceed 50 characters.'],
+        unique: true,
     },
     createdAt: {
         type: Date,
         default: Date.now,
+        required: true,
+        unique: false,
     },
     serverConfig: {
-        type: Schema.Types.Mixed, // Allow any structure for serverConfig
+        type: pkg.Schema.Types.Mixed, // Allow any structure for serverConfig
         default: {},
+        required: [true, 'Server configuration is required.'],
+        unique: false,
     }
 }, {
     timestamps: true,
 });
 
-// Fix: Use consistent model name and proper caching pattern
-const Server = models.servers || model<IServer>('servers', ServerSchema);
+const Server = pkg.models.servers || pkg.model<IServer>('servers', ServerSchema);
 
 export default Server;

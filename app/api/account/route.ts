@@ -1,5 +1,5 @@
 import {NextRequest, NextResponse} from 'next/server';
-import dbConnect from '@/lib/dbConnect';
+import dbConnect from '@/lib/db/dbConnect';
 import jwt from 'jsonwebtoken';
 import User from '@/lib/objects/User';
 import Server from '@/lib/objects/Server';

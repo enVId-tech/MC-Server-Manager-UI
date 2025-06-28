@@ -4,6 +4,7 @@ import styles from './create-main.module.scss';
 import { FiTrash2, FiSettings, FiServer, FiGlobe, FiPackage, FiFileText } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
 import createBackground from "@/public/dashboard-bg.png";
+import Error from '@/app/_components/Error/Error';
 
 // Import components
 import {
@@ -178,7 +179,13 @@ export default function ServerGenerator() {
   const [difficulties, setDifficulties] = useState<{ value: string; label: string }[]>([]);
   const [worldFeatures, setWorldFeatures] = useState<{ name: string; label: string; enabled?: boolean }[]>([]);
   const [serverOptions, setServerOptions] = useState<{ name: string; label: string }[]>([]);
-
+  const [error, setError] = useState<{
+    title?: string;
+    message: string;
+    details?: string;
+    type?: 'error' | 'warning' | 'info';
+  } | null>(null);
+    
   const fetchServerSettings = async () => {
     try {
       const response = await fetch('/api/server/config', {
@@ -188,7 +195,20 @@ export default function ServerGenerator() {
         }
       });
       if (!response.ok) {
-        throw new Error('Failed to fetch server settings');
+        if (response.status === 401) {
+          setError({
+            title: 'Unauthorized',
+            message: 'You are not authorized to access this resource.',
+            type: 'error'
+          });
+        } else {
+          setError({
+            title: 'Error',
+            message: 'Failed to fetch server settings.',
+            type: 'error'
+          });
+        }
+        return;
       }
 
       const data = await response.json();
@@ -353,6 +373,7 @@ export default function ServerGenerator() {
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null); // Clear any previous errors
 
     console.log('Submitting server configuration:', serverConfig);
 
@@ -367,28 +388,84 @@ export default function ServerGenerator() {
 
     response.then(async res => {
       if (res.status === 401) {
-        alert('You must be logged in to create a server configuration.');
+        setError({
+          title: 'Authentication Required',
+          message: 'You must be logged in to create a server configuration.',
+          type: 'warning'
+        });
         router.push('/auth/login');
+        return;
       }
       
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to create server configuration');
+        
+        // Handle specific MongoDB duplicate key error
+        if (errorData.details && errorData.details.includes('E11000 duplicate key error')) {
+          if (errorData.details.includes('email_1')) {
+            setError({
+              title: 'Multiple Servers Detected',
+              message: 'You already have a server with this email address. Our system is being updated to support multiple servers per account.',
+              details: 'This is a temporary limitation. Please contact support if you need multiple servers immediately.',
+              type: 'info'
+            });
+          } else if (errorData.details.includes('subdomain')) {
+            setError({
+              title: 'Subdomain Already Taken',
+              message: 'The subdomain you chose is already in use. Please try a different one.',
+              type: 'warning'
+            });
+          } else {
+            setError({
+              title: 'Duplicate Entry',
+              message: 'Some of the information you entered conflicts with an existing server.',
+              details: errorData.details,
+              type: 'error'
+            });
+          }
+        } else {
+          setError({
+            title: 'Server Creation Failed',
+            message: errorData.error || 'An unexpected error occurred while creating your server.',
+            details: errorData.details,
+            type: 'error'
+          });
+        }
+        return;
       }
+      
       const data = await res.json();
 
       // Redirect to the server details page or show success message
       console.log('Server created successfully:', data);
       alert('Server creation request submitted! Check console for details.');
+    }).catch(err => {
+      console.error('Network error:', err);
+      setError({
+        title: 'Network Error',
+        message: 'Unable to connect to the server. Please check your internet connection and try again.',
+        details: err.message,
+        type: 'error'
+      });
     });
   };
-
+  
   return (
     <main className={styles.serverGenerator} style={{ backgroundImage: `url('${createBackground.src}')` }}>
       <div className={styles.container}>
         <div className={styles.header}>
           <h1 className={styles.pageTitle}>Create New Server</h1>
         </div>
+
+        {error && (
+          <Error
+            title={error.title}
+            message={error.message}
+            details={error.details}
+            type={error.type}
+            onClose={() => setError(null)}
+          />
+        )}
 
         <div className={styles.tabs}>
           {tabs.map(tab => (
@@ -701,8 +778,21 @@ export default function ServerGenerator() {
                 <PreviewDetail label="Mods" value={`${serverConfig.mods.length} mod(s)`} />
                 <PreviewDetail label="Max Players" value={serverConfig.maxPlayers} />
               </div>
+              <p className={styles.previewNote}>
+                <strong>Note:</strong> This is not a permanent server configuration. You can modify these settings later in the server management dashboard (or in Minecraft if it is command based).
+              </p>
             </div>
           </div>
+
+          {error && (
+          <Error
+            title={error.title}
+            message={error.message}
+            details={error.details}
+            type={error.type}
+            onClose={() => setError(null)}
+          />
+        )}
 
           {fullyLoaded && (
             <div className={styles.actionButtons}>

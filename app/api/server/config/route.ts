@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import dbConnect from "@/lib/dbConnect";
+import dbConnect from "@/lib/db/dbConnect";
 import mongoose from "mongoose";
 import Server from "@/lib/objects/Server";
 import jwt from "jsonwebtoken";
 import User from "@/lib/objects/User";
 import { ServerConfigData } from "@/lib/objects/ServerConfig";
-import BodyParser from "@/lib/bodyParser";
+import BodyParser from "@/lib/db/bodyParser";
 
 // Configure body parsing for this API route
 export const config = {

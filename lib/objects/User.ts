@@ -1,4 +1,4 @@
-import { Schema, Document, models, model } from 'mongoose';
+import pkg from 'mongoose';
 import bcrypt from 'bcrypt';
 
 export interface IUser extends Document {
@@ -8,7 +8,7 @@ export interface IUser extends Document {
     comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
-const UserSchema: Schema = new Schema({
+const UserSchema: pkg.Schema = new pkg.Schema({
     email: {
         type: String,
         required: [true, 'Email is required.'],
@@ -25,6 +25,10 @@ const UserSchema: Schema = new Schema({
     isActive: {
         type: Boolean,
         default: false,
+    },
+    maxServers: {
+        type: Number,
+        default: 5, // Default maximum number of servers a user can create
     },
     sessionToken: {
         type: String,
@@ -52,4 +56,4 @@ UserSchema.methods.comparePassword = async function(candidatePassword: string): 
     return bcrypt.compare(candidatePassword, this.password);
 };
 
-export default models.users || model<IUser>('users', UserSchema);
+export default pkg.models.users || pkg.model<IUser>('users', UserSchema);

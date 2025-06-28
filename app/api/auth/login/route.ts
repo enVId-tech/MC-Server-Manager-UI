@@ -1,5 +1,5 @@
 import {NextResponse} from 'next/server';
-import dbConnect from '@/lib/dbConnect';
+import dbConnect from '@/lib/db/dbConnect';
 import User from '@/lib/objects/User';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
 
         // Check if the password is correct
         const isPasswordCorrect = await bcrypt.compare(password, user.password);
-        
+
         if (!isPasswordCorrect) {
             return NextResponse.json({ message: 'Invalid credentials (wrong password).' }, { status: 401 });
         }
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
         const token = jwt.sign(
             { id: user._id, email: user.email },
             process.env.JWT_SECRET || 'default',
-            { expiresIn: '1h' }
+            { expiresIn: '24h' }
         );
 
         // Update the user document with the session token
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
         response.cookies.set('sessionToken', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            maxAge: 60 * 60,
+            maxAge: 60 * 60 * 24,
             path: '/',
             sameSite: 'strict',
         });

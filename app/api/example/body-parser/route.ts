@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import BodyParser from '@/lib/bodyParser';
+import BodyParser from '@/lib/db/bodyParser';
 
 // Example API route using custom body parser
 export async function POST(request: NextRequest) {

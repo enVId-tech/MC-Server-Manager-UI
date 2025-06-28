@@ -17,7 +17,6 @@ export default function Navbar() {
     const router = useRouter();
 
     const checkAuthStatus = async () => {
-        setIsLoading(true);
         try {
             const response = await fetch('/api/auth/check', {
                 method: 'GET',
@@ -58,6 +57,10 @@ export default function Navbar() {
             setIsMobileMenuOpen(false);
         };
 
+        const interval = setInterval(() => {
+            checkAuthStatus();
+        }, 10 * 1000); // Check every 10 seconds
+
         // Add event listeners
         window.addEventListener('login-success', handleLoginSuccess);
         window.addEventListener('storage', checkAuthStatus);
@@ -69,6 +72,7 @@ export default function Navbar() {
             window.removeEventListener('storage', checkAuthStatus);
             document.removeEventListener('mousedown', handleClickOutside);
             window.removeEventListener('popstate', handleRouteChange);
+            clearInterval(interval);
         };
     }, []);
 
