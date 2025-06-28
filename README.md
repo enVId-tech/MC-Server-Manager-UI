@@ -66,4 +66,8 @@ MC Server Manager provides a web interface to monitor and control Minecraft serv
 
 ## License
 
-MIT License
+[MIT License](./LICENSE)
+
+# Legal Disclaimer
+
+This website and repository/codebase is not an official Minecraft website and is not associated with Mojang Studios or Microsoft. All product and company names are trademarks or registered trademarks of their respective holders. Use of these names does not imply any affiliation or endorsement by them.

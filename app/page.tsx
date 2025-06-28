@@ -94,8 +94,7 @@ export default function Home() {
                 <div className={styles.footer__container}>
                     <div className={styles.footer__links}>
                         <Link href="/get-started">Get Started</Link>
-                        <Link href="/documentation">Docs</Link>
-                        <Link href="/contact">Contact</Link>
+                        <Link href="https://github.com/enVId-tech/MinecraftServerCreator" target='_blank'>GitHub Page</Link>
                     </div>
                     <div className={styles.footer__copy}>
                         &copy; {new Date().getFullYear()} <a href={"https://github.com/enVId-tech"} target="_blank">enVId Tech</a>. All Rights Reserved.

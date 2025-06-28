@@ -10,7 +10,7 @@ interface CheckboxGroupProps {
   serverConfig: ConfigObject;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   label: string;
-  options: { name: string; label: string }[];
+  options: { name: string; label: string; enabled?: boolean }[];
 }
 
 const CheckboxGroup: React.FC<CheckboxGroupProps> = ({ serverConfig, onChange, label, options }) => (
@@ -22,7 +22,7 @@ const CheckboxGroup: React.FC<CheckboxGroupProps> = ({ serverConfig, onChange, l
           <input
             type="checkbox"
             name={option.name}
-            checked={serverConfig[option.name] as boolean}
+            checked={serverConfig[option.name] as boolean || false}
             onChange={onChange}
           />
           <span>{option.label}</span>

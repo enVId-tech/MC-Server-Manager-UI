@@ -58,7 +58,7 @@
     width: 100%;
     min-height: 48px;
   }
-  
+
   input[type="radio"] {
     appearance: none;
     -webkit-appearance: none;
@@ -89,28 +89,24 @@
       margin-right: 0.75rem;
       border-radius: 50%; // Reaffirm circle shape
     }
-    
+
     // Additional cross-browser resets for perfect circle
     &::-webkit-outer-spin-button,
     &::-webkit-inner-spin-button {
       -webkit-appearance: none;
       margin: 0;
     }
-    
+
     // Firefox specific resets
     &::-moz-focus-inner {
       border: 0;
       padding: 0;
     }
-    
-    // Ensure the radio button maintains circular shape
-    border-style: solid;
-    border-width: 2px;
-    
+
     &:checked {
       border-color: $accent-blue;
       background-color: $dark-bg;
-      
+
       &::after {
         content: '';
         position: absolute;
@@ -127,13 +123,13 @@
         display: block; // Ensure the dot is displayed
       }
     }
-    
+
     &:focus {
       box-shadow: 0 0 0 2px rgba($accent-blue, 0.3);
       outline: none;
     }
   }
-  
+
   span {
     font-family: var(--font-poppins);
     color: $text-primary;
@@ -147,13 +143,13 @@
       font-size: 0.95rem;
     }
   }
-  
+
   &:hover {
     background-color: rgba($accent-blue, 0.1);
     transform: translateY(-1px);
-    
+
     input[type="radio"] {
-      border-color: color.scale($border-color, $lightness:10%);
+      border-color: color.scale($border-color, $lightness: 10%);
     }
 
     // Disable transform on touch devices to prevent layout issues
@@ -161,11 +157,11 @@
       transform: none;
     }
   }
-  
+
   &:has(input:checked) {
     background-color: rgba($accent-blue, 0.1);
     border-color: rgba($accent-blue, 0.3);
-    
+
     span {
       color: $accent-blue;
     }

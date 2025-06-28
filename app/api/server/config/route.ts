@@ -29,8 +29,6 @@ export async function GET() {
             return NextResponse.json({ error: "No server configuration options found." }, { status: 404 });
         }
 
-        console.log("Found server config options:", configOptions);
-
         // Remove MongoDB-specific fields and return the configuration
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { _id, __v, createdAt, updatedAt, ...cleanConfig } = configOptions;

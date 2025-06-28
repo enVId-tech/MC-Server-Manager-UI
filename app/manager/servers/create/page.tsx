@@ -151,7 +151,17 @@ export default function ServerGenerator() {
     mods: [],
     subdomain: '',
     worldFiles: null,
-    customOptions: ''
+    customOptions: '',
+    // Default values for common world features (will be overridden by API)
+    generateStructures: true,
+    allowNether: true,
+    allowEnd: true,
+    pvp: true,
+    hardcore: false,
+    // Default values for common server options (will be overridden by API)
+    via: false,
+    'via-legacy': false,
+    geyser: false
   });
 
   const [fullyLoaded, setFullyLoaded] = useState(false);
@@ -166,7 +176,7 @@ export default function ServerGenerator() {
   const [worldTypes, setWorldTypes] = useState<WorldType[]>([]);
   const [gameModes, setGameModes] = useState<{ value: string; label: string }[]>([]);
   const [difficulties, setDifficulties] = useState<{ value: string; label: string }[]>([]);
-  const [worldFeatures, setWorldFeatures] = useState<{ name: string; label: string }[]>([]);
+  const [worldFeatures, setWorldFeatures] = useState<{ name: string; label: string; enabled?: boolean }[]>([]);
   const [serverOptions, setServerOptions] = useState<{ name: string; label: string }[]>([]);
 
   const fetchServerSettings = async () => {
@@ -196,17 +206,17 @@ export default function ServerGenerator() {
       setServerConfig(prevConfig => {
         const newConfig = { ...prevConfig };
 
-        // Initialize world features
-        data.worldFeatures?.forEach((feature: { name: string }) => {
+        // Initialize world features with their default enabled values
+        data.worldFeatures?.forEach((feature: { name: string; enabled?: boolean }) => {
           if (!(feature.name in newConfig)) {
-            newConfig[feature.name] = true; // Default to true for world features
+            newConfig[feature.name] = feature.enabled !== undefined ? feature.enabled : true;
           }
         });
 
-        // Initialize server options
-        data.serverOptions?.forEach((option: { name: string }) => {
+        // Initialize server options with their default enabled values
+        data.serverOptions?.forEach((option: { name: string; enabled?: boolean }) => {
           if (!(option.name in newConfig)) {
-            newConfig[option.name] = false; // Default to false for server options
+            newConfig[option.name] = option.enabled !== undefined ? option.enabled : false;
           }
         });
 

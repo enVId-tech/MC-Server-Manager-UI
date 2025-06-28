@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import authBg from '@/public/auth-bg.png';
@@ -10,7 +10,37 @@ export default function SignupPage() {
     const [password, setPassword] = useState('');
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
+    const [fullyLoaded, setFullyLoaded] = useState(false);
     const router = useRouter();
+
+    useEffect(() => {
+        const checkAuth = () => {
+            const res = fetch('/api/auth/check', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            res.then(response => {
+                if (response.ok) {
+                    router.push('/manager/dashboard'); // Redirect to dashboard if authenticated
+                } else {
+                    setFullyLoaded(true); // Set fully loaded state if not authenticated
+                }
+            }).catch(error => {
+                console.error('Error checking authentication:', error);
+            });
+        }
+
+        checkAuth();
+
+        window.addEventListener('storage', checkAuth);
+
+        return () => {
+            window.removeEventListener('storage', checkAuth);
+        };
+    }, [router]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -57,9 +87,11 @@ export default function SignupPage() {
                         required
                     />
                 </div>
-                <button type="submit" className="button button--primary" style={{ width: '100%' }}>
-                    Sign Up
-                </button>
+                {fullyLoaded && (
+                    <button type="submit" className="button button--primary" style={{ width: '100%' }}>
+                        Sign Up
+                    </button>
+                )}
                 {error && <p className="message message--error">{error}</p>}
                 {message && <p className="message message--success">{message}</p>}
                 <p className="redirect-link">
