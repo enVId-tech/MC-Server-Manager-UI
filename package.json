@@ -11,6 +11,7 @@
     "update-schema:force": "NODE_ENV=development npx tsx scripts/updateSchema.ts"
   },
   "dependencies": {
+    "axios": "^1.10.0",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "body-parser": "^2.2.0",

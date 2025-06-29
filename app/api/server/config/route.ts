@@ -6,6 +6,8 @@ import jwt from "jsonwebtoken";
 import User from "@/lib/objects/User";
 import { ServerConfigData } from "@/lib/objects/ServerConfig";
 import BodyParser from "@/lib/db/bodyParser";
+import portainer from "@/lib/server/portainer";
+// import porkbun from "@/lib/server/porkbun";
 
 // Configure body parsing for this API route
 export const config = {
@@ -64,8 +66,6 @@ export async function POST(request: NextRequest) {
         // and handle errors if the body is not valid JSON.
         const config = await BodyParser.parseAuto(request);
 
-        console.log("Received server configuration:", config);
-
         // Connect to the database
         await dbConnect();
         const token = request.cookies.get('sessionToken')?.value;
@@ -111,6 +111,8 @@ export async function POST(request: NextRequest) {
         if (!config.serverType || !config.version) {
             return NextResponse.json({ error: "Server type and version are required." }, { status: 400 });
         }
+
+        portainer.DefaultEnvironmentId = (await portainer.getEnvironments()).pop()?.Id || null;
 
         // Check for existing server with the same name or subdomain
         const existingServer = await Server.findOne({

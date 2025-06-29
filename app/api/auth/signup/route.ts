@@ -13,8 +13,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ message: 'User with this email already exists.' }, { status: 409 });
         }
 
-        
-
         const newUser = new User({
             email: email,
             password: password,
