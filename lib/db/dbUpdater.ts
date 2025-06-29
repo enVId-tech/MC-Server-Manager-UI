@@ -1,8 +1,8 @@
 // If changes are detected in the objects, update all documents in the database
 // to ensure they have the new fields.
-import dbConnect from './dbConnect';
-import User from '../objects/User';
-import Server from '../objects/Server';
+import dbConnect from './dbConnect.ts';
+import User from '../objects/User.ts';
+import Server from '../objects/Server.ts';
 import { Schema, Model } from 'mongoose';
 
 interface SchemaUpdateResult {

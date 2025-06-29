@@ -1,15 +1,12 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import path from 'path';
-import { exit } from 'process';
 
 // Load environment variables from multiple possible locations
 if (typeof window === 'undefined') { // Only load dotenv on server-side
     const envPaths = [
         path.join(process.cwd(), '.env'),
-        path.join(process.cwd(), '.env.local'),
-        path.join(process.cwd(), '.env.development'),
-        path.join(process.cwd(), '.env.development.local')
+        path.join(process.cwd(), '.env.local')
     ];
 
     // Try to load each env file
@@ -20,14 +17,6 @@ if (typeof window === 'undefined') { // Only load dotenv on server-side
             // Silently continue if file doesn't exist
         }
     });
-}
-
-// Get MONGODB_URI from environment or use a default for development
-const MONGODB_URI = process.env.MONGODB_URI || process.env.DATABASE_URL;
-
-if (!MONGODB_URI) {
-    console.error('Available environment variables:', Object.keys(process.env).filter(key => key.includes('MONGO') || key.includes('DATABASE')));
-    throw new Error('MONGODB_URI or DATABASE_URL is not defined in the environment variables.');
 }
 
 interface CachedConnection {
@@ -53,19 +42,17 @@ async function dbConnect(): Promise<typeof mongoose> {
         return cached.conn;
     }
 
-    if (!process.env.MONGODB_URI) {
-        throw new Error('MONGODB_URI is not defined in the environment variables.');
+    const MONGODB_URI = process.env.MONGODB_URI || process.env.DATABASE_URL;
+
+    if (!MONGODB_URI) {
+        console.error('Available environment variables:', Object.keys(process.env).filter(key => key.includes('MONGO') || key.includes('DATABASE')));
+        throw new Error('MONGODB_URI or DATABASE_URL is not defined in the environment variables.');
     }
 
     if (!cached.promise) {
         const opts = {
             bufferCommands: false,
         };
-
-        if (!MONGODB_URI) {
-            console.warn('MONGODB_URI is not defined. Using default connection string for development.');
-            exit(1);
-        }
 
         cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
             console.log('Database connected successfully');
