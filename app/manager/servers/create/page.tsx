@@ -97,6 +97,9 @@ export default function ServerGenerator() {
   });
 
   const [fullyLoaded, setFullyLoaded] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [creationSuccess, setCreationSuccess] = useState(false);
+  const [creationProgress, setCreationProgress] = useState(0);
 
   const router = useRouter();
 
@@ -310,8 +313,21 @@ export default function ServerGenerator() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null); // Clear any previous errors
+    setIsCreating(true); // Show loading screen
+    setCreationProgress(10); // Start progress
 
     console.log('Submitting server configuration:', serverConfig);
+
+    // Simulate progress updates
+    const progressInterval = setInterval(() => {
+      setCreationProgress(prev => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + Math.random() * 15;
+      });
+    }, 500);
 
     // Send server configuration to the API
     const response = fetch('/api/server/config', {
@@ -323,18 +339,24 @@ export default function ServerGenerator() {
     });
 
     response.then(async res => {
+      clearInterval(progressInterval);
+      
       if (res.status === 401) {
         setError({
           title: 'Authentication Required',
           message: 'You must be logged in to create a server configuration.',
           type: 'warning'
         });
+        setIsCreating(false); // Hide loading screen
         router.push('/auth/login');
         return;
       }
       
       if (!res.ok) {
         const errorData = await res.json();
+        
+        // Hide loading screen and show error
+        setIsCreating(false);
         
         // Handle specific MongoDB duplicate key error
         if (errorData.details && errorData.details.includes('E11000 duplicate key error')) {
@@ -372,10 +394,21 @@ export default function ServerGenerator() {
       
       const data = await res.json();
 
-      // Redirect to the server details page or show success message
+      // Show success
+      setCreationProgress(100);
+      setTimeout(() => {
+        setCreationSuccess(true);
+        
+        // Redirect after 5 seconds
+        setTimeout(() => {
+          router.push('/manager/dashboard');
+        }, 5000);
+      }, 500);
+
       console.log('Server created successfully:', data);
-      alert('Server creation request submitted! Check console for details.');
     }).catch(err => {
+      clearInterval(progressInterval);
+      setIsCreating(false); // Hide loading screen
       console.error('Network error:', err);
       setError({
         title: 'Network Error',
@@ -388,6 +421,69 @@ export default function ServerGenerator() {
   
   return (
     <main className={styles.serverGenerator} style={{ backgroundImage: `url('${createBackground.src}')` }}>
+      {/* Loading/Success Overlay */}
+      {(isCreating || creationSuccess) && (
+        <div className={styles.creationOverlay}>
+          <div className={styles.creationModal}>
+            {!creationSuccess ? (
+              // Loading State
+              <>
+                <div className={styles.loadingIcon}>
+                  <div className={styles.spinner}></div>
+                </div>
+                <h2 className={styles.creationTitle}>Creating Your Server</h2>
+                <p className={styles.creationMessage}>
+                  Please wait while we set up your Minecraft server...
+                </p>
+                <div className={styles.progressBar}>
+                  <div 
+                    className={styles.progressFill}
+                    style={{ width: `${creationProgress}%` }}
+                  ></div>
+                </div>
+                <p className={styles.progressText}>{Math.round(creationProgress)}% Complete</p>
+                <div className={styles.creationSteps}>
+                  <div className={`${styles.step} ${creationProgress >= 20 ? styles.completed : ''}`}>
+                    ✓ Validating configuration
+                  </div>
+                  <div className={`${styles.step} ${creationProgress >= 40 ? styles.completed : ''}`}>
+                    ✓ Setting up server environment
+                  </div>
+                  <div className={`${styles.step} ${creationProgress >= 60 ? styles.completed : ''}`}>
+                    ✓ Installing Minecraft server
+                  </div>
+                  <div className={`${styles.step} ${creationProgress >= 80 ? styles.completed : ''}`}>
+                    ✓ Configuring server properties
+                  </div>
+                  <div className={`${styles.step} ${creationProgress >= 100 ? styles.completed : ''}`}>
+                    ✓ Finalizing setup
+                  </div>
+                </div>
+              </>
+            ) : (
+              // Success State
+              <>
+                <div className={styles.successIcon}>
+                  <div className={styles.checkmark}>✓</div>
+                </div>
+                <h2 className={styles.creationTitle}>Server Created Successfully!</h2>
+                <p className={styles.creationMessage}>
+                  Your Minecraft server &quot;{serverConfig.name}&quot; has been created and is ready to use.
+                </p>
+                <div className={styles.serverDetails}>
+                  <p><strong>Server IP:</strong> {serverConfig.subdomain}</p>
+                  <p><strong>Version:</strong> {serverConfig.version}</p>
+                  <p><strong>Type:</strong> {serverTypes.find(t => t.id === serverConfig.serverType)?.name}</p>
+                </div>
+                <p className={styles.redirectMessage}>
+                  Redirecting to server dashboard in 5 seconds...
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className={styles.container}>
         <div className={styles.header}>
           <h1 className={styles.pageTitle}>Create New Server</h1>

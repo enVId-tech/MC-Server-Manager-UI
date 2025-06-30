@@ -46,7 +46,7 @@ const ServerSchema: pkg.Schema = new pkg.Schema({
         required: [true, 'Server name is required.'],
         trim: true,
         maxlength: [50, 'Server name cannot exceed 50 characters.'],
-        unique: true,
+        unique: false,
     },
     createdAt: {
         type: Date,

@@ -1,11 +1,11 @@
 "use client";
-import React, {useEffect, useState} from 'react';
+import React, { useEffect, useState } from 'react';
 import styles from './dashboard.module.scss';
-import {useRouter} from "next/navigation";
+import { useRouter } from "next/navigation";
 import dashboardBg from "@/public/dashboard-bg.png";
 
 // Define servers interfaces for better type checking
-interface Server {
+interface MCServer {
     id: number;
     name: string;
     type: string;
@@ -13,33 +13,64 @@ interface Server {
     players: number;
     maxPlayers: number;
     version: string;
+    subdomainName: string;
 }
 
-interface ServerType {
-    id: string;
-    name: string;
+interface ServerConfig {
+    serverName: string;
+    serverType: string;
+    players: number;
+    maxPlayers: number;
+    version: string;
+    subdomainName: string;
+    id: number;
+    isOnline: boolean;
 }
-
-// Mock data for demonstration
-const initialServers: Server[] = [
-    { id: 1, name: 'Survival Server', type: 'survival', status: 'online', players: 8, maxPlayers: 20, version: '1.19.2' },
-    { id: 2, name: 'Creative Build', type: 'creative', status: 'online', players: 3, maxPlayers: 10, version: '1.19.2' },
-    { id: 3, name: 'Modded Adventure', type: 'modded', status: 'offline', players: 0, maxPlayers: 15, version: '1.18.2' },
-];
-
-const serverTypes: ServerType[] = [
-    { id: 'survival', name: 'Survival' },
-    { id: 'creative', name: 'Creative' },
-    { id: 'minigames', name: 'Minigames' },
-    { id: 'modded', name: 'Modded' },
-    { id: 'custom', name: 'Custom' },
-];
 
 export default function Dashboard() {
-    const [servers, setServers] = useState<Server[]>(initialServers);
+    const [servers, setServers] = useState<MCServer[]>([]);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [serverToDelete, setServerToDelete] = useState<MCServer | null>(null);
+    const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
+    const [wantsDownload, setWantsDownload] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deletionSuccess, setDeletionSuccess] = useState(false);
+    const [deletionProgress, setDeletionProgress] = useState(0);
     const router = useRouter();
 
     useEffect(() => {
+        // Fetch server types from the API
+        const fetchServerTypes = async () => {
+            try {
+                const response = await fetch('/api/server', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch server types');
+                }
+
+                const data = await response.json();
+                const servers: MCServer[] = data.servers.map((server: ServerConfig) => ({
+                    id: server.id,
+                    name: server.serverName,
+                    type: server.serverType,
+                    status: server.isOnline,
+                    players: server.players,
+                    maxPlayers: server.maxPlayers,
+                    version: server.version,
+                    subdomainName: server.subdomainName || 'N/A',
+                }));
+                setServers(servers);
+            } catch (error) {
+                console.error('Error fetching server types:', error);
+            }
+        };
+
         const checkAuth = () => {
             const res = fetch('/api/auth/check', {
                 method: 'GET',
@@ -59,10 +90,14 @@ export default function Dashboard() {
 
         const interval = setInterval(() => {
             checkAuth();
+            fetchServerTypes(); // Fetch server types every minute
         }, 60 * 1000); // Check every minute
 
         // Initial check on component mount
         checkAuth();
+        fetchServerTypes();
+
+        // Add event listener for cookies change
         window.addEventListener('cookies', checkAuth);
 
         return () => {
@@ -85,9 +120,129 @@ export default function Dashboard() {
     };
 
     const handleDeleteServer = (id: number) => {
-        if (window.confirm('Are you sure you want to delete this servers? This action cannot be undone.')) {
-            setServers(servers.filter(server => server.id !== id));
+        const serverToSet = servers.find(server => server.id === id);
+        if (serverToSet) {
+            setServerToDelete(serverToSet);
+            setShowDeleteModal(true);
+            setDeleteConfirmationInput(''); // Clear previous input
+            setWantsDownload(false); // Reset download preference
         }
+    };
+
+    const handleDownloadServer = async () => {
+        if (!serverToDelete) return;
+        
+        setIsDownloading(true);
+        
+        try {
+            // TODO: Create API endpoint for server download
+            // const response = await fetch(`/api/server/download/${serverToDelete.id}`, {
+            //     method: 'GET',
+            //     headers: {
+            //         'Content-Type': 'application/json',
+            //     },
+            // });
+            
+            // if (!response.ok) {
+            //     throw new Error('Failed to download server');
+            // }
+            
+            // const blob = await response.blob();
+            // const url = window.URL.createObjectURL(blob);
+            // const a = document.createElement('a');
+            // a.href = url;
+            // a.download = `${serverToDelete.name}-backup.zip`;
+            // document.body.appendChild(a);
+            // a.click();
+            // window.URL.revokeObjectURL(url);
+            // document.body.removeChild(a);
+            
+            // Simulate download process for now
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            alert('Server download would start here. TODO: Implement server download API endpoint.');
+            
+        } catch (error) {
+            console.error('Error downloading server:', error);
+            alert('Failed to download server. Please try again.');
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
+    const handleConfirmDelete = async () => {
+        if (serverToDelete && deleteConfirmationInput === serverToDelete.subdomainName) {
+            // If user wants to download first, do that before deletion
+            if (wantsDownload && !isDownloading) {
+                await handleDownloadServer();
+            }
+            
+            setIsDeleting(true);
+            setDeletionProgress(10);
+
+            // Simulate progress updates
+            const progressInterval = setInterval(() => {
+                setDeletionProgress(prev => {
+                    if (prev >= 90) {
+                        clearInterval(progressInterval);
+                        return 90;
+                    }
+                    return prev + Math.random() * 20;
+                });
+            }, 400);
+
+            try {
+                // Make API call to delete the server
+                const response = await fetch('/api/server', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ serverId: serverToDelete.id }),
+                });
+
+                clearInterval(progressInterval);
+
+                if (!response.ok) {
+                    // Hide loading and show error
+                    setIsDeleting(false);
+                    alert(`Failed to delete server: ${response.statusText}`);
+                    return;
+                }
+
+                // Show success
+                setDeletionProgress(100);
+                setTimeout(() => {
+                    setDeletionSuccess(true);
+                    
+                    // Refresh page after 5 seconds
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 5000);
+                }, 500);
+
+                // Update local state
+                setServers(servers.filter(server => server.id !== serverToDelete.id));
+
+            } catch (error) {
+                clearInterval(progressInterval);
+                setIsDeleting(false);
+                console.error('Error deleting server:', error);
+                alert('Network error occurred while deleting server. Please try again.');
+            }
+        } else {
+            alert("The IP address you entered does not match. Please try again.");
+        }
+    };
+
+    const handleCancelDelete = () => {
+        setShowDeleteModal(false);
+        setServerToDelete(null);
+        setDeleteConfirmationInput('');
+        setWantsDownload(false);
+        setIsDownloading(false);
+        setIsDeleting(false);
+        setDeletionSuccess(false);
+        setDeletionProgress(0);
     };
 
     return (
@@ -110,12 +265,15 @@ export default function Dashboard() {
                     <div className={styles.serverGrid}>
                         {servers.map(server => (
                             <div key={server.id} className={styles.serverCard}>
-                <span className={`${styles.serverStatus} ${styles[server.status]}`}>
-                  {server.status}
-                </span>
+                                <span className={`${styles.serverStatus} ${styles[server.status]}`}>
+                                    {server.status}
+                                </span>
                                 <h3 className={styles.serverName}>{server.name}</h3>
                                 <div className={styles.serverDetails}>
-                                    <p>Type: {serverTypes.find(t => t.id === server.type)?.name || server.type}</p>
+                                    <p className={styles.serverSubdomain}>
+                                        Server IP: {server.subdomainName || 'N/A'}
+                                    </p>
+                                    <p>Type: {server.type.charAt(0).toUpperCase() + server.type.slice(1)}</p>
                                     <p>Version: {server.version}</p>
                                     <p>Players: {server.players}/{server.maxPlayers}</p>
                                 </div>
@@ -154,6 +312,157 @@ export default function Dashboard() {
                     </div>
                 )}
             </div>
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteModal && serverToDelete && (
+                <div className={styles.modalOverlay}>
+                    <div className={styles.modalContent}>
+                        {!isDeleting && !deletionSuccess ? (
+                            // Confirmation State
+                            <>
+                                <h2 className={styles.modalTitle}>⚠️ Delete Server</h2>
+                                <div className={styles.modalWarning}>
+                                    <p className={styles.modalText}>
+                                        <strong>This action cannot be undone!</strong>
+                                    </p>
+                                    <p className={styles.modalText}>
+                                        You are about to permanently delete the server:
+                                    </p>
+                                    <p className={styles.modalServerName}>
+                                        &quot;{serverToDelete.name}&quot;
+                                    </p>
+                                    <p className={styles.modalText}>
+                                        All server data, world files, and configurations will be lost forever.
+                                    </p>
+                                </div>
+                                
+                                <div className={styles.modalConfirmation}>
+                                    <p className={styles.modalPrompt}>
+                                        To confirm deletion, please type the server IP address:
+                                    </p>
+                                    <p className={styles.modalIpDisplay}>
+                                        <strong>{serverToDelete.subdomainName}</strong>
+                                    </p>
+                                    <input
+                                        type="text"
+                                        className={`${styles.modalInput} ${
+                                            deleteConfirmationInput && deleteConfirmationInput !== serverToDelete.subdomainName 
+                                                ? styles.inputError 
+                                                : ''
+                                        }`}
+                                        value={deleteConfirmationInput}
+                                        onChange={(e) => setDeleteConfirmationInput(e.target.value)}
+                                        placeholder="Enter server IP address"
+                                        autoFocus
+                                    />
+                                    {deleteConfirmationInput && deleteConfirmationInput !== serverToDelete.subdomainName && (
+                                        <p className={styles.errorText}>IP address does not match</p>
+                                    )}
+                                </div>
+
+                                {/* Download Option */}
+                                <div className={styles.downloadOption}>
+                                    <h3 className={styles.downloadTitle}>📦 Backup Your Server</h3>
+                                    <p className={styles.downloadDescription}>
+                                        Before deleting your server, you can download a backup containing all your world files, 
+                                        configurations, and plugins/mods.
+                                    </p>
+                                    <label className={styles.downloadCheckbox}>
+                                        <input
+                                            type="checkbox"
+                                            checked={wantsDownload}
+                                            onChange={(e) => setWantsDownload(e.target.checked)}
+                                        />
+                                        <span className={styles.checkboxText}>
+                                            Download server backup before deletion
+                                        </span>
+                                    </label>
+                                    {wantsDownload && (
+                                        <button
+                                            type="button"
+                                            className={`${styles.button} ${styles.download}`}
+                                            onClick={handleDownloadServer}
+                                            disabled={isDownloading}
+                                        >
+                                            {isDownloading ? 'Downloading...' : 'Download Now'}
+                                        </button>
+                                    )}
+                                </div>
+                                
+                                <div className={styles.modalActions}>
+                                    <button
+                                        className={`${styles.button} ${styles.secondary}`}
+                                        onClick={handleCancelDelete}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        className={`${styles.button} ${styles.danger}`}
+                                        onClick={handleConfirmDelete}
+                                        disabled={deleteConfirmationInput !== serverToDelete.subdomainName || (wantsDownload && isDownloading)}
+                                    >
+                                        {isDownloading ? 'Downloading...' : 'Delete Server Forever'}
+                                    </button>
+                                </div>
+                            </>
+                        ) : !deletionSuccess ? (
+                            // Deleting State
+                            <>
+                                <div className={styles.deletingIcon}>
+                                    <div className={styles.spinner}></div>
+                                </div>
+                                <h2 className={styles.modalTitle}>🗑️ Deleting Server</h2>
+                                <p className={styles.modalText}>
+                                    Please wait while we permanently delete &quot;{serverToDelete.name}&quot;...
+                                </p>
+                                <div className={styles.progressBar}>
+                                    <div 
+                                        className={styles.progressFill}
+                                        style={{ width: `${deletionProgress}%` }}
+                                    ></div>
+                                </div>
+                                <p className={styles.progressText}>{Math.round(deletionProgress)}% Complete</p>
+                                <div className={styles.deletionSteps}>
+                                    <div className={`${styles.step} ${deletionProgress >= 20 ? styles.completed : ''}`}>
+                                        ✓ Stopping server containers
+                                    </div>
+                                    <div className={`${styles.step} ${deletionProgress >= 40 ? styles.completed : ''}`}>
+                                        ✓ Removing server files
+                                    </div>
+                                    <div className={`${styles.step} ${deletionProgress >= 60 ? styles.completed : ''}`}>
+                                        ✓ Cleaning up DNS records
+                                    </div>
+                                    <div className={`${styles.step} ${deletionProgress >= 80 ? styles.completed : ''}`}>
+                                        ✓ Removing from database
+                                    </div>
+                                    <div className={`${styles.step} ${deletionProgress >= 100 ? styles.completed : ''}`}>
+                                        ✓ Deletion complete
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            // Success State
+                            <>
+                                <div className={styles.successIcon}>
+                                    <div className={styles.checkmark}>✓</div>
+                                </div>
+                                <h2 className={styles.modalTitle}>Server Deleted Successfully!</h2>
+                                <p className={styles.modalText}>
+                                    The server &quot;{serverToDelete.name}&quot; has been permanently deleted.
+                                </p>
+                                <div className={styles.serverDetails}>
+                                    <p><strong>Deleted Server:</strong> {serverToDelete.name}</p>
+                                    <p><strong>IP Address:</strong> {serverToDelete.subdomainName}</p>
+                                    <p><strong>Type:</strong> {serverToDelete.type}</p>
+                                </div>
+                                <p className={styles.redirectMessage}>
+                                    Refreshing dashboard in 5 seconds...
+                                </p>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
         </main>
     );
 }

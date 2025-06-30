@@ -114,16 +114,31 @@ export async function POST(request: NextRequest) {
 
         portainer.DefaultEnvironmentId = (await portainer.getEnvironments()).pop()?.Id || null;
 
-        // Check for existing server with the same name or subdomain
+        // Check for existing server with the same subdomain
         const existingServer = await Server.findOne({
             $or: [
-                { serverName: config.name },
-                { subdomainName: `${config.subdomain}.etran.dev` }
+                { subdomainName: `${config.subdomain}.etran.dev` },
             ]
         });
 
         if (existingServer) {
-            return NextResponse.json({ error: "Server with the same name or subdomain already exists." }, { status: 400 });
+            return NextResponse.json({ error: "Server with the same subdomain already exists." }, { status: 400 });
+        }
+
+        // Check if there is a server with the same name in the user's account
+        const existingNameServer = await Server.findOne({
+            email: user.email,
+            serverName: config.name
+        });
+
+        if (existingNameServer) {
+            return NextResponse.json({ error: "Server with the same name already exists in your account." }, { status: 400 });
+        }
+
+        // Validate the subdomain format
+        const subdomainRegex = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+        if (!subdomainRegex.test(config.subdomain)) {
+            return NextResponse.json({ error: "Invalid subdomain format. Only lowercase letters, numbers, and hyphens are allowed." }, { status: 400 });
         }
 
         // Create a new server configuration document with all properties
@@ -201,8 +216,6 @@ export async function POST(request: NextRequest) {
 
         // Save only the server (which includes the embedded configuration)
         await newServer.save();
-
-        console.log("Successfully created server configuration:", newServer._id);
 
         return NextResponse.json({
             message: "Server configuration created successfully",
