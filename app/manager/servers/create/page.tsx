@@ -100,6 +100,17 @@ export default function ServerGenerator() {
   const [isCreating, setIsCreating] = useState(false);
   const [creationSuccess, setCreationSuccess] = useState(false);
   const [creationProgress, setCreationProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState('');
+  const [deploymentSteps, setDeploymentSteps] = useState<Array<{
+    id: string;
+    name: string;
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    message?: string;
+    error?: string;
+  }>>([]);
+  const [serverId, setServerId] = useState<string>('');
+  const [serverUniqueId, setServerUniqueId] = useState<string>('');
+  const [canRetryDeployment, setCanRetryDeployment] = useState(false);
 
   const router = useRouter();
 
@@ -309,56 +320,45 @@ export default function ServerGenerator() {
     }
   };
 
-  // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  // Handle form submission with real-time deployment tracking
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null); // Clear any previous errors
     setIsCreating(true); // Show loading screen
-    setCreationProgress(10); // Start progress
+    setCreationProgress(0);
+    setCurrentStep('Initializing server creation...');
 
     console.log('Submitting server configuration:', serverConfig);
 
-    // Simulate progress updates
-    const progressInterval = setInterval(() => {
-      setCreationProgress(prev => {
-        if (prev >= 90) {
-          clearInterval(progressInterval);
-          return 90;
-        }
-        return prev + Math.random() * 15;
-      });
-    }, 500);
-
-    // Send server configuration to the API
-    const response = fetch('/api/server/config', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(serverConfig),
-    });
-
-    response.then(async res => {
-      clearInterval(progressInterval);
+    try {
+      // Step 1: Create server in database
+      setCreationProgress(5);
+      setCurrentStep('Creating server record in database...');
       
-      if (res.status === 401) {
+      const response = await fetch('/api/server/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(serverConfig),
+      });
+
+      if (response.status === 401) {
         setError({
           title: 'Authentication Required',
           message: 'You must be logged in to create a server configuration.',
           type: 'warning'
         });
-        setIsCreating(false); // Hide loading screen
+        setIsCreating(false);
         router.push('/auth/login');
         return;
       }
       
-      if (!res.ok) {
-        const errorData = await res.json();
-        
-        // Hide loading screen and show error
+      if (!response.ok) {
+        const errorData = await response.json();
         setIsCreating(false);
         
-        // Handle specific MongoDB duplicate key error
+        // Handle specific errors
         if (errorData.details && errorData.details.includes('E11000 duplicate key error')) {
           if (errorData.details.includes('email_1')) {
             setError({
@@ -392,33 +392,171 @@ export default function ServerGenerator() {
         return;
       }
       
-      const data = await res.json();
+      const data = await response.json();
+      setServerId(data.serverId);
+      setServerUniqueId(data.uniqueId);
 
-      // Show success
-      setCreationProgress(100);
-      setTimeout(() => {
-        setCreationSuccess(true);
-        
-        // Redirect after 5 seconds
-        setTimeout(() => {
-          router.push('/manager/dashboard');
-        }, 5000);
-      }, 500);
+      // Step 2: Start deployment process
+      setCreationProgress(10);
+      setCurrentStep('Starting deployment process...');
+      
+      const deployResponse = await fetch('/api/server/deploy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ serverId: data.serverId }),
+      });
 
-      console.log('Server created successfully:', data);
-    }).catch(err => {
-      clearInterval(progressInterval);
-      setIsCreating(false); // Hide loading screen
+      if (!deployResponse.ok) {
+        const deployErrorData = await deployResponse.json();
+        setIsCreating(false);
+        setError({
+          title: 'Deployment Failed',
+          message: deployErrorData.error || 'Failed to start server deployment.',
+          details: deployErrorData.details,
+          type: 'error'
+        });
+        return;
+      }
+
+      // Step 3: Poll for deployment status
+      await pollDeploymentStatus(data.serverId);
+
+    } catch (err) {
+      setIsCreating(false);
       console.error('Network error:', err);
       setError({
         title: 'Network Error',
         message: 'Unable to connect to the server. Please check your internet connection and try again.',
-        details: err.message,
+        details: err instanceof globalThis.Error ? err.message : String(err),
         type: 'error'
       });
-    });
+    }
+  };
+
+  // Poll deployment status for real-time updates
+  const pollDeploymentStatus = async (serverId: string) => {
+    const maxAttempts = 60; // 5 minutes at 5-second intervals
+    let attempts = 0;
+
+    const poll = async () => {
+      try {
+        const statusResponse = await fetch(`/api/server/deploy?serverId=${serverId}`);
+        
+        if (!statusResponse.ok) {
+          throw new globalThis.Error('Failed to get deployment status');
+        }
+
+        const status = await statusResponse.json();
+        
+        // Update UI with real deployment status
+        setCreationProgress(status.progress);
+        setCurrentStep(status.currentStep);
+        setDeploymentSteps(status.steps || []);
+
+        if (status.status === 'completed') {
+          setCreationSuccess(true);
+          
+          // Redirect after 5 seconds
+          setTimeout(() => {
+            router.push('/manager/dashboard');
+          }, 5000);
+          return;
+        }
+
+        if (status.status === 'failed') {
+          setIsCreating(false);
+          setCanRetryDeployment(true);
+          setError({
+            title: 'Deployment Failed',
+            message: status.error || 'Server deployment failed.',
+            type: 'error'
+          });
+          return;
+        }
+
+        // Continue polling if still running
+        if (status.status === 'running' && attempts < maxAttempts) {
+          attempts++;
+          setTimeout(poll, 5000); // Poll every 5 seconds
+        } else if (attempts >= maxAttempts) {
+          setIsCreating(false);
+          setError({
+            title: 'Deployment Timeout',
+            message: 'Server deployment is taking longer than expected. Please check your server dashboard.',
+            type: 'warning'
+          });
+        }
+
+      } catch (error) {
+        console.error('Error polling deployment status:', error);
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 5000); // Retry after 5 seconds
+        } else {
+          setIsCreating(false);
+          setError({
+            title: 'Status Check Failed',
+            message: 'Unable to check deployment status. Your server may still be deploying.',
+            type: 'warning'
+          });
+        }
+      }
+    };
+
+    // Start polling
+    setTimeout(poll, 2000); // Start after 2 seconds
   };
   
+  // Retry deployment function
+  const retryDeployment = async () => {
+    if (!serverId) return;
+    
+    setError(null);
+    setIsCreating(true);
+    setCanRetryDeployment(false);
+    setCreationProgress(0);
+    setCurrentStep('Retrying deployment...');
+    
+    try {
+      const deployResponse = await fetch('/api/server/deploy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ serverId: serverId }),
+      });
+
+      if (!deployResponse.ok) {
+        const deployErrorData = await deployResponse.json();
+        setIsCreating(false);
+        setCanRetryDeployment(true);
+        setError({
+          title: 'Retry Failed',
+          message: deployErrorData.error || 'Failed to retry server deployment.',
+          details: deployErrorData.details,
+          type: 'error'
+        });
+        return;
+      }
+
+      // Start polling again
+      await pollDeploymentStatus(serverId);
+
+    } catch (err) {
+      setIsCreating(false);
+      setCanRetryDeployment(true);
+      console.error('Retry error:', err);
+      setError({
+        title: 'Retry Error',
+        message: 'Unable to retry deployment. Please check your connection and try again.',
+        details: err instanceof globalThis.Error ? err.message : String(err),
+        type: 'error'
+      });
+    }
+  };
+
   return (
     <main className={styles.serverGenerator} style={{ backgroundImage: `url('${createBackground.src}')` }}>
       {/* Loading/Success Overlay */}
@@ -442,22 +580,57 @@ export default function ServerGenerator() {
                   ></div>
                 </div>
                 <p className={styles.progressText}>{Math.round(creationProgress)}% Complete</p>
+                <p className={styles.currentStepText}>{currentStep}</p>
                 <div className={styles.creationSteps}>
-                  <div className={`${styles.step} ${creationProgress >= 20 ? styles.completed : ''}`}>
-                    ✓ Validating configuration
-                  </div>
-                  <div className={`${styles.step} ${creationProgress >= 40 ? styles.completed : ''}`}>
-                    ✓ Setting up server environment
-                  </div>
-                  <div className={`${styles.step} ${creationProgress >= 60 ? styles.completed : ''}`}>
-                    ✓ Installing Minecraft server
-                  </div>
-                  <div className={`${styles.step} ${creationProgress >= 80 ? styles.completed : ''}`}>
-                    ✓ Configuring server properties
-                  </div>
-                  <div className={`${styles.step} ${creationProgress >= 100 ? styles.completed : ''}`}>
-                    ✓ Finalizing setup
-                  </div>
+                  {deploymentSteps.length > 0 ? (
+                    deploymentSteps.map((step) => (
+                      <div 
+                        key={step.id}
+                        className={`${styles.step} ${
+                          step.status === 'completed' ? styles.completed : 
+                          step.status === 'running' ? styles.running : 
+                          step.status === 'failed' ? styles.failed : ''
+                        }`}
+                      >
+                        <span className={styles.stepIcon}>
+                          {step.status === 'completed' ? '✓' : 
+                           step.status === 'running' ? '⟳' : 
+                           step.status === 'failed' ? '✗' : '○'}
+                        </span>
+                        <span className={styles.stepName}>{step.name}</span>
+                        {step.message && step.message !== step.name && (
+                          <span className={styles.stepMessage}>- {step.message}</span>
+                        )}
+                        {step.error && (
+                          <span className={styles.stepError}>Error: {step.error}</span>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    // Fallback to static steps if no dynamic steps available
+                    <>
+                      <div className={`${styles.step} ${creationProgress >= 20 ? styles.completed : ''}`}>
+                        <span className={styles.stepIcon}>✓</span>
+                        <span className={styles.stepName}>Validating configuration</span>
+                      </div>
+                      <div className={`${styles.step} ${creationProgress >= 40 ? styles.completed : ''}`}>
+                        <span className={styles.stepIcon}>✓</span>
+                        <span className={styles.stepName}>Setting up server environment</span>
+                      </div>
+                      <div className={`${styles.step} ${creationProgress >= 60 ? styles.completed : ''}`}>
+                        <span className={styles.stepIcon}>✓</span>
+                        <span className={styles.stepName}>Installing Minecraft server</span>
+                      </div>
+                      <div className={`${styles.step} ${creationProgress >= 80 ? styles.completed : ''}`}>
+                        <span className={styles.stepIcon}>✓</span>
+                        <span className={styles.stepName}>Configuring server properties</span>
+                      </div>
+                      <div className={`${styles.step} ${creationProgress >= 100 ? styles.completed : ''}`}>
+                        <span className={styles.stepIcon}>✓</span>
+                        <span className={styles.stepName}>Finalizing setup</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </>
             ) : (
@@ -468,7 +641,20 @@ export default function ServerGenerator() {
                 </div>
                 <h2 className={styles.creationTitle}>Server Created Successfully!</h2>
                 <p className={styles.creationMessage}>
-                  Your Minecraft server &quot;{serverConfig.name}&quot; has been created and is ready to use.
+                  Your Minecraft server &quot;{serverConfig.name}&quot; has been created and deployed successfully.
+                </p>
+                {serverUniqueId && (
+                  <div className={styles.serverDetails}>
+                    <h3>Server Information</h3>
+                    <p><strong>Server Name:</strong> {serverConfig.name}</p>
+                    <p><strong>Server Type:</strong> {serverConfig.serverType}</p>
+                    <p><strong>Minecraft Version:</strong> {serverConfig.version}</p>
+                    <p><strong>Server ID:</strong> {serverUniqueId}</p>
+                    <p><strong>Connection:</strong> {serverConfig.subdomain}.etran.dev:{serverConfig.port}</p>
+                  </div>
+                )}
+                <p className={styles.redirectMessage}>
+                  You will be redirected to your server dashboard in a few seconds where you can manage, start, and monitor your server.
                 </p>
                 <div className={styles.serverDetails}>
                   <p><strong>Server IP:</strong> {serverConfig.subdomain}</p>
@@ -834,6 +1020,21 @@ export default function ServerGenerator() {
             </div>
           )}
         </form>
+        
+        {/* Retry Deployment Button */}
+        {canRetryDeployment && (
+          <div className={styles.retrySection}>
+            <h3>Deployment Failed</h3>
+            <p>The server was created but deployment failed. You can retry the deployment process.</p>
+            <button 
+              onClick={retryDeployment}
+              className={`${styles.button} ${styles.secondary}`}
+              disabled={isCreating}
+            >
+              {isCreating ? 'Retrying...' : 'Retry Deployment'}
+            </button>
+          </div>
+        )}
       </div>
     </main>
   );

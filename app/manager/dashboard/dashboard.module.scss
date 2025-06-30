@@ -473,7 +473,7 @@
 
 .progressFill {
   height: 100%;
-  background: linear-gradient(90deg, #ff4444, lighten(#ff4444, 20%));
+  background: linear-gradient(90deg, #ff4444, color.adjust(#ff4444, $lightness: 20%));
   border-radius: 4px;
   transition: width 0.5s ease;
   position: relative;
@@ -592,13 +592,13 @@
 }
 
 .button.download {
-  background: linear-gradient(135deg, $accent-blue, lighten($accent-blue, 15%));
+  background: linear-gradient(135deg, $accent-blue, color.adjust($accent-blue, $lightness: 15%));
   color: white;
   border: 2px solid $accent-blue;
   margin-top: 0.5rem;
   
   &:hover:not(:disabled) {
-    background: linear-gradient(135deg, lighten($accent-blue, 10%), lighten($accent-blue, 25%));
+    background: linear-gradient(135deg, color.adjust($accent-blue, $lightness: 10%), color.adjust($accent-blue, $lightness: 25%));
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba($accent-blue, 0.3);
   }

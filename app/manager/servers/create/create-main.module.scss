@@ -576,6 +576,42 @@
   }
 }
 
+// Retry section styles
+.retrySection {
+  background: rgba($accent-red, 0.1);
+  border: 1px solid rgba($accent-red, 0.3);
+  border-radius: 8px;
+  padding: 2rem;
+  margin-top: 2rem;
+  text-align: center;
+  
+  h3 {
+    color: $accent-red;
+    margin: 0 0 1rem 0;
+    font-size: 1.2rem;
+  }
+  
+  p {
+    color: $text-secondary;
+    margin: 0 0 1.5rem 0;
+    font-size: 0.95rem;
+  }
+  
+  button {
+    min-width: 160px;
+  }
+}
+
+// Pulse animation for running steps
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 // Utility classes for mobile optimization
 .no-select {
   -webkit-user-select: none;
@@ -717,7 +753,7 @@
 
 .progressFill {
   height: 100%;
-  background: linear-gradient(90deg, $accent-blue, lighten($accent-blue, 20%));
+  background: linear-gradient(90deg, $accent-blue, color.adjust($accent-blue, $lightness: 20%));
   border-radius: 4px;
   transition: width 0.5s ease;
   position: relative;
@@ -742,8 +778,15 @@
 .progressText {
   color: $accent-blue;
   font-weight: 600;
-  margin: 0 0 2rem 0;
+  margin: 0 0 1rem 0;
   font-size: 1rem;
+}
+
+.currentStepText {
+  color: $text-secondary;
+  font-size: 0.9rem;
+  margin: 0 0 2rem 0;
+  font-style: italic;
 }
 
 .creationSteps {
@@ -757,12 +800,65 @@
   font-size: 0.95rem;
   opacity: 0.5;
   transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
   
   &.completed {
     color: $accent-green;
     opacity: 1;
     transform: translateX(5px);
   }
+  
+  &.running {
+    color: $accent-blue;
+    opacity: 1;
+    transform: translateX(5px);
+    
+    // Add a subtle glow effect for running steps
+    &::before {
+      content: '';
+      position: absolute;
+      left: -0.5rem;
+      width: 3px;
+      height: 100%;
+      background: linear-gradient(45deg, transparent, $accent-blue, transparent);
+      border-radius: 2px;
+      animation: pulse 2s infinite;
+    }
+  }
+  
+  &.failed {
+    color: $accent-red;
+    opacity: 1;
+    transform: translateX(5px);
+  }
+}
+
+.stepIcon {
+  flex-shrink: 0;
+  width: 1.2rem;
+  text-align: center;
+  font-weight: bold;
+}
+
+.stepName {
+  font-weight: 500;
+}
+
+.stepMessage {
+  color: $text-secondary;
+  font-size: 0.85rem;
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.stepError {
+  color: $accent-red;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-left: auto;
 }
 
 .serverDetails {

@@ -34,7 +34,7 @@ class PortainerApiClient {
     private portainerUrl: string;
     private apiKey: string;
     private defaultEnvironmentId: number | null;
-    private axiosInstance: AxiosInstance;
+    public axiosInstance: AxiosInstance;
 
     /**
      * @param portainerUrl - The base URL of your Portainer instance
@@ -207,6 +207,101 @@ class PortainerApiClient {
             return response.data;
         } catch (error) {
             console.error(`Failed to fetch images for environment ${environmentId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Create a new stack in Portainer
+     * @param stackData - The stack configuration data
+     * @param environmentId - The ID of the Portainer environment
+     * @returns Promise resolving to the created stack data
+     */
+    async createStack(stackData: Record<string, unknown>, environmentId: number | null = this.defaultEnvironmentId): Promise<Record<string, unknown>> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to create a stack.');
+        }
+        try {
+            const response = await this.axiosInstance.post(
+                `/api/stacks?type=2&method=string&endpointId=${environmentId}`,
+                stackData
+            );
+            return response.data;
+        } catch (error) {
+            console.error(`Failed to create stack:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Start a stack in Portainer
+     * @param stackId - The ID of the stack to start
+     * @returns Promise resolving to the start operation result
+     */
+    async startStack(stackId: number): Promise<Record<string, unknown>> {
+        try {
+            const response = await this.axiosInstance.post(`/api/stacks/${stackId}/start`);
+            return response.data;
+        } catch (error) {
+            console.error(`Failed to start stack ${stackId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Stop a stack in Portainer
+     * @param stackId - The ID of the stack to stop
+     * @returns Promise resolving to the stop operation result
+     */
+    async stopStack(stackId: number): Promise<Record<string, unknown>> {
+        try {
+            const response = await this.axiosInstance.post(`/api/stacks/${stackId}/stop`);
+            return response.data;
+        } catch (error) {
+            console.error(`Failed to stop stack ${stackId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Delete a stack from Portainer
+     * @param stackId - The ID of the stack to delete
+     * @param environmentId - The ID of the Portainer environment
+     * @returns Promise resolving to the delete operation result
+     */
+    async deleteStack(stackId: number, environmentId: number | null = this.defaultEnvironmentId): Promise<Record<string, unknown>> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to delete a stack.');
+        }
+        try {
+            const response = await this.axiosInstance.delete(
+                `/api/stacks/${stackId}?external=false&endpointId=${environmentId}`
+            );
+            return response.data;
+        } catch (error) {
+            console.error(`Failed to delete stack ${stackId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get container logs from Portainer
+     * @param containerId - The ID of the container
+     * @param environmentId - The ID of the Portainer environment
+     * @param tail - Number of log lines to return (default: 1000)
+     * @returns Promise resolving to the container logs
+     */
+    async getContainerLogs(containerId: string, environmentId: number | null = this.defaultEnvironmentId, tail: number = 1000): Promise<string> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to get container logs.');
+        }
+        try {
+            const response = await this.axiosInstance.get(
+                `/api/endpoints/${environmentId}/docker/containers/${containerId}/logs?stdout=1&stderr=1&tail=${tail}`
+            );
+            return response.data;
+        } catch (error) {
+            console.error(`Failed to get logs for container ${containerId}:`, error);
             throw error;
         }
     }

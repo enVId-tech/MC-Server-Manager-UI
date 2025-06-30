@@ -214,12 +214,16 @@ export async function POST(request: NextRequest) {
             serverConfig: serverConfigData // Embed the configuration directly
         });
 
-        // Save only the server (which includes the embedded configuration)
+        // Save the server to database
         await newServer.save();
+
+        // Note: Deployment is now handled separately via /api/server/deploy
+        // This allows for better progress tracking and error handling
 
         return NextResponse.json({
             message: "Server configuration created successfully",
             serverId: newServer._id,
+            uniqueId: newServer.uniqueId,
             config: {
                 name: serverConfigData.name,
                 serverType: serverConfigData.serverType,

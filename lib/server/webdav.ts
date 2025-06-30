@@ -47,7 +47,7 @@ class WebDavService {
      * Get the current directory contents from the WebDAV server.
      * @param {string} path - The path to the directory. Defaults to '/'.
      */
-    public async getDirectoryContents(path: string = '/'): Promise<any[]> {
+    public async getDirectoryContents(path: string = '/'): Promise<unknown[]> {
         const contents = await this.client.getDirectoryContents(path);
         return Array.isArray(contents) ? contents : contents.data; // Ensure it returns an array
     }
@@ -93,7 +93,7 @@ class WebDavService {
                 return contents;
             } else if (contents && typeof contents === 'object' && 'buffer' in contents) {
                 // Handle ArrayBufferLike types by converting to Buffer
-                return Buffer.from(contents.buffer instanceof ArrayBuffer ? contents.buffer : contents as any);
+                return Buffer.from(contents.buffer instanceof ArrayBuffer ? contents.buffer : contents as unknown as ArrayBufferLike);
             } else {
                 // If it's a string, convert to Buffer
                 return Buffer.from(contents as string, 'utf-8');
@@ -129,6 +129,20 @@ class WebDavService {
             console.log(`File deleted successfully from ${filePath}`);
         } catch (error) {
             console.error(`Error deleting file from ${filePath}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Create a directory on the WebDAV server.
+     * @param dirPath - The path to the directory to create.
+     */
+    public async createDirectory(dirPath: string): Promise<void> {
+        try {
+            await this.client.createDirectory(dirPath, { recursive: true });
+            console.log(`Directory created successfully at ${dirPath}`);
+        } catch (error) {
+            console.error(`Error creating directory at ${dirPath}:`, error);
             throw error;
         }
     }

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './account.module.scss';
 import { FiUser, FiLock, FiSave, FiTrash2 } from 'react-icons/fi';
@@ -44,7 +44,7 @@ export default function AccountPage() {
         confirmPassword: ''
     });
 
-    const fetchAccountSettings = async () => {
+    const fetchAccountSettings = useCallback(async () => {
         try {
             const response = await fetch('/api/account', {
                 method: 'GET',
@@ -67,7 +67,7 @@ export default function AccountPage() {
         } catch (error) {
             console.error('Error fetching account settings:', error);
         }
-    };
+    }, [userProfile.email, userProfile.joinDate, userProfile.totalServers, userProfile.activeServers]);
 
 
     // Fetch user data on component mount
@@ -103,7 +103,7 @@ export default function AccountPage() {
             window.removeEventListener('storage', checkAuth);
             clearInterval(interval);
         };
-    }, [router]);
+    }, [router, fetchAccountSettings]);
 
 
     const handleEmailSave = async () => {
