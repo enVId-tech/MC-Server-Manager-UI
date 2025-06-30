@@ -57,12 +57,17 @@ export default function Dashboard() {
             });
         }
 
-        checkAuth();
+        const interval = setInterval(() => {
+            checkAuth();
+        }, 60 * 1000); // Check every minute
 
+        // Initial check on component mount
+        checkAuth();
         window.addEventListener('cookies', checkAuth);
 
         return () => {
             window.removeEventListener('cookies', checkAuth);
+            clearInterval(interval); // Clear the interval on component unmount
         };
     }, [router]);
 

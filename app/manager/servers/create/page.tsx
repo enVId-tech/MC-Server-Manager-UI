@@ -15,76 +15,7 @@ import {
   TabButton,
   PreviewDetail
 } from '.';
-
-// Types - Client-side form interface (without Mongoose Document methods)
-interface ClientServerConfig {
-    // Basic server information
-    name: string;
-    serverType: string;
-    version: string;
-    description: string;
-    
-    // World settings
-    seed?: string;
-    gameMode: string;
-    difficulty: string;
-    worldType: string;
-    worldGeneration: string;
-    worldFile?: File | null;
-    
-    // Player settings
-    maxPlayers: number;
-    whitelistEnabled: boolean;
-    onlineMode: boolean;
-    
-    // Game mechanics
-    pvpEnabled: boolean;
-    commandBlocksEnabled: boolean;
-    flightEnabled: boolean;
-    spawnAnimalsEnabled: boolean;
-    spawnMonstersEnabled: boolean;
-    spawnNpcsEnabled: boolean;
-    generateStructuresEnabled: boolean;
-    
-    // Network settings
-    port: number;
-    
-    // Performance settings
-    viewDistance: number;
-    simulationDistance: number;
-    spawnProtection: number;
-    
-    // Server management
-    rconEnabled: boolean;
-    rconPassword: string;
-    motd: string;
-    
-    // Resource settings
-    resourcePackUrl: string;
-    resourcePackSha1: string;
-    resourcePackPrompt: string;
-    forceResourcePack: boolean;
-    
-    // Advanced settings
-    enableJmxMonitoring: boolean;
-    syncChunkWrites: boolean;
-    enforceWhitelist: boolean;
-    preventProxyConnections: boolean;
-    hideOnlinePlayers: boolean;
-    broadcastRconToOps: boolean;
-    broadcastConsoleToOps: boolean;
-    
-    // Memory and performance
-    serverMemory: number;
-    
-    // Client-specific properties for form handling
-    plugins: File[];
-    mods: File[];
-    subdomain: string;
-    worldFiles?: File | null;
-    customOptions?: string;
-    [key: string]: unknown;
-}
+import { ClientServerConfig } from '@/lib/server/minecraft';
 
 // Tab configuration
 const tabs = [
@@ -279,12 +210,17 @@ export default function ServerGenerator() {
     // Fetch initial server settings from the API
     fetchServerSettings();
 
+    const interval = setInterval(() => {
+      checkAuth();
+    }, 60000); // Refresh server settings every minute
+
     checkAuth();
 
     window.addEventListener('storage', checkAuth);
 
     return () => {
       window.removeEventListener('storage', checkAuth);
+      clearInterval(interval);
     };
   }, [router]);
 

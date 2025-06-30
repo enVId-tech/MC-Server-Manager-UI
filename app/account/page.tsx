@@ -58,8 +58,6 @@ export default function AccountPage() {
             // Assuming the response contains user data in the format { user: UserProfile }
             const data = await response.json();
 
-            console.log('Fetched user profile:', data);
-
             setUserProfile({
                 email: data.user.email || userProfile.email,
                 joinDate: data.user.createdAt || userProfile.joinDate,
@@ -95,12 +93,15 @@ export default function AccountPage() {
         // Fetch initial server settings from the API
         fetchAccountSettings();
 
-        checkAuth();
+        const interval = setInterval(() => {
+            checkAuth();
+        }, 30 * 1000); // Check every 30 seconds
 
         window.addEventListener('storage', checkAuth);
 
         return () => {
             window.removeEventListener('storage', checkAuth);
+            clearInterval(interval);
         };
     }, [router]);
 

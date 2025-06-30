@@ -59,7 +59,7 @@ export default function Navbar() {
 
         const interval = setInterval(() => {
             checkAuthStatus();
-        }, 10 * 1000); // Check every 10 seconds
+        }, 60 * 1000); // Check every 30 seconds
 
         // Add event listeners
         window.addEventListener('login-success', handleLoginSuccess);
