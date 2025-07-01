@@ -146,6 +146,33 @@ class WebDavService {
             throw error;
         }
     }
+
+    /**
+     * Delete a directory from the WebDAV server.
+     * @param dirPath - The path to the directory to delete.
+     */
+    public async deleteDirectory(dirPath: string): Promise<void> {
+        try {
+            await this.client.deleteFile(dirPath);
+            console.log(`Directory deleted successfully from ${dirPath}`);
+        } catch (error) {
+            console.error(`Error deleting directory from ${dirPath}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Check if a file or directory exists on the WebDAV server.
+     * @param path - The path to check.
+     */
+    public async exists(path: string): Promise<boolean> {
+        try {
+            await this.client.stat(path);
+            return true;
+        } catch {
+            return false;
+        }
+    }
 }
 
 // Singleton instance of WebDavService

@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import User from "@/lib/objects/User";
 import BodyParser from "@/lib/db/bodyParser";
 import portainer from "@/lib/server/portainer";
+import MinecraftServerManager from "@/lib/server/serverManager";
 import { createMinecraftServer, convertClientConfigToServerConfig, ClientServerConfig } from "@/lib/server/minecraft";
 
 export interface DeploymentStep {
@@ -67,27 +68,48 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Server not found." }, { status: 404 });
         }
 
-        // Initialize deployment status
+        // Check what steps need to be performed based on server state
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const hasPort = !!(server as any).port;
+        const hasFolder = true; // Assume folder exists if server was created with new flow
+        
+        // Initialize deployment status with conditional steps
+        const steps: DeploymentStep[] = [
+            { id: 'validate', name: 'Validating configuration', status: 'running', progress: 0 }
+        ];
+
+        if (!hasPort) {
+            steps.push(
+                { id: 'subdomain', name: 'Validating subdomain', status: 'pending', progress: 0 },
+                { id: 'ports', name: 'Allocating ports', status: 'pending', progress: 0 }
+            );
+        }
+
+        if (!hasFolder) {
+            steps.push({ id: 'folder', name: 'Creating server folders', status: 'pending', progress: 0 });
+        }
+
+        steps.push(
+            { id: 'docker', name: 'Generating Docker configuration', status: 'pending', progress: 0 },
+            { id: 'deploy', name: 'Deploying to container platform', status: 'pending', progress: 0 },
+            { id: 'files', name: 'Setting up file directories', status: 'pending', progress: 0 },
+            { id: 'upload', name: 'Uploading server files', status: 'pending', progress: 0 },
+            { id: 'dns', name: 'Creating DNS records', status: 'pending', progress: 0 },
+            { id: 'finalize', name: 'Finalizing deployment', status: 'pending', progress: 0 }
+        );
+
         const initialStatus: DeploymentStatus = {
             serverId: serverId,
             status: 'running',
             progress: 0,
             currentStep: 'Initializing deployment...',
-            steps: [
-                { id: 'validate', name: 'Validating configuration', status: 'running', progress: 0 },
-                { id: 'docker', name: 'Generating Docker configuration', status: 'pending', progress: 0 },
-                { id: 'deploy', name: 'Deploying to container platform', status: 'pending', progress: 0 },
-                { id: 'files', name: 'Setting up file directories', status: 'pending', progress: 0 },
-                { id: 'upload', name: 'Uploading server files', status: 'pending', progress: 0 },
-                { id: 'dns', name: 'Creating DNS records', status: 'pending', progress: 0 },
-                { id: 'finalize', name: 'Finalizing deployment', status: 'pending', progress: 0 }
-            ]
+            steps: steps
         };
 
         deploymentStatuses.set(serverId, initialStatus);
 
         // Start deployment process asynchronously
-        deployServer(serverId, server).catch(error => {
+        deployServer(serverId, server, user).catch(error => {
             console.error('Deployment error:', error);
             const status = deploymentStatuses.get(serverId);
             if (status) {
@@ -172,22 +194,133 @@ async function updateStep(serverId: string, stepId: string, status: 'running' | 
     console.log(`[${serverId}] Step ${stepId}: ${status} (${progress}%) - ${message || ''}`);
 }
 
-async function deployServer(serverId: string, server: Record<string, unknown>) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function deployServer(serverId: string, server: Record<string, unknown>, user: any) {
+    const rollbackActions: (() => Promise<void>)[] = [];
+    
     try {
-        portainer.DefaultEnvironmentId = (await portainer.getEnvironments()).pop()?.Id || null;
+        // Dynamically get Portainer environment - fail if not available
+        let portainerEnvironmentId: number;
+        try {
+            const environments = await portainer.getEnvironments();
+            if (environments.length === 0) {
+                throw new Error('No Portainer environments found');
+            }
+            
+            // Use the first available environment
+            const availableEnvironment = environments[0];
+            portainer.DefaultEnvironmentId = availableEnvironment.Id;
+            portainerEnvironmentId = availableEnvironment.Id;
+            console.log(`Deploy using Portainer environment: ${availableEnvironment.Id} (${availableEnvironment.Name})`);
+            
+        } catch (error) {
+            throw new Error(`Failed to connect to Portainer: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+
+        // Check if server already has allocated ports and folder from new creation flow
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const hasPort = !!(server as any).port;
+        const hasFolder = true; // New servers created with updated flow have folders
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let allocatedPort = (server as any).port;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let allocatedRconPort = (server as any).rconPort;
 
         // Step 1: Validate configuration
         await updateStep(serverId, 'validate', 'running', 0, 'Validating server configuration...');
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await updateStep(serverId, 'validate', 'completed', 100, 'Configuration validated');
-
-        // Step 2: Generate Docker configuration
-        await updateStep(serverId, 'docker', 'running', 0, 'Generating Docker Compose configuration...');
         
-        // Convert server config to client config format
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const serverConfig = (server as any).serverConfig;
-        const clientConfig: ClientServerConfig = {
+        if (!serverConfig) {
+            throw new Error('Server configuration is missing');
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await updateStep(serverId, 'validate', 'completed', 100, 'Configuration validated successfully');
+
+        // Step 2: Validate subdomain (only if no port allocated yet)
+        if (!hasPort) {
+            await updateStep(serverId, 'subdomain', 'running', 0, 'Validating subdomain availability...');
+            
+            const subdomainValidation = await MinecraftServerManager.validateSubdomain(
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (server as any).subdomainName,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (server as any).email
+            );
+            
+            if (!subdomainValidation.isValid) {
+                await updateStep(serverId, 'subdomain', 'failed', 0, 'Subdomain validation failed', subdomainValidation.error);
+                throw new Error(`Subdomain validation failed: ${subdomainValidation.error}`);
+            }
+            
+            await updateStep(serverId, 'subdomain', 'completed', 100, 
+                subdomainValidation.isReserved ? 'Reserved subdomain approved for admin use' : 'Subdomain available'
+            );
+
+            // Step 3: Allocate ports (only if not already allocated)
+            await updateStep(serverId, 'ports', 'running', 0, 'Allocating server ports...');
+            
+            const portAllocation = await MinecraftServerManager.allocatePort(
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (server as any).email,
+                serverConfig.rconEnabled || false,
+                portainerEnvironmentId
+            );
+            
+            if (!portAllocation.success) {
+                await updateStep(serverId, 'ports', 'failed', 0, 'Port allocation failed', portAllocation.error);
+                throw new Error(`Port allocation failed: ${portAllocation.error}`);
+            }
+            
+            // Update server with allocated ports
+            await Server.findByIdAndUpdate(serverId, {
+                port: portAllocation.port,
+                rconPort: portAllocation.rconPort
+            });
+            
+            allocatedPort = portAllocation.port;
+            allocatedRconPort = portAllocation.rconPort;
+            
+            // Add rollback action for port allocation
+            rollbackActions.push(async () => {
+                console.log(`Rolling back port allocation for server ${serverId}`);
+                await Server.findByIdAndUpdate(serverId, {
+                    $unset: { port: 1, rconPort: 1 }
+                });
+            });
+            
+            const portMessage = allocatedRconPort 
+                ? `Allocated ports: ${allocatedPort} (game), ${allocatedRconPort} (RCON)`
+                : `Allocated port: ${allocatedPort}`;
+            await updateStep(serverId, 'ports', 'completed', 100, portMessage);
+        }
+
+        // Step 4: Create server folder structure (only if not already created)
+        if (!hasFolder) {
+            await updateStep(serverId, 'folder', 'running', 0, 'Creating server folder structure...');
+            
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const folderResult = await MinecraftServerManager.createServerFolder((server as any).uniqueId, user.email);
+            
+            if (!folderResult.success) {
+                await updateStep(serverId, 'folder', 'failed', 0, 'Failed to create server folders', folderResult.error);
+                throw new Error(`Failed to create server folders: ${folderResult.error}`);
+            }
+            
+            // Add rollback action for folder creation
+            if (folderResult.rollbackAction) {
+                rollbackActions.push(folderResult.rollbackAction);
+            }
+            
+            await updateStep(serverId, 'folder', 'completed', 100, 'Server folder structure created');
+        }
+
+        // Step 5: Generate Docker configuration
+        await updateStep(serverId, 'docker', 'running', 0, 'Generating Docker configuration...');
+        
+        // Update server config with allocated ports for Docker generation
+        const updatedClientConfig: ClientServerConfig = {
             name: serverConfig.name,
             serverType: serverConfig.serverType,
             version: serverConfig.version,
@@ -207,7 +340,8 @@ async function deployServer(serverId: string, server: Record<string, unknown>) {
             spawnMonstersEnabled: serverConfig.spawnMonstersEnabled,
             spawnNpcsEnabled: serverConfig.spawnNpcsEnabled,
             generateStructuresEnabled: serverConfig.generateStructuresEnabled,
-            port: serverConfig.port,
+            port: allocatedPort!,
+            rconPort: allocatedRconPort,
             viewDistance: serverConfig.viewDistance,
             simulationDistance: serverConfig.simulationDistance,
             spawnProtection: serverConfig.spawnProtection,
@@ -232,39 +366,49 @@ async function deployServer(serverId: string, server: Record<string, unknown>) {
             subdomain: (server as any).subdomainName.replace('.etran.dev', '')
         };
 
-        const minecraftConfig = convertClientConfigToServerConfig(clientConfig);
-        const minecraftServer = createMinecraftServer(
+        const minecraftConfig = convertClientConfigToServerConfig(updatedClientConfig);
+        const updatedMinecraftServer = createMinecraftServer(
             minecraftConfig,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (server as any).serverName,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (server as any).uniqueId,
-            portainer.DefaultEnvironmentId || 1
+            portainerEnvironmentId
         );
 
         await new Promise(resolve => setTimeout(resolve, 800));
         await updateStep(serverId, 'docker', 'completed', 100, 'Docker configuration generated');
 
-        // Step 3: Deploy to Portainer
+        // Step 6: Deploy to Portainer
         await updateStep(serverId, 'deploy', 'running', 0, 'Deploying server to container platform...');
         
-        const deployResult = await minecraftServer.deployToPortainer();
+        const deployResult = await updatedMinecraftServer.deployToPortainer();
         
         if (!deployResult.success) {
             await updateStep(serverId, 'deploy', 'failed', 0, 'Deployment failed', deployResult.error);
             throw new Error(`Deployment failed: ${deployResult.error}`);
         }
 
+        // Add rollback action for Portainer deployment
+        rollbackActions.push(async () => {
+            console.log(`Rolling back Portainer deployment for server ${serverId}`);
+            try {
+                await updatedMinecraftServer.deleteFromPortainer();
+            } catch (error) {
+                console.warn('Could not clean up Portainer deployment during rollback:', error);
+            }
+        });
+
         await updateStep(serverId, 'deploy', 'completed', 100, 'Server deployed successfully');
 
-        // Step 4: Verify deployment and wait for container to be ready
+        // Step 7: Verify deployment and wait for container to be ready
         await updateStep(serverId, 'files', 'running', 0, 'Verifying container deployment...');
         
         // Wait a bit for the container to initialize
         await new Promise(resolve => setTimeout(resolve, 3000));
         
         // Check if container is actually running
-        const statusCheck = await minecraftServer.getServerStatus();
+        const statusCheck = await updatedMinecraftServer.getServerStatus();
         if (statusCheck.running) {
             await updateStep(serverId, 'files', 'completed', 100, 'Container is running and ready');
         } else {
@@ -272,13 +416,12 @@ async function deployServer(serverId: string, server: Record<string, unknown>) {
             await updateStep(serverId, 'files', 'completed', 100, 'Container deployment verified');
         }
 
-        // Step 5: Upload files (if any)
+        // Step 8: Upload files (placeholder for future file uploads)
         await updateStep(serverId, 'upload', 'running', 0, 'Preparing file uploads...');
-        // Note: File uploads would happen here if files were provided
         await new Promise(resolve => setTimeout(resolve, 400));
         await updateStep(serverId, 'upload', 'completed', 100, 'File upload completed');
 
-        // Step 6: Create DNS records
+        // Step 9: Create DNS records
         await updateStep(serverId, 'dns', 'running', 0, 'Creating DNS SRV record...');
         try {
             // Get environment variables for DNS configuration
@@ -291,9 +434,9 @@ async function deployServer(serverId: string, server: Record<string, unknown>) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const serverData = server as any;
                 const subdomain = serverData.subdomainName || serverData.uniqueId;
-                const port = serverConfig.port || 25565;
+                const port = allocatedPort!;
 
-                const dnsResult = await minecraftServer.createDnsRecord(
+                const dnsResult = await updatedMinecraftServer.createDnsRecord(
                     dnsConfig.domain,
                     subdomain,
                     dnsConfig.target,
@@ -314,6 +457,17 @@ async function deployServer(serverId: string, server: Record<string, unknown>) {
                             }
                         }
                     });
+
+                    // Add rollback action for DNS record
+                    rollbackActions.push(async () => {
+                        console.log(`Rolling back DNS record for server ${serverId}`);
+                        try {
+                            await updatedMinecraftServer.deleteDnsRecord(dnsConfig.domain, subdomain);
+                        } catch (error) {
+                            console.warn('Could not clean up DNS record during rollback:', error);
+                        }
+                    });
+
                     await updateStep(serverId, 'dns', 'completed', 100, `DNS record created: ${subdomain}.${dnsConfig.domain}`);
                 } else {
                     await updateStep(serverId, 'dns', 'completed', 100, `DNS record creation skipped: ${dnsResult.error || 'Configuration not available'}`);
@@ -326,30 +480,55 @@ async function deployServer(serverId: string, server: Record<string, unknown>) {
             await updateStep(serverId, 'dns', 'completed', 100, `DNS record creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
 
-        // Step 7: Finalize
-        await updateStep(serverId, 'finalize', 'running', 0, 'Finalizing server setup...');
+        // Step 10: Finalize deployment
+        await updateStep(serverId, 'finalize', 'running', 0, 'Finalizing deployment...');
+        
+        // Update server status to indicate successful deployment
+        await Server.findByIdAndUpdate(serverId, {
+            isOnline: false, // Server is deployed but not necessarily running
+            $set: {
+                deployedAt: new Date(),
+                lastDeploymentStatus: 'success'
+            }
+        });
+        
         await new Promise(resolve => setTimeout(resolve, 500));
-        await updateStep(serverId, 'finalize', 'completed', 100, 'Server setup completed');
+        await updateStep(serverId, 'finalize', 'completed', 100, 'Deployment completed successfully');
 
-        // Update deployment status to completed
+        // Mark overall deployment as completed
         const finalStatus = deploymentStatuses.get(serverId);
         if (finalStatus) {
             finalStatus.status = 'completed';
             finalStatus.progress = 100;
-            finalStatus.currentStep = 'Deployment completed successfully!';
+            finalStatus.currentStep = 'Deployment completed successfully';
             deploymentStatuses.set(serverId, finalStatus);
         }
 
         console.log(`Successfully deployed server ${server.serverName}`);
 
     } catch (error) {
-        console.error('Deployment error:', error);
-        const status = deploymentStatuses.get(serverId);
-        if (status) {
-            status.status = 'failed';
-            status.error = error instanceof Error ? error.message : 'Unknown error occurred';
-            deploymentStatuses.set(serverId, status);
+        console.error('Deployment failed, executing rollback:', error);
+        
+        // Execute rollback actions
+        await MinecraftServerManager.executeRollback(rollbackActions);
+        
+        // Update deployment status
+        const failedStatus = deploymentStatuses.get(serverId);
+        if (failedStatus) {
+            failedStatus.status = 'failed';
+            failedStatus.error = error instanceof Error ? error.message : 'Unknown error occurred';
+            deploymentStatuses.set(serverId, failedStatus);
         }
+        
+        // Update server record to mark deployment as failed
+        await Server.findByIdAndUpdate(serverId, {
+            $set: {
+                lastDeploymentStatus: 'failed',
+                lastDeploymentError: error instanceof Error ? error.message : 'Unknown error occurred',
+                lastDeploymentAt: new Date()
+            }
+        });
+        
         throw error;
     }
 }

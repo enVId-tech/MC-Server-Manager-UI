@@ -8,6 +8,8 @@ export interface IServer extends Document {
     subdomainName: string;
     folderPath: string;
     serverName: string;
+    port: number;
+    rconPort?: number;
     createdAt: Date;
     serverConfig: ServerConfigData;
     dnsRecord?: {
@@ -55,6 +57,19 @@ const ServerSchema: pkg.Schema = new pkg.Schema({
         trim: true,
         maxlength: [50, 'Server name cannot exceed 50 characters.'],
         unique: false,
+    },
+    port: {
+        type: Number,
+        required: [true, 'Server port is required.'],
+        min: [25565, 'Port must be at least 25565.'],
+        max: [25595, 'Port must be at most 25595.'],
+        unique: true,
+    },
+    rconPort: {
+        type: Number,
+        required: false,
+        min: [25565, 'RCON port must be at least 25565.'],
+        max: [25595, 'RCON port must be at most 25595.'],
     },
     createdAt: {
         type: Date,

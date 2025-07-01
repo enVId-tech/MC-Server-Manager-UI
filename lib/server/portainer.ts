@@ -21,6 +21,20 @@ export interface PortainerContainer {
     Image: string;
     State: string;
     Status: string;
+    NetworkSettings?: {
+        Ports?: {
+            [key: string]: Array<{
+                HostIp?: string;
+                HostPort?: string;
+            }> | null;
+        };
+    };
+    Ports?: Array<{
+        IP?: string;
+        PrivatePort: number;
+        PublicPort?: number;
+        Type: string;
+    }>;
 }
 
 export interface PortainerImage {
@@ -221,15 +235,53 @@ class PortainerApiClient {
         if (environmentId === null) {
             throw new Error('Environment ID is required to create a stack.');
         }
+        
+        console.log(`Attempting to create stack on environment ${environmentId}`);
+        console.log('Stack data:', JSON.stringify(stackData, null, 2));
+        
         try {
+            // Use the correct Portainer API format with required type parameter
+            // type=2 means Docker Compose stack (not Swarm)
             const response = await this.axiosInstance.post(
-                `/api/stacks?type=2&method=string&endpointId=${environmentId}`,
+                `/api/stacks/create/compose/string?type=2&method=string&endpointId=${environmentId}`,
                 stackData
             );
+            console.log('Stack created successfully with primary API format');
             return response.data;
-        } catch (error) {
-            console.error(`Failed to create stack:`, error);
-            throw error;
+        } catch (primaryError) {
+            console.error(`Failed to create stack with primary API format:`, primaryError);
+            
+            // Fallback: Try alternative endpoint structure
+            try {
+                console.log('Trying alternative API format...');
+                const response = await this.axiosInstance.post(
+                    `/api/stacks?type=2&method=string&endpointId=${environmentId}`,
+                    stackData
+                );
+                console.log('Stack created successfully with alternative API format');
+                return response.data;
+            } catch (alternativeError) {
+                console.error(`Failed to create stack with alternative API:`, alternativeError);
+                
+                // Final fallback: Try different endpoint structure
+                try {
+                    console.log('Trying final fallback API format...');
+                    
+                    // Some Portainer versions might expect different payload structure
+                    const payloadWithMeta = {
+                        ...stackData,
+                        EndpointId: environmentId,
+                        Type: 2  // Docker Compose
+                    };
+                    
+                    const response = await this.axiosInstance.post(`/api/stacks`, payloadWithMeta);
+                    console.log('Stack created successfully with final fallback API format');
+                    return response.data;
+                } catch (finalError) {
+                    console.error(`All stack creation methods failed. Final error:`, finalError);
+                    throw primaryError; // Throw the most informative error (the first one)
+                }
+            }
         }
     }
 
@@ -303,6 +355,94 @@ class PortainerApiClient {
         } catch (error) {
             console.error(`Failed to get logs for container ${containerId}:`, error);
             throw error;
+        }
+    }
+
+    /**
+     * Get all used ports from containers in Portainer
+     * @param environmentId - The ID of the Portainer environment
+     * @returns Promise resolving to an array of used port numbers
+     */
+    async getUsedPorts(environmentId: number | null = this.defaultEnvironmentId): Promise<number[]> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to fetch used ports.');
+        }
+        try {
+            const containers = await this.getContainers(environmentId, true);
+            const usedPorts: number[] = [];
+            
+            for (const container of containers) {
+                // Check ports from container list (faster method)
+                if (container.Ports && Array.isArray(container.Ports)) {
+                    for (const portMapping of container.Ports) {
+                        if (portMapping.PublicPort && portMapping.PublicPort >= 25565 && portMapping.PublicPort <= 25595) {
+                            usedPorts.push(portMapping.PublicPort);
+                        }
+                    }
+                }
+                
+                // Fallback: Check detailed container information if needed
+                try {
+                    const containerDetails = await this.getContainerDetails(container.Id, environmentId);
+                    
+                    if (containerDetails?.NetworkSettings?.Ports) {
+                        for (const [, hostBindings] of Object.entries(containerDetails.NetworkSettings.Ports)) {
+                            if (hostBindings && Array.isArray(hostBindings)) {
+                                for (const binding of hostBindings) {
+                                    if (binding.HostPort) {
+                                        const hostPort = parseInt(binding.HostPort, 10);
+                                        if (!isNaN(hostPort) && hostPort >= 25565 && hostPort <= 25595) {
+                                            usedPorts.push(hostPort);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (detailError) {
+                    // If we can't get detailed info, continue with basic port info
+                    console.warn(`Could not get detailed port info for container ${container.Id}:`, detailError);
+                }
+            }
+            
+            return [...new Set(usedPorts)]; // Remove duplicates
+        } catch (error) {
+            console.error(`Failed to fetch used ports for environment ${environmentId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get Portainer system information (including version)
+     * @returns Promise resolving to system information
+     */
+    async getSystemInfo(): Promise<Record<string, unknown>> {
+        try {
+            const response = await this.axiosInstance.get('/api/system/info');
+            return response.data;
+        } catch (error) {
+            console.error('Failed to get system info:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Test Portainer API connectivity and version
+     * @returns Promise resolving to connectivity test result
+     */
+    async testApiConnectivity(): Promise<{ success: boolean; version?: string; error?: string }> {
+        try {
+            const response = await this.axiosInstance.get('/api/status');
+            const systemInfo = await this.getSystemInfo();
+            return {
+                success: true,
+                version: systemInfo.ServerVersion as string || 'Unknown'
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            };
         }
     }
 }

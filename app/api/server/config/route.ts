@@ -7,6 +7,7 @@ import User from "@/lib/objects/User";
 import { ServerConfigData } from "@/lib/objects/ServerConfig";
 import BodyParser from "@/lib/db/bodyParser";
 import portainer from "@/lib/server/portainer";
+import MinecraftServerManager from "@/lib/server/serverManager";
 // import porkbun from "@/lib/server/porkbun";
 
 // Configure body parsing for this API route
@@ -59,11 +60,13 @@ export async function GET() {
 }
 
 // Writing a POST API route to handle creating a new server based on provided configuration from the client.
+// This now uses a transactional approach: validate everything first, create external resources,
+// and only save to database after all steps succeed.
 export async function POST(request: NextRequest) {
+    const rollbackActions: (() => Promise<void>)[] = [];
+    
     try {
         // Apply body parsing to get the configuration object
-        // This will automatically parse the JSON body of the request
-        // and handle errors if the body is not valid JSON.
         const config = await BodyParser.parseAuto(request);
 
         // Connect to the database
@@ -88,16 +91,12 @@ export async function POST(request: NextRequest) {
         const email: string = user.email;
         if (!email) {
             console.warn("User email not found in session.");
-            // If the email is not found, return an error response
-            // This is a critical error, as the server configuration requires an email
-            // to associate the server with the user.
-
-            // Delete the session token cookie if email is not found
             const response = NextResponse.json({ error: "User email not found." }, { status: 401 });
             response.cookies.delete('sessionToken');
             return response;
         }
 
+        // === VALIDATION PHASE ===
         // Validate the configuration object
         if (!config || typeof config !== 'object' || Array.isArray(config)) {
             return NextResponse.json({ error: "Invalid server configuration format." }, { status: 400 });
@@ -112,17 +111,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Server type and version are required." }, { status: 400 });
         }
 
-        portainer.DefaultEnvironmentId = (await portainer.getEnvironments()).pop()?.Id || null;
-
-        // Check for existing server with the same subdomain
-        const existingServer = await Server.findOne({
-            $or: [
-                { subdomainName: `${config.subdomain}.etran.dev` },
-            ]
-        });
-
-        if (existingServer) {
-            return NextResponse.json({ error: "Server with the same subdomain already exists." }, { status: 400 });
+        // Validate the subdomain format
+        const subdomainRegex = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+        if (!subdomainRegex.test(config.subdomain)) {
+            return NextResponse.json({ error: "Invalid subdomain format. Only lowercase letters, numbers, and hyphens are allowed." }, { status: 400 });
         }
 
         // Check if there is a server with the same name in the user's account
@@ -135,12 +127,63 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Server with the same name already exists in your account." }, { status: 400 });
         }
 
-        // Validate the subdomain format
-        const subdomainRegex = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-        if (!subdomainRegex.test(config.subdomain)) {
-            return NextResponse.json({ error: "Invalid subdomain format. Only lowercase letters, numbers, and hyphens are allowed." }, { status: 400 });
+        // Validate subdomain using MinecraftServerManager (checks prohibited list and conflicts)
+        const fullSubdomain = `${config.subdomain}.etran.dev`;
+        const subdomainValidation = await MinecraftServerManager.validateSubdomain(config.subdomain, email);
+        if (!subdomainValidation.isValid) {
+            return NextResponse.json({ error: subdomainValidation.error }, { status: 400 });
         }
 
+        // === PORT ALLOCATION PHASE ===
+        // Portainer is required - fail if not available
+        let portainerEnvironmentId: number;
+        try {
+            const environments = await portainer.getEnvironments();
+            if (environments.length === 0) {
+                return NextResponse.json({ 
+                    error: "No Portainer environments found. Server creation requires a valid Portainer environment." 
+                }, { status: 503 });
+            }
+            
+            // Use the first available environment (you can modify this logic to select a specific environment)
+            const availableEnvironment = environments[0];
+            portainer.DefaultEnvironmentId = availableEnvironment.Id;
+            portainerEnvironmentId = availableEnvironment.Id;
+            console.log(`Using Portainer environment: ${availableEnvironment.Id} (${availableEnvironment.Name})`);
+            
+        } catch (error) {
+            console.error("Failed to connect to Portainer:", error instanceof Error ? error.message : 'Unknown error');
+            return NextResponse.json({ 
+                error: "Unable to connect to Portainer. Server creation requires Portainer to be available.",
+                details: error instanceof Error ? error.message : 'Unknown error'
+            }, { status: 503 });
+        }
+
+        // Allocate port for the server
+        const needsRcon = config.rconEnabled || false;
+        const portAllocation = await MinecraftServerManager.allocatePort(email, needsRcon, portainerEnvironmentId);
+        if (!portAllocation.success) {
+            return NextResponse.json({ error: portAllocation.error }, { status: 500 });
+        }
+
+        const allocatedPort = portAllocation.port!;
+        const allocatedRconPort = portAllocation.rconPort;
+
+        // === EXTERNAL RESOURCE CREATION PHASE ===
+        // Generate unique ID for the server
+        const uniqueId = new mongoose.Types.ObjectId().toString();
+
+        // Create server folder structure in WebDAV
+        const folderCreation = await MinecraftServerManager.createServerFolder(uniqueId, email);
+        if (!folderCreation.success) {
+            return NextResponse.json({ error: folderCreation.error }, { status: 500 });
+        }
+        
+        if (folderCreation.rollbackAction) {
+            rollbackActions.push(folderCreation.rollbackAction);
+        }
+
+        // === SERVER CONFIGURATION CREATION ===
         // Create a new server configuration document with all properties
         const serverConfigData: ServerConfigData = {
             // Basic server information
@@ -171,8 +214,8 @@ export async function POST(request: NextRequest) {
             spawnNpcsEnabled: config.spawnNpcsEnabled !== undefined ? config.spawnNpcsEnabled : true,
             generateStructuresEnabled: config.generateStructuresEnabled !== undefined ? config.generateStructuresEnabled : true,
             
-            // Network settings
-            port: config.port || 25565,
+            // Network settings - use allocated ports
+            port: allocatedPort,
             
             // Performance settings
             viewDistance: config.viewDistance || 10,
@@ -203,38 +246,64 @@ export async function POST(request: NextRequest) {
             serverMemory: config.serverMemory || 1024
         };
 
+        // === DATABASE INSERTION PHASE ===
+        // Only now, after all external resources are created successfully, save to database
+        const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
+        const userFolder = email.split('@')[0];
+        const folderPath = `${baseServerPath}/${userFolder}/${uniqueId}`;
+        
         const newServer = new Server({
             email: user.email,
-            uniqueId: new mongoose.Types.ObjectId().toString(), // Generate a unique ID
-            subdomainName: `${config.subdomain}.etran.dev`,
+            uniqueId: uniqueId,
+            subdomainName: fullSubdomain,
             isOnline: false, // Default to offline when created
-            folderPath: `${process.env.FOLDER_PATH || '/servers/otherServers'}/${email.split('@')[0]}/${config.name}`,
+            folderPath: folderPath,
             serverName: config.name,
             createdAt: new Date(),
+            port: allocatedPort,
+            rconPort: allocatedRconPort,
             serverConfig: serverConfigData // Embed the configuration directly
         });
 
         // Save the server to database
         await newServer.save();
 
-        // Note: Deployment is now handled separately via /api/server/deploy
-        // This allows for better progress tracking and error handling
+        // Add database rollback action
+        rollbackActions.push(async () => {
+            try {
+                await Server.findByIdAndDelete(newServer._id);
+                console.log(`Deleted server ${newServer._id} from database during rollback`);
+            } catch (error) {
+                console.error(`Error deleting server ${newServer._id} during rollback:`, error);
+            }
+        });
 
+        // === SUCCESS RESPONSE ===
         return NextResponse.json({
-            message: "Server configuration created successfully",
+            message: "Server created successfully",
             serverId: newServer._id,
             uniqueId: newServer.uniqueId,
             config: {
                 name: serverConfigData.name,
                 serverType: serverConfigData.serverType,
                 version: serverConfigData.version,
-                subdomain: config.subdomain
+                subdomain: config.subdomain,
+                port: allocatedPort,
+                rconPort: allocatedRconPort
             }
         }, { status: 201 });
+
     } catch (error) {
-        console.error("Error creating server configuration:", error);
+        console.error("Error creating server:", error);
+        
+        // Execute rollback actions if any external resources were created
+        if (rollbackActions.length > 0) {
+            console.log("Error occurred, executing rollback actions...");
+            await MinecraftServerManager.executeRollback(rollbackActions);
+        }
+
         return NextResponse.json({
-            error: "Failed to create server configuration.",
+            error: "Failed to create server.",
             details: error instanceof Error ? error.message : 'Unknown error'
         }, { status: 500 });
     }

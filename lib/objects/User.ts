@@ -5,6 +5,8 @@ export interface IUser extends Document {
     email: string;
     password?: string;
     isActive: boolean;
+    isAdmin: boolean;
+    reservedPorts: number[];
     comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -33,6 +35,21 @@ const UserSchema: pkg.Schema = new pkg.Schema({
     sessionToken: {
         type: String,
         default: null,
+    },
+    isAdmin: {
+        type: Boolean,
+        default: false,
+    },
+    reservedPorts: {
+        type: [Number],
+        default: [],
+        validate: {
+            validator: function(ports: number[]) {
+                // Check if all ports are in the allowed range (25565-25595)
+                return ports.every(port => port >= 25565 && port <= 25595);
+            },
+            message: 'Reserved ports must be in the range 25565-25595'
+        }
     },
 }, {
     timestamps: true,

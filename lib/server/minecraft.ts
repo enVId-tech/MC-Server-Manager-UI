@@ -532,19 +532,29 @@ export class MinecraftServer {
         try {
             const composeContent = this.generateDockerComposeYaml();
             
-            // Create stack payload
+            console.log('Generated Docker Compose content:');
+            console.log(composeContent);
+            
+            // Create stack payload for Portainer with all required fields
             const stackData = {
                 Name: `minecraft-${this.uniqueId}`,
-                SwarmID: '',
                 StackFileContent: composeContent,
                 Env: [
                     { name: 'SERVER_ID', value: this.uniqueId },
                     { name: 'SERVER_NAME', value: this.serverName }
-                ]
+                ],
+                // Additional fields that might be required by some Portainer versions
+                AutoUpdate: {
+                    Interval: '',
+                    Webhook: ''
+                }
             };
+
+            console.log('Sending stack data to Portainer:', JSON.stringify(stackData, null, 2));
 
             const response = await portainer.createStack(stackData, this.environmentId);
             console.log(`Successfully deployed Minecraft server ${this.serverName} to Portainer`);
+            console.log('Portainer response:', JSON.stringify(response, null, 2));
             return { success: true, stackId: (response as { Id: number }).Id };
         } catch (error) {
             console.error('Error deploying to Portainer:', error);
@@ -900,6 +910,8 @@ export class MinecraftServer {
             };
         }
     }
+
+
 }
 
 /**
