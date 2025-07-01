@@ -75,10 +75,7 @@ export class PorkbunService {
         this.secretKey = process.env.PORKBUN_SECRET_KEY || '';
         this.baseUrl = 'https://api.porkbun.com/api/json/v3'; // Correct Porkbun API base URL
 
-        if (!this.apiKey || !this.secretKey) {
-            throw new Error('Porkbun API Key and Secret Key must be set in environment variables (PORKBUN_API_KEY, PORKBUN_SECRET_KEY).');
-        }
-
+        // Don't throw an error during build time - defer validation until actual usage
         this.api = axios.create({
             baseURL: this.baseUrl,
             timeout: 10000, // 10 seconds timeout
@@ -86,6 +83,13 @@ export class PorkbunService {
                 'Content-Type': 'application/json',
             },
         });
+    }
+
+    private validateCredentials() {
+        if (!this.apiKey || !this.secretKey) {
+            console.error('Porkbun API Key and Secret Key must be set in environment variables (PORKBUN_API_KEY, PORKBUN_SECRET_KEY).');
+            return;
+        }
     }
 
     private getAuthPayload() {
@@ -101,6 +105,7 @@ export class PorkbunService {
      * @returns An array of DNS records or null if an error occurs.
      */
     public async getDnsRecords(domain: string): Promise<DnsRecord[] | null> {
+        this.validateCredentials();
         if (!domain || !domain.includes('.')) {
             console.error(`Error: Invalid domain format provided to getDnsRecords. Expected FQDN like "example.com", got "${domain}"`);
             return null;
@@ -198,6 +203,7 @@ export class PorkbunService {
      * @returns The record ID if successful, or null if an error occurs.
      */
     public async createDnsRecord(domain: string, payload: CreateDnsRecordPayload): Promise<string | null> {
+        this.validateCredentials();
         if (!domain || !domain.includes('.')) {
             console.error(`Error: Invalid domain format provided to createDnsRecord. Expected FQDN like "example.com", got "${domain}"`);
             return null;
@@ -239,6 +245,7 @@ export class PorkbunService {
      * @returns True if successful, false if an error occurs.
      */
     public async deleteDnsRecord(domain: string, recordId: string): Promise<boolean> {
+        this.validateCredentials();
         if (!domain || !domain.includes('.')) {
             console.error(`Error: Invalid domain format provided to deleteDnsRecord. Expected FQDN like "example.com", got "${domain}"`);
             return false;
@@ -289,6 +296,7 @@ export class PorkbunService {
         target: string, 
         ttl: string = '300'
     ): Promise<string | null> {
+        this.validateCredentials();
         const srvName = `_minecraft._tcp.${subdomain}`;
         const srvContent = `0 5 ${port} ${target}`;
 
@@ -310,6 +318,7 @@ export class PorkbunService {
      * @returns True if at least one record was deleted, false otherwise.
      */
     public async deleteMinecraftSrvRecord(domain: string, subdomain: string): Promise<boolean> {
+        this.validateCredentials();
         try {
             // First, get all DNS records for the domain
             const records = await this.getDnsRecords(domain);

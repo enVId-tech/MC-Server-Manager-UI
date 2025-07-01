@@ -218,7 +218,6 @@ export type MinecraftPropertiesV1_21 = MinecraftPropertiesV1_20_2;
 import portainer from './portainer';
 import { PortainerContainer } from './portainer';
 import webdavService from './webdav';
-import porkbun from './porkbun';
 import yaml from 'js-yaml';
 
 /**
@@ -860,6 +859,8 @@ export class MinecraftServer {
         try {
             console.log(`Creating DNS SRV record for ${subdomain}.${domain} -> ${target}:${port}`);
             
+            // Lazy load porkbun to avoid build-time errors with missing environment variables
+            const { default: porkbun } = await import('./porkbun');
             const recordId = await porkbun.createMinecraftSrvRecord(domain, subdomain, port, target);
             
             if (recordId) {
@@ -892,6 +893,8 @@ export class MinecraftServer {
         try {
             console.log(`Deleting DNS SRV record for ${subdomain}.${domain}`);
             
+            // Lazy load porkbun to avoid build-time errors with missing environment variables
+            const { default: porkbun } = await import('./porkbun');
             const success = await porkbun.deleteMinecraftSrvRecord(domain, subdomain);
             
             if (success) {
