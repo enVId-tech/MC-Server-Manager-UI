@@ -218,6 +218,7 @@ export type MinecraftPropertiesV1_21 = MinecraftPropertiesV1_20_2;
 import portainer from './portainer';
 import { PortainerContainer } from './portainer';
 import webdavService from './webdav';
+import porkbun from './porkbun';
 import yaml from 'js-yaml';
 
 /**
@@ -825,6 +826,74 @@ export class MinecraftServer {
             return { success: true, logs };
         } catch (error) {
             console.error('Error getting server logs:', error);
+            return { 
+                success: false, 
+                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            };
+        }
+    }
+
+    /**
+     * Creates a DNS SRV record for the Minecraft server
+     * @param domain The domain to create the record for (e.g., "example.com")
+     * @param subdomain The subdomain for the server (e.g., "myserver")
+     * @param target The target hostname (usually the server's IP or hostname)
+     * @param port The port the server is running on (defaults to 25565)
+     * @returns Object with success status and record ID if successful
+     */
+    async createDnsRecord(
+        domain: string, 
+        subdomain: string, 
+        target: string, 
+        port: number = 25565
+    ): Promise<{ success: boolean; recordId?: string; error?: string }> {
+        try {
+            console.log(`Creating DNS SRV record for ${subdomain}.${domain} -> ${target}:${port}`);
+            
+            const recordId = await porkbun.createMinecraftSrvRecord(domain, subdomain, port, target);
+            
+            if (recordId) {
+                return { 
+                    success: true, 
+                    recordId 
+                };
+            } else {
+                return { 
+                    success: false, 
+                    error: 'Failed to create DNS record - no record ID returned' 
+                };
+            }
+        } catch (error) {
+            console.error('Error creating DNS record:', error);
+            return { 
+                success: false, 
+                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            };
+        }
+    }
+
+    /**
+     * Deletes the DNS SRV record for the Minecraft server
+     * @param domain The domain the record was created for
+     * @param subdomain The subdomain for the server
+     * @returns Object with success status
+     */
+    async deleteDnsRecord(domain: string, subdomain: string): Promise<{ success: boolean; error?: string }> {
+        try {
+            console.log(`Deleting DNS SRV record for ${subdomain}.${domain}`);
+            
+            const success = await porkbun.deleteMinecraftSrvRecord(domain, subdomain);
+            
+            if (success) {
+                return { success: true };
+            } else {
+                return { 
+                    success: false, 
+                    error: 'Failed to delete DNS record' 
+                };
+            }
+        } catch (error) {
+            console.error('Error deleting DNS record:', error);
             return { 
                 success: false, 
                 error: error instanceof Error ? error.message : 'Unknown error occurred' 

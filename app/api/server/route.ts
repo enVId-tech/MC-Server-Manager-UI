@@ -3,6 +3,8 @@ import dbConnect from "@/lib/db/dbConnect";
 import User from "@/lib/objects/User";
 import Server from "@/lib/objects/Server";
 import jwt from "jsonwebtoken";
+import { createMinecraftServer, convertClientConfigToServerConfig } from "@/lib/server/minecraft";
+import portainer from "@/lib/server/portainer";
 
 /** Route to fetch server configuration for the authenticated user.
   * @param request - The incoming request object.
@@ -89,11 +91,104 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ message: 'Server not found.' }, { status: 404 });
         }
 
-        // TODO: Add logic to delete the server files and configurations from the file server
+        console.log("Starting server deletion process for:", server.serverName);
 
-        // Delete the server
+        // Step 1: Delete DNS records if they exist
+        if (server.dnsRecord && server.dnsRecord.domain && server.dnsRecord.subdomain) {
+            try {
+                console.log(`Deleting DNS record for ${server.dnsRecord.subdomain}.${server.dnsRecord.domain}`);
+                
+                // Create a temporary MinecraftServer instance for DNS operations
+                const tempConfig = convertClientConfigToServerConfig({
+                    name: server.serverName,
+                    serverType: server.serverConfig?.serverType || 'vanilla',
+                    version: server.serverConfig?.version || 'latest',
+                    description: '',
+                    gameMode: 'survival',
+                    difficulty: 'normal',
+                    worldType: 'default',
+                    worldGeneration: 'new',
+                    maxPlayers: 20,
+                    whitelistEnabled: false,
+                    onlineMode: true,
+                    pvpEnabled: true,
+                    commandBlocksEnabled: false,
+                    flightEnabled: false,
+                    spawnAnimalsEnabled: true,
+                    spawnMonstersEnabled: true,
+                    spawnNpcsEnabled: true,
+                    generateStructuresEnabled: true,
+                    port: 25565,
+                    viewDistance: 10,
+                    simulationDistance: 10,
+                    spawnProtection: 16,
+                    rconEnabled: false,
+                    rconPassword: '',
+                    motd: 'A Minecraft Server',
+                    resourcePackUrl: '',
+                    resourcePackSha1: '',
+                    resourcePackPrompt: '',
+                    forceResourcePack: false,
+                    enableJmxMonitoring: false,
+                    syncChunkWrites: true,
+                    enforceWhitelist: false,
+                    preventProxyConnections: false,
+                    hideOnlinePlayers: false,
+                    broadcastRconToOps: true,
+                    broadcastConsoleToOps: true,
+                    serverMemory: 1024,
+                    plugins: [],
+                    mods: [],
+                    subdomain: '',
+                    worldFiles: null,
+                    customOptions: ''
+                });
+
+                const minecraftServer = createMinecraftServer(tempConfig, server.serverName, server.uniqueId);
+                const dnsResult = await minecraftServer.deleteDnsRecord(
+                    server.dnsRecord.domain,
+                    server.dnsRecord.subdomain
+                );
+
+                if (dnsResult.success) {
+                    console.log("DNS record deleted successfully");
+                } else {
+                    console.warn("Failed to delete DNS record:", dnsResult.error);
+                }
+            } catch (error) {
+                console.error("Error deleting DNS record:", error);
+                // Don't fail the entire deletion if DNS cleanup fails
+            }
+        }
+
+        // Step 2: Delete from Portainer if deployed
+        try {
+            portainer.DefaultEnvironmentId = (await portainer.getEnvironments()).pop()?.Id || null;
+            const stacks = await portainer.getStacks();
+            const serverStack = stacks.find(stack => stack.Name === server.uniqueId);
+            
+            if (serverStack) {
+                console.log("Deleting Portainer stack:", serverStack.Name);
+                await portainer.deleteStack(serverStack.Id);
+                console.log("Portainer stack deleted successfully");
+            }
+        } catch (error) {
+            console.error("Error deleting from Portainer:", error);
+            // Don't fail the entire deletion if Portainer cleanup fails
+        }
+
+        // Step 3: Delete the server record from database
         await Server.deleteOne({ uniqueId: serverId });
-        return NextResponse.json({ message: 'Server deleted successfully.' }, { status: 200 });
+        console.log("Server deleted successfully from database");
+
+        return NextResponse.json({ 
+            message: 'Server deleted successfully.',
+            details: {
+                dnsRecordDeleted: !!server.dnsRecord,
+                containerDeleted: true,
+                databaseRecordDeleted: true
+            }
+        }, { status: 200 });
     } catch (error) {
         console.error("Error deleting server:", error);
         return NextResponse.json({ error: "Failed to delete server." }, { status: 500 });

@@ -33,9 +33,10 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 
 ### 🌐 Infrastructure Integration
 - **Portainer Integration**: Automated Docker container management
-- **DNS Management**: Porkbun API integration for subdomain creation and management
+- **DNS Management**: Automatic SRV record creation and deletion via Porkbun API
 - **Dynamic Deployment**: Automatic server deployment with Docker Compose generation
 - **Resource Management**: Memory calculation based on plugins/mods and server requirements
+- **Subdomain Creation**: Automatic subdomain setup for easy server connectivity
 
 ### 🎨 User Experience
 - **Progressive UI**: Loading states and progress indicators for all operations
@@ -248,6 +249,68 @@ MinecraftServerCreator/
 - **World Settings**: Custom seeds, world types, structure generation
 - **Performance Tuning**: View distance, simulation distance, memory allocation
 - **Player Management**: Whitelist, operator permissions, player limits
+
+## 🌐 DNS Management & Automatic SRV Records
+
+The application includes automatic DNS management through Porkbun API integration, creating SRV records for easy server connectivity.
+
+### How It Works
+
+When you create a Minecraft server, the system automatically:
+1. **Creates SRV Record**: Generates `_minecraft._tcp.{subdomain}.{domain}` pointing to your server
+2. **Stores DNS Info**: Saves DNS record details in the server database record
+3. **Handles Cleanup**: Automatically removes DNS records when servers are deleted
+
+### Configuration
+
+Set up the following environment variables for DNS functionality:
+
+```env
+# Porkbun DNS Configuration
+PORKBUN_API_KEY=pk1_your_api_key_here
+PORKBUN_SECRET_KEY=sk1_your_secret_key_here
+
+# DNS Configuration for Minecraft Servers
+MINECRAFT_DOMAIN=yourdomain.com
+SERVER_TARGET=your-server-ip-or-hostname.com
+```
+
+### Example Usage
+
+With the configuration:
+- `MINECRAFT_DOMAIN=example.com`
+- `SERVER_TARGET=mc.example.com`
+- Server subdomain: `survival`
+- Server port: `25565`
+
+**Created SRV Record**: `_minecraft._tcp.survival.example.com` → `mc.example.com:25565`
+
+**Player Connection**: Players can connect using just `survival.example.com`
+
+### DNS Record Format
+
+The system creates standard Minecraft SRV records:
+```
+Name: _minecraft._tcp.{subdomain}
+Type: SRV
+Content: 0 5 {port} {target}
+TTL: 300 (5 minutes)
+```
+
+### Manual DNS Management
+
+If you need to manage DNS records manually, the PorkbunService provides methods:
+- `createMinecraftSrvRecord()` - Create SRV record for Minecraft server
+- `deleteMinecraftSrvRecord()` - Remove SRV record by subdomain
+- `createDnsRecord()` - Generic DNS record creation
+- `deleteDnsRecord()` - Generic DNS record deletion
+
+### Troubleshooting DNS
+
+1. **Records Not Creating**: Verify Porkbun API credentials and domain ownership
+2. **Connection Issues**: Check that `SERVER_TARGET` resolves to your server IP
+3. **TTL Considerations**: DNS changes may take up to 5 minutes to propagate
+4. **Manual Cleanup**: If automatic deletion fails, records can be removed via Porkbun dashboard
 - **Server Security**: Online mode, RCON configuration, proxy protection
 - **Resource Packs**: Custom resource pack URLs and enforcement
 

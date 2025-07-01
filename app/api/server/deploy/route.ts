@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
                 { id: 'deploy', name: 'Deploying to container platform', status: 'pending', progress: 0 },
                 { id: 'files', name: 'Setting up file directories', status: 'pending', progress: 0 },
                 { id: 'upload', name: 'Uploading server files', status: 'pending', progress: 0 },
+                { id: 'dns', name: 'Creating DNS records', status: 'pending', progress: 0 },
                 { id: 'finalize', name: 'Finalizing deployment', status: 'pending', progress: 0 }
             ]
         };
@@ -277,7 +278,55 @@ async function deployServer(serverId: string, server: Record<string, unknown>) {
         await new Promise(resolve => setTimeout(resolve, 400));
         await updateStep(serverId, 'upload', 'completed', 100, 'File upload completed');
 
-        // Step 6: Finalize
+        // Step 6: Create DNS records
+        await updateStep(serverId, 'dns', 'running', 0, 'Creating DNS SRV record...');
+        try {
+            // Get environment variables for DNS configuration
+            const dnsConfig = {
+                domain: process.env.MINECRAFT_DOMAIN || process.env.DOMAIN || 'example.com',
+                target: process.env.SERVER_TARGET || process.env.SERVER_IP || 'server.example.com'
+            };
+
+            if (dnsConfig.domain !== 'example.com' && dnsConfig.target !== 'server.example.com') {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const serverData = server as any;
+                const subdomain = serverData.subdomainName || serverData.uniqueId;
+                const port = serverConfig.port || 25565;
+
+                const dnsResult = await minecraftServer.createDnsRecord(
+                    dnsConfig.domain,
+                    subdomain,
+                    dnsConfig.target,
+                    port
+                );
+
+                if (dnsResult.success && dnsResult.recordId) {
+                    // Update the server record with DNS information
+                    await Server.findByIdAndUpdate(serverId, {
+                        $set: {
+                            'dnsRecord': {
+                                recordId: dnsResult.recordId,
+                                domain: dnsConfig.domain,
+                                subdomain: subdomain,
+                                target: dnsConfig.target,
+                                port: port,
+                                createdAt: new Date()
+                            }
+                        }
+                    });
+                    await updateStep(serverId, 'dns', 'completed', 100, `DNS record created: ${subdomain}.${dnsConfig.domain}`);
+                } else {
+                    await updateStep(serverId, 'dns', 'completed', 100, `DNS record creation skipped: ${dnsResult.error || 'Configuration not available'}`);
+                }
+            } else {
+                await updateStep(serverId, 'dns', 'completed', 100, 'DNS record creation skipped: Domain not configured');
+            }
+        } catch (error) {
+            console.error('DNS creation error:', error);
+            await updateStep(serverId, 'dns', 'completed', 100, `DNS record creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+
+        // Step 7: Finalize
         await updateStep(serverId, 'finalize', 'running', 0, 'Finalizing server setup...');
         await new Promise(resolve => setTimeout(resolve, 500));
         await updateStep(serverId, 'finalize', 'completed', 100, 'Server setup completed');
