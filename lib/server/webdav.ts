@@ -108,12 +108,38 @@ class WebDavService {
      * Upload a file to the WebDAV server.
      * @param filePath - The path to the file on the server.
      * @param data - The file data to upload.
+     * @param forceOverwrite - Whether to force overwrite even if initial upload fails.
      */
-    public async uploadFile(filePath: string, data: Buffer | string): Promise<void> {
+    public async uploadFile(filePath: string, data: Buffer | string, forceOverwrite: boolean = true): Promise<void> {
         try {
             await this.client.putFileContents(filePath, data, { overwrite: true });
             console.log(`File uploaded successfully to ${filePath}`);
         } catch (error) {
+            // Handle specific WebDAV error codes
+            const webdavError = error as { status?: number; response?: { status?: number } };
+            const statusCode = webdavError.status || webdavError.response?.status;
+            
+            if (statusCode === 409 && forceOverwrite) {
+                console.warn(`File conflict at ${filePath}, attempting to delete and retry...`);
+                try {
+                    // Check if file exists first
+                    const fileExists = await this.exists(filePath);
+                    if (fileExists) {
+                        // Try to delete the existing file and retry
+                        await this.deleteFile(filePath);
+                        console.log(`Deleted existing file at ${filePath}, retrying upload...`);
+                    }
+                    
+                    // Retry the upload
+                    await this.client.putFileContents(filePath, data, { overwrite: true });
+                    console.log(`File uploaded successfully to ${filePath} after conflict resolution`);
+                    return;
+                } catch (retryError) {
+                    console.error(`Failed to resolve file conflict at ${filePath}:`, retryError);
+                    throw new Error(`WebDAV file conflict could not be resolved: ${retryError instanceof Error ? retryError.message : 'Unknown error'}`);
+                }
+            }
+            
             console.error(`Error uploading file to ${filePath}:`, error);
             throw error;
         }

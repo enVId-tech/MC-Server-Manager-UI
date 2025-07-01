@@ -381,7 +381,6 @@ export class MinecraftServer {
         }
 
         const versionSpecificProps = this.generateVersionSpecificProperties();
-        const serverPath = `/servers/${this.uniqueId}`;
 
         // Determine the server type and image configuration
         const serverTypeConfig = this.getServerTypeConfig();
@@ -412,11 +411,11 @@ export class MinecraftServer {
                         ...(this.config.ENABLE_RCON ? [`${this.config.RCON_PORT || 25575}:25575`] : [])
                     ],
                     volumes: [
-                        `${serverPath}/data:/data`,
-                        `${serverPath}/plugins:/data/plugins`,
-                        `${serverPath}/mods:/data/mods`,
-                        `${serverPath}/worlds:/data/worlds`,
-                        `${serverPath}/backups:/backups`,
+                        `${this.uniqueId}-data:/data`,
+                        `${this.uniqueId}-plugins:/data/plugins`,
+                        `${this.uniqueId}-mods:/data/mods`,
+                        `${this.uniqueId}-worlds:/data/worlds`,
+                        `${this.uniqueId}-backups:/backups`,
                         ...serverTypeConfig.additionalVolumes
                     ],
                     restart: 'unless-stopped',
@@ -527,36 +526,188 @@ export class MinecraftServer {
     /**
      * Deploy server to Portainer as a stack
      */
-    async deployToPortainer(): Promise<{ success: boolean; stackId?: number; error?: string }> {
+    async deployToPortainer(): Promise<{ 
+        success: boolean; 
+        stackId?: number; 
+        stackName?: string; 
+        containerId?: string;
+        deploymentMethod?: 'stack' | 'container';
+        error?: string 
+    }> {
+        try {
+            const composeContent = this.generateDockerComposeYaml();
+            const stackName = `minecraft-${this.uniqueId}`;
+            
+            console.log('🚀 Starting Portainer deployment process...');
+            console.log(`📋 Stack name: ${stackName}`);
+            console.log('🐳 Generated Docker Compose content:');
+            console.log(composeContent);
+            
+            // Create stack payload for Portainer with proper structure
+            const stackData = {
+                Name: stackName,
+                ComposeFile: composeContent,
+                Env: [],
+                FromAppTemplate: false
+            };
+
+            console.log('📤 Sending stack data to Portainer:', JSON.stringify(stackData, null, 2));
+
+            // Attempt to create the stack
+            const response = await portainer.createStack(stackData, this.environmentId);
+            console.log('✅ Stack creation response received');
+            console.log('📥 Portainer response:', JSON.stringify(response, null, 2));
+            
+            // Extract stack ID from response - different formats depending on Portainer version
+            let stackId: number | undefined;
+            let containerId: string | undefined;
+            let deploymentMethod: 'stack' | 'container' = 'stack';
+            
+            if (typeof response === 'object' && response !== null) {
+                // Check if this was a direct container creation
+                if ((response as { method?: string }).method === 'direct-container') {
+                    containerId = (response as { Id?: string }).Id;
+                    deploymentMethod = 'container';
+                    console.log(`🐳 Container deployment successful - Container ID: ${containerId}`);
+                } else {
+                    // Regular stack creation
+                    stackId = (response as { Id?: number; id?: number }).Id || (response as { Id?: number; id?: number }).id;
+                    console.log(`📦 Stack deployment successful - Stack ID: ${stackId}`);
+                }
+            }
+            
+            // Verify the deployment was actually successful
+            console.log('🔍 Verifying deployment...');
+            let deploymentExists = false;
+            
+            if (deploymentMethod === 'container' && containerId) {
+                // Verify container exists
+                const containerName = stackName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+                deploymentExists = await portainer.verifyContainerCreation(containerName, this.environmentId, 15000);
+            } else {
+                // Verify stack exists
+                deploymentExists = await portainer.verifyStackCreation(stackName, 15000);
+            }
+            
+            if (deploymentExists) {
+                console.log(`🎉 Successfully deployed Minecraft server ${this.serverName} to Portainer as ${deploymentMethod}: ${stackName}`);
+                
+                if (deploymentMethod === 'container') {
+                    // Get the actual container details for confirmation
+                    const containerName = stackName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+                    const createdContainer = await portainer.getContainerByName(containerName, this.environmentId);
+                    if (createdContainer) {
+                        console.log(`📊 Container details: ID=${createdContainer.Id}, Name=${createdContainer.Names[0]}, State=${createdContainer.State}`);
+                        return { 
+                            success: true, 
+                            containerId: createdContainer.Id, 
+                            stackName: containerName,
+                            deploymentMethod: 'container'
+                        };
+                    }
+                } else {
+                    // Get the actual stack details for confirmation
+                    const createdStack = await portainer.getStackByName(stackName);
+                    if (createdStack) {
+                        console.log(`📊 Stack details: ID=${createdStack.Id}, Name=${createdStack.Name}, EndpointId=${createdStack.EndpointId}`);
+                        return { 
+                            success: true, 
+                            stackId: createdStack.Id, 
+                            stackName: createdStack.Name,
+                            deploymentMethod: 'stack'
+                        };
+                    }
+                }
+            } else {
+                console.warn(`⚠️ Deployment appeared successful but ${deploymentMethod} not found in verification`);
+            }
+            
+            return { 
+                success: true, 
+                stackId, 
+                containerId,
+                stackName,
+                deploymentMethod
+            };
+            
+        } catch (error) {
+            console.error('❌ Error deploying to Portainer:', error);
+            
+            // Try alternative deployment method as fallback
+            try {
+                console.log('🔄 Attempting fallback deployment using service creation...');
+                const fallbackStackData = {
+                    Name: `minecraft-${this.uniqueId}`,
+                    StackFileContent: this.generateDockerComposeYaml(),
+                    Env: []
+                };
+                
+                const serviceResponse = await portainer.deployToPortainerService(fallbackStackData, this.environmentId);
+                console.log('✅ Fallback service deployment successful:', serviceResponse);
+                return { 
+                    success: true, 
+                    stackName: `minecraft-${this.uniqueId}` 
+                };
+                
+            } catch (fallbackError) {
+                console.error('❌ Fallback deployment also failed:', fallbackError);
+                
+                // Provide detailed error information
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+                const fallbackErrorMessage = fallbackError instanceof Error ? fallbackError.message : 'Unknown fallback error';
+                
+                return { 
+                    success: false, 
+                    error: `Primary deployment failed: ${errorMessage}. Fallback also failed: ${fallbackErrorMessage}` 
+                };
+            }
+        }
+    }
+
+    /**
+     * Deploy server using Docker Compose directly (fallback for Portainer issues)
+     */
+    async deployToDockerCompose(userEmail?: string): Promise<{ success: boolean; composeFile?: string; error?: string }> {
         try {
             const composeContent = this.generateDockerComposeYaml();
             
-            console.log('Generated Docker Compose content:');
+            console.log('Generated Docker Compose content for direct deployment:');
             console.log(composeContent);
             
-            // Create stack payload for Portainer with all required fields
-            const stackData = {
-                Name: `minecraft-${this.uniqueId}`,
-                StackFileContent: composeContent,
-                Env: [
-                    { name: 'SERVER_ID', value: this.uniqueId },
-                    { name: 'SERVER_NAME', value: this.serverName }
-                ],
-                // Additional fields that might be required by some Portainer versions
-                AutoUpdate: {
-                    Interval: '',
-                    Webhook: ''
+            // Save compose file to WebDAV for manual deployment
+            const composeFileName = `docker-compose-${this.uniqueId}.yml`;
+            
+            if (userEmail) {
+                // Use the proper folder structure when user email is provided
+                const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
+                const userFolder = userEmail.split('@')[0];
+                const composePath = `${baseServerPath}/${userFolder}/${this.uniqueId}/${composeFileName}`;
+                
+                // Ensure the directory exists before uploading
+                const directoryPath = `${baseServerPath}/${userFolder}/${this.uniqueId}`;
+                const directoryExists = await webdavService.exists(directoryPath);
+                
+                if (!directoryExists) {
+                    console.log(`Creating directory for Docker Compose file: ${directoryPath}`);
+                    await webdavService.createDirectory(directoryPath);
                 }
-            };
-
-            console.log('Sending stack data to Portainer:', JSON.stringify(stackData, null, 2));
-
-            const response = await portainer.createStack(stackData, this.environmentId);
-            console.log(`Successfully deployed Minecraft server ${this.serverName} to Portainer`);
-            console.log('Portainer response:', JSON.stringify(response, null, 2));
-            return { success: true, stackId: (response as { Id: number }).Id };
+                
+                await webdavService.uploadFile(composePath, composeContent);
+                
+                return { 
+                    success: true, 
+                    composeFile: `${directoryPath}/${composeFileName}`,
+                };
+            } else {
+                // Fallback: just return the compose content for manual saving
+                console.log('No user email provided, returning compose content for manual deployment');
+                return { 
+                    success: true, 
+                    composeFile: composeFileName,
+                };
+            }
         } catch (error) {
-            console.error('Error deploying to Portainer:', error);
+            console.error('Error creating Docker Compose file:', error);
             return { 
                 success: false, 
                 error: error instanceof Error ? error.message : 'Unknown error occurred' 

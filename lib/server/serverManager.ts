@@ -195,8 +195,14 @@ export class MinecraftServerManager {
     
     /**
      * Create server folder structure in WebDAV with rollback on failure
+     * Now includes JAR download and proper mods/plugins separation
      */
-    static async createServerFolder(uniqueId: string, userEmail: string): Promise<{ success: boolean; rollbackAction?: () => Promise<void>; error?: string }> {
+    static async createServerFolder(
+        uniqueId: string, 
+        userEmail: string, 
+        serverType?: string, 
+        version?: string
+    ): Promise<{ success: boolean; rollbackAction?: () => Promise<void>; error?: string }> {
         try {
             // Get base server path from environment variable
             const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
@@ -206,79 +212,153 @@ export class MinecraftServerManager {
             
             // Construct server path: /minecraft-servers/username/unique-id
             const serverPath = `${baseServerPath}/${userFolder}/${uniqueId}`;
+            
+            // Determine if server supports mods or plugins
+            const isModdedServer = ['FORGE', 'FABRIC', 'NEOFORGE'].includes(serverType?.toUpperCase() || '');
+            const isPluginServer = ['SPIGOT', 'PAPER', 'PURPUR', 'BUKKIT'].includes(serverType?.toUpperCase() || '');
+            
+            // Build folder structure based on server type
             const foldersToCreate = [
                 `${baseServerPath}/${userFolder}`, // User folder
                 serverPath, // Server folder
                 `${serverPath}/data`,
-                `${serverPath}/plugins`,
-                `${serverPath}/mods`,
                 `${serverPath}/worlds`,
                 `${serverPath}/backups`,
                 `${serverPath}/config`,
                 `${serverPath}/logs`
             ];
             
-            const createdFolders: string[] = [];
+            // Add appropriate folder for mods or plugins (not both)
+            if (isModdedServer) {
+                foldersToCreate.push(`${serverPath}/mods`);
+            } else if (isPluginServer) {
+                foldersToCreate.push(`${serverPath}/plugins`);
+            }
             
-            try {
-                for (const folderPath of foldersToCreate) {
+            const createdFolders: string[] = [];
+            const uploadedFiles: string[] = [];
+            
+            // Create folders with better error handling
+            console.log(`Creating folder structure for server ${uniqueId}...`);
+            
+            for (const folderPath of foldersToCreate) {
+                try {
                     await webdavService.createDirectory(folderPath);
                     createdFolders.push(folderPath);
+                    console.log(`✓ Created folder: ${folderPath}`);
+                } catch (error) {
+                    // Check if folder already exists
+                    const exists = await webdavService.exists(folderPath);
+                    if (exists) {
+                        console.log(`✓ Folder already exists: ${folderPath}`);
+                        createdFolders.push(folderPath); // Track for rollback even if it existed
+                    } else {
+                        console.error(`✗ Failed to create folder ${folderPath}:`, error);
+                        // Don't immediately fail - try to continue with other folders
+                        // We'll validate at the end
+                    }
                 }
                 
-                // Create initial server files
-                const initialFiles = {
-                    'server.properties': '# Minecraft server properties\n# This file will be automatically generated\n',
-                    'eula.txt': 'eula=false\n',
-                    'whitelist.json': '[]',
-                    'ops.json': '[]',
-                    'banned-players.json': '[]',
-                    'banned-ips.json': '[]'
-                };
-                
-                const uploadedFiles: string[] = [];
-                
-                for (const [fileName, content] of Object.entries(initialFiles)) {
+                // Small delay to avoid overwhelming the WebDAV server
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            // Verify all critical folders exist
+            const criticalFolders = [serverPath, `${serverPath}/data`, `${serverPath}/worlds`];
+            for (const folder of criticalFolders) {
+                const exists = await webdavService.exists(folder);
+                if (!exists) {
+                    throw new Error(`Critical folder ${folder} was not created successfully`);
+                }
+            }
+            
+            console.log('✓ All critical folders verified');
+            
+            // Create initial server files
+            const initialFiles: Record<string, string> = {
+                'server.properties': '# Minecraft server properties\n# This file will be automatically generated\n',
+                'eula.txt': 'eula=false\n',
+                'whitelist.json': '[]',
+                'ops.json': '[]',
+                'banned-players.json': '[]',
+                'banned-ips.json': '[]'
+            };
+            
+            // Download and upload server JAR if server type and version are provided
+            if (serverType && version) {
+                try {
+                    console.log(`Downloading ${serverType} ${version} server JAR...`);
+                    const { default: MinecraftServerJarService } = await import('./serverJarDownloader');
+                    const jarData = await MinecraftServerJarService.downloadServerJar(serverType, version);
+                    
+                    const jarPath = `${serverPath}/${jarData.fileName}`;
+                    await webdavService.uploadFile(jarPath, jarData.data);
+                    uploadedFiles.push(jarPath);
+                    console.log(`✓ Uploaded server JAR: ${jarData.fileName}`);
+                } catch (jarError) {
+                    console.warn(`Could not download server JAR: ${jarError instanceof Error ? jarError.message : 'Unknown error'}`);
+                    // Don't fail the entire process for JAR download issues
+                }
+            }
+            
+            // Upload initial configuration files
+            for (const [fileName, content] of Object.entries(initialFiles)) {
+                try {
                     const filePath = `${serverPath}/${fileName}`;
                     await webdavService.uploadFile(filePath, content);
                     uploadedFiles.push(filePath);
+                    console.log(`✓ Created file: ${fileName}`);
+                } catch (fileError) {
+                    console.warn(`Could not create file ${fileName}:`, fileError);
+                    // Continue with other files
+                }
+            }
+            
+            // Create server type specific files
+            if (isModdedServer) {
+                try {
+                    const modsReadme = `# Mods Folder\n\nPlace your ${serverType} mods (.jar files) in this folder.\n\nFor ${serverType} servers, do not place plugins here - mods and plugins are not compatible.\n`;
+                    await webdavService.uploadFile(`${serverPath}/mods/README.md`, modsReadme);
+                    uploadedFiles.push(`${serverPath}/mods/README.md`);
+                } catch (error) {
+                    console.warn('Could not create mods README:', error);
+                }
+            } else if (isPluginServer) {
+                try {
+                    const pluginsReadme = `# Plugins Folder\n\nPlace your ${serverType} plugins (.jar files) in this folder.\n\nFor ${serverType} servers, do not place mods here - use plugins instead.\n`;
+                    await webdavService.uploadFile(`${serverPath}/plugins/README.md`, pluginsReadme);
+                    uploadedFiles.push(`${serverPath}/plugins/README.md`);
+                } catch (error) {
+                    console.warn('Could not create plugins README:', error);
+                }
+            }
+            
+            // Rollback function to clean up created folders and files
+            const rollbackAction = async () => {
+                console.log(`Rolling back server folder creation for ${uniqueId}`);
+                
+                // Delete uploaded files
+                for (const filePath of uploadedFiles.reverse()) {
+                    try {
+                        await webdavService.deleteFile(filePath);
+                    } catch (deleteError) {
+                        console.warn(`Could not delete file ${filePath} during rollback:`, deleteError);
+                    }
                 }
                 
-                // Rollback function to clean up created folders and files
-                const rollbackAction = async () => {
-                    console.log(`Rolling back server folder creation for ${uniqueId}`);
-                    
-                    // Delete uploaded files
-                    for (const filePath of uploadedFiles.reverse()) {
-                        try {
-                            await webdavService.deleteFile(filePath);
-                        } catch (deleteError) {
-                            console.warn(`Could not delete file ${filePath} during rollback:`, deleteError);
-                        }
-                    }
-                    
-                    // Delete created folders (in reverse order)
-                    for (const folderPath of createdFolders.reverse()) {
-                        try {
-                            await webdavService.deleteDirectory(folderPath);
-                        } catch (deleteError) {
-                            console.warn(`Could not delete folder ${folderPath} during rollback:`, deleteError);
-                        }
-                    }
-                };
-                
-                return { success: true, rollbackAction };
-            } catch (error) {
-                // Immediate cleanup on failure
+                // Delete created folders (in reverse order)
                 for (const folderPath of createdFolders.reverse()) {
                     try {
                         await webdavService.deleteDirectory(folderPath);
                     } catch (deleteError) {
-                        console.warn(`Could not clean up folder ${folderPath}:`, deleteError);
+                        console.warn(`Could not delete folder ${folderPath} during rollback:`, deleteError);
                     }
                 }
-                throw error;
-            }
+            };
+            
+            console.log(`✓ Server folder structure created successfully for ${uniqueId}`);
+            return { success: true, rollbackAction };
+            
         } catch (error) {
             return {
                 success: false,

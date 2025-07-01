@@ -301,7 +301,13 @@ async function deployServer(serverId: string, server: Record<string, unknown>, u
             await updateStep(serverId, 'folder', 'running', 0, 'Creating server folder structure...');
             
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const folderResult = await MinecraftServerManager.createServerFolder((server as any).uniqueId, user.email);
+            const serverData = server as any;
+            const folderResult = await MinecraftServerManager.createServerFolder(
+                serverData.uniqueId, 
+                user.email,
+                serverData.serverConfig?.serverType,
+                serverData.serverConfig?.version
+            );
             
             if (!folderResult.success) {
                 await updateStep(serverId, 'folder', 'failed', 0, 'Failed to create server folders', folderResult.error);
@@ -385,21 +391,33 @@ async function deployServer(serverId: string, server: Record<string, unknown>, u
         const deployResult = await updatedMinecraftServer.deployToPortainer();
         
         if (!deployResult.success) {
-            await updateStep(serverId, 'deploy', 'failed', 0, 'Deployment failed', deployResult.error);
-            throw new Error(`Deployment failed: ${deployResult.error}`);
-        }
-
-        // Add rollback action for Portainer deployment
-        rollbackActions.push(async () => {
-            console.log(`Rolling back Portainer deployment for server ${serverId}`);
-            try {
-                await updatedMinecraftServer.deleteFromPortainer();
-            } catch (error) {
-                console.warn('Could not clean up Portainer deployment during rollback:', error);
+            // Try fallback deployment method
+            console.log('Portainer deployment failed, trying Docker Compose fallback...');
+            await updateStep(serverId, 'deploy', 'running', 50, 'Portainer failed, trying fallback deployment...');
+            
+            const fallbackResult = await updatedMinecraftServer.deployToDockerCompose(user.email);
+            
+            if (!fallbackResult.success) {
+                await updateStep(serverId, 'deploy', 'failed', 0, 'All deployment methods failed', 
+                    `Portainer: ${deployResult.error}, Fallback: ${fallbackResult.error}`);
+                throw new Error(`All deployment methods failed. Portainer: ${deployResult.error}, Fallback: ${fallbackResult.error}`);
             }
-        });
+            
+            await updateStep(serverId, 'deploy', 'completed', 100, 
+                `Deployment completed using Docker Compose fallback. File: ${fallbackResult.composeFile}`);
+        } else {
+            // Add rollback action for Portainer deployment
+            rollbackActions.push(async () => {
+                console.log(`Rolling back Portainer deployment for server ${serverId}`);
+                try {
+                    await updatedMinecraftServer.deleteFromPortainer();
+                } catch (error) {
+                    console.warn('Could not clean up Portainer deployment during rollback:', error);
+                }
+            });
 
-        await updateStep(serverId, 'deploy', 'completed', 100, 'Server deployed successfully');
+            await updateStep(serverId, 'deploy', 'completed', 100, 'Server deployed successfully to Portainer');
+        }
 
         // Step 7: Verify deployment and wait for container to be ready
         await updateStep(serverId, 'files', 'running', 0, 'Verifying container deployment...');

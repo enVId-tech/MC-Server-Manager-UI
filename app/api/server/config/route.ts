@@ -173,8 +173,13 @@ export async function POST(request: NextRequest) {
         // Generate unique ID for the server
         const uniqueId = new mongoose.Types.ObjectId().toString();
 
-        // Create server folder structure in WebDAV
-        const folderCreation = await MinecraftServerManager.createServerFolder(uniqueId, email);
+        // Create server folder structure in WebDAV with JAR download
+        const folderCreation = await MinecraftServerManager.createServerFolder(
+            uniqueId, 
+            email, 
+            config.serverType, 
+            config.version
+        );
         if (!folderCreation.success) {
             return NextResponse.json({ error: folderCreation.error }, { status: 500 });
         }
