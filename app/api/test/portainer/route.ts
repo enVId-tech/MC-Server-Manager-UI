@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import portainer from "@/lib/server/portainer";
 
 export async function GET() {
@@ -23,7 +23,7 @@ export async function GET() {
         let systemInfo;
         try {
             systemInfo = await portainer.getSystemInfo();
-        } catch (error) {
+        } catch {
             systemInfo = { error: "Could not fetch system info" };
         }
         

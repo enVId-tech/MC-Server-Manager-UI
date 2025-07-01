@@ -432,7 +432,7 @@ class PortainerApiClient {
      */
     async testApiConnectivity(): Promise<{ success: boolean; version?: string; error?: string }> {
         try {
-            const response = await this.axiosInstance.get('/api/status');
+            await this.axiosInstance.get('/api/status');
             const systemInfo = await this.getSystemInfo();
             return {
                 success: true,
