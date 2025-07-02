@@ -6,13 +6,13 @@ export async function GET() {
         console.log("Testing Portainer API connectivity...");
         
         // Test basic connectivity
-        const connectivityTest = await portainer.testApiConnectivity();
+        const isConnected = await portainer.testConnection();
         
-        if (!connectivityTest.success) {
+        if (!isConnected) {
             return NextResponse.json({
                 success: false,
                 error: "Failed to connect to Portainer API",
-                details: connectivityTest.error
+                details: "Connection test returned false"
             }, { status: 500 });
         }
         
@@ -29,8 +29,8 @@ export async function GET() {
         
         return NextResponse.json({
             success: true,
-            version: connectivityTest.version,
-            environments: environments.map(env => ({
+            connected: isConnected,
+            environments: environments.map((env: { Id: number; Name: string }) => ({
                 id: env.Id,
                 name: env.Name
             })),

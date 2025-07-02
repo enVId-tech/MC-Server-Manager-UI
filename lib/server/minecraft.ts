@@ -1195,9 +1195,9 @@ export async function createMinecraftServerFromSession(
     serverName: string,
     uniqueId: string,
     environmentId: number = 1,
-    req?: any // Next.js request object or session data
+    req?: Record<string, unknown> // Next.js request object or session data
 ): Promise<MinecraftServer> {
-    let userEmail = 'default-user';
+    const userEmail = 'default-user';
     
     if (req) {
         try {
@@ -1232,7 +1232,8 @@ export async function createMinecraftServerFromSession(
  * Helper function to fetch user email from authentication system
  * This should be replaced with your actual authentication integration
  */
-async function fetchUserEmailFromAuth(authToken: string): Promise<string> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function fetchUserEmailFromAuth(_authToken: string): Promise<string> {
     // Placeholder implementation - replace with actual auth service call
     // Example: 
     // const response = await fetch('/api/auth/user', {

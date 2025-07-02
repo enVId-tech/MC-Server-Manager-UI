@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import https from 'https';
 import { config } from 'dotenv';
 
@@ -209,6 +209,28 @@ export class PortainerApiClient {
         } catch (error) {
             console.error('Failed to connect to Portainer API:', error);
             return false;
+        }
+    }
+
+    /**
+     * Fetches Portainer system information including version.
+     * @returns {Promise<Record<string, unknown>>} A promise that resolves to system information.
+     */
+    async getSystemInfo(): Promise<Record<string, unknown>> {
+        try {
+            // If using username/password authentication, authenticate first
+            if (this.username && this.password && !this.authToken) {
+                const authSuccess = await this.authenticate();
+                if (!authSuccess) {
+                    throw new Error('Authentication failed');
+                }
+            }
+
+            const response = await this.axiosInstance.get('/api/system/status');
+            return response.data;
+        } catch (error) {
+            console.error('Failed to fetch system info:', error);
+            throw error;
         }
     }
 
@@ -595,7 +617,7 @@ export class PortainerApiClient {
                 console.log(`⚠️ Stack "${stackName}" already exists (ID: ${existingStack.Id})`);
                 return existingStack as unknown as Record<string, unknown>;
             }
-        } catch (error) {
+        } catch {
             // Stack doesn't exist, continue with creation
             console.log('Stack does not exist, proceeding with creation...');
         }
@@ -1136,7 +1158,7 @@ export class PortainerApiClient {
                 
                 // Also check NetworkSettings.Ports
                 if (container.NetworkSettings?.Ports) {
-                    for (const [portKey, portMappings] of Object.entries(container.NetworkSettings.Ports)) {
+                    for (const [, portMappings] of Object.entries(container.NetworkSettings.Ports)) {
                         if (portMappings) {
                             for (const mapping of portMappings) {
                                 if (mapping.HostPort) {
