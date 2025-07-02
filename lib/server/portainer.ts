@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosError } from 'axios';
 import https from 'https';
 import { config } from 'dotenv';
 
@@ -304,6 +304,270 @@ export class PortainerApiClient {
     }
 
     /**
+     * Get a container by name
+     * @param containerName - The name of the container to find
+     * @param environmentId - The ID of the Portainer environment
+     * @returns Promise resolving to the container object or null if not found
+     */
+    async getContainerByName(containerName: string, environmentId: number | null = this.defaultEnvironmentId): Promise<PortainerContainer | null> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to get container by name.');
+        }
+        
+        try {
+            const containers = await this.getContainers(environmentId, true);
+            const container = containers.find(c => 
+                c.Names.some(name => name.includes(containerName)) ||
+                c.Names.some(name => name === `/${containerName}`) ||
+                c.Names.some(name => name.replace('/', '') === containerName)
+            );
+            
+            return container || null;
+        } catch (error) {
+            console.error(`Failed to get container by name "${containerName}":`, error);
+            return null;
+        }
+    }
+
+    /**
+     * Get a stack by name
+     * @param stackName - The name of the stack to find
+     * @returns Promise resolving to the stack object or null if not found
+     */
+    async getStackByName(stackName: string): Promise<PortainerStack | null> {
+        try {
+            const stacks = await this.getStacks();
+            const stack = stacks.find(s => s.Name === stackName);
+            return stack || null;
+        } catch (error) {
+            console.error(`Failed to get stack by name "${stackName}":`, error);
+            return null;
+        }
+    }
+
+    /**
+     * Verify that a stack was created successfully
+     * @param stackName - The name of the stack to verify
+     * @param timeoutMs - Timeout in milliseconds (default: 5000)
+     * @returns Promise resolving to true if stack exists
+     */
+    async verifyStackCreation(stackName: string, timeoutMs: number = 5000): Promise<boolean> {
+        const startTime = Date.now();
+        
+        while (Date.now() - startTime < timeoutMs) {
+            try {
+                const stack = await this.getStackByName(stackName);
+                if (stack) {
+                    console.log(`✅ Stack "${stackName}" verified successfully`);
+                    return true;
+                }
+            } catch (error) {
+                console.warn('Error during stack verification:', error);
+            }
+            
+            // Wait 1 second before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        console.warn(`⚠️ Stack verification timed out for "${stackName}"`);
+        return false;
+    }
+
+    /**
+     * Verify that a container was created successfully
+     * @param containerName - The name of the container to verify
+     * @param environmentId - The ID of the Portainer environment
+     * @param timeoutMs - Timeout in milliseconds (default: 5000)
+     * @returns Promise resolving to true if container exists and is running
+     */
+    async verifyContainerCreation(containerName: string, environmentId: number, timeoutMs: number = 5000): Promise<boolean> {
+        const startTime = Date.now();
+        
+        while (Date.now() - startTime < timeoutMs) {
+            try {
+                const containers = await this.getContainers(environmentId, true);
+                const container = containers.find(c => 
+                    c.Names.some(name => name.includes(containerName)) ||
+                    c.Names.some(name => name === `/${containerName}`)
+                );
+                
+                if (container) {
+                    console.log(`✅ Container "${containerName}" verified successfully (State: ${container.State})`);
+                    return true;
+                }
+            } catch (error) {
+                console.warn('Error during container verification:', error);
+            }
+            
+            // Wait 1 second before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        console.warn(`⚠️ Container verification timed out for "${containerName}"`);
+        return false;
+    }
+
+    /**
+     * Clean up any existing container with the same name
+     * @param containerName - The name of the container to clean up
+     * @param environmentId - The ID of the Portainer environment
+     */
+    async cleanupExistingContainer(containerName: string, environmentId: number): Promise<void> {
+        try {
+            const containers = await this.getContainers(environmentId, true);
+            const existingContainer = containers.find(c => 
+                c.Names.some(name => name.includes(containerName)) ||
+                c.Names.some(name => name === `/${containerName}`)
+            );
+            
+            if (existingContainer) {
+                console.log(`🗑️ Cleaning up existing container "${containerName}" (ID: ${existingContainer.Id})`);
+                
+                // Stop the container if it's running
+                if (existingContainer.State === 'running') {
+                    await this.axiosInstance.post(`/api/endpoints/${environmentId}/docker/containers/${existingContainer.Id}/stop`);
+                    console.log('🛑 Container stopped');
+                }
+                
+                // Remove the container
+                await this.axiosInstance.delete(`/api/endpoints/${environmentId}/docker/containers/${existingContainer.Id}`);
+                console.log('🗑️ Container removed');
+            }
+        } catch (error) {
+            console.warn(`Warning: Failed to cleanup existing container "${containerName}":`, error);
+            // Don't throw error for cleanup failures
+        }
+    }
+
+    /**
+     * Extract container configuration from Docker Compose content and create container directly
+     * @param stackData - The stack configuration data
+     * @param environmentId - The ID of the Portainer environment
+     * @returns Promise resolving to the created container data
+     */
+    async createContainerFromCompose(stackData: Record<string, unknown>, environmentId: number): Promise<Record<string, unknown>> {
+        console.log('📦 Creating container from Docker Compose content...');
+        
+        const stackName = stackData.Name as string;
+        const composeContent = (stackData.ComposeFile || stackData.StackFileContent) as string;
+        const serviceName = stackName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+        
+        // Parse Docker Compose to extract container configuration
+        const envVars: string[] = [];
+        const envMatch = composeContent.match(/environment:\s*([\s\S]*?)(?=\s*ports:|volumes:|restart:|networks:|$)/);
+        if (envMatch) {
+            const envSection = envMatch[1];
+            const envLines = envSection.split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#') && !line.startsWith('-'));
+            
+            for (const line of envLines) {
+                if (line.includes(':')) {
+                    const [key, ...valueParts] = line.split(':');
+                    const value = valueParts.join(':').trim().replace(/^['"]|['"]$/g, ''); // Remove quotes
+                    if (key && value) {
+                        envVars.push(`${key.trim()}=${value}`);
+                    }
+                }
+            }
+        }
+        
+        // Extract port mappings
+        const portBindings: Record<string, Array<{HostPort: string}>> = {};
+        const exposedPorts: Record<string, object> = {};
+        const portsMatch = composeContent.match(/ports:\s*([\s\S]*?)(?=\s*volumes:|restart:|networks:|environment:|$)/);
+        if (portsMatch) {
+            const portsSection = portsMatch[1];
+            const portLines = portsSection.split('\n').map(line => line.trim()).filter(line => line.startsWith('-'));
+            
+            for (const line of portLines) {
+                const portMapping = line.replace(/^-\s*['"]?/, '').replace(/['"]?$/, '');
+                if (portMapping.includes(':')) {
+                    const [hostPort, containerPort] = portMapping.split(':');
+                    const containerPortKey = `${containerPort}/tcp`;
+                    exposedPorts[containerPortKey] = {};
+                    portBindings[containerPortKey] = [{ HostPort: hostPort }];
+                }
+            }
+        }
+        
+        // Extract volume mounts
+        const binds: string[] = [];
+        const volumesMatch = composeContent.match(/volumes:\s*([\s\S]*?)(?=\s*restart:|networks:|environment:|ports:|$)/);
+        if (volumesMatch) {
+            const volumesSection = volumesMatch[1];
+            const volumeLines = volumesSection.split('\n').map(line => line.trim()).filter(line => line.startsWith('-'));
+            
+            for (const line of volumeLines) {
+                const volumeMapping = line.replace(/^-\s*['"]?/, '').replace(/['"]?$/, '');
+                if (volumeMapping.includes(':')) {
+                    binds.push(volumeMapping);
+                }
+            }
+        }
+        
+        console.log(`📦 Creating container "${serviceName}" with:`);
+        console.log(`   Environment variables: ${envVars.length} vars`);
+        console.log(`   Port bindings:`, Object.keys(portBindings));
+        console.log(`   Volume binds:`, binds);
+        
+        // Create container payload
+        const containerPayload = {
+            Image: 'itzg/minecraft-server:latest',
+            name: serviceName,
+            Env: envVars,
+            ExposedPorts: exposedPorts,
+            HostConfig: {
+                PortBindings: portBindings,
+                Binds: binds,
+                RestartPolicy: {
+                    Name: 'unless-stopped'
+                }
+            },
+            AttachStdin: true,
+            AttachStdout: true,
+            AttachStderr: true,
+            Tty: true,
+            OpenStdin: true,
+            Labels: {
+                'minecraft.server.id': stackName.replace('minecraft-', ''),
+                'minecraft.server.name': serviceName,
+                'minecraft.server.type': 'PAPER',
+                'minecraft.managed-by': 'minecraft-server-creator'
+            }
+        };
+        
+        // Clean up any existing container with the same name
+        await this.cleanupExistingContainer(serviceName, environmentId);
+        
+        console.log('📤 Creating container...');
+        const response = await this.axiosInstance.post(
+            `/api/endpoints/${environmentId}/docker/containers/create?name=${serviceName}`,
+            containerPayload
+        );
+        
+        console.log('✅ Container created successfully!');
+        const containerId = response.data.Id;
+        
+        // Start the container
+        console.log('▶️ Starting container...');
+        await this.axiosInstance.post(`/api/endpoints/${environmentId}/docker/containers/${containerId}/start`);
+        
+        // Verify container creation
+        const verified = await this.verifyContainerCreation(serviceName, environmentId, 10000);
+        if (!verified) {
+            throw new Error('Container creation verification failed');
+        }
+        
+        console.log('🎉 Container started and verified successfully!');
+        return { 
+            Id: containerId, 
+            Name: serviceName,
+            method: 'direct-container',
+            containerCreated: true,
+            verified: true
+        };
+    }
+
+    /**
      * Create a new stack in Portainer with Docker Compose content
      * @param stackData - The stack configuration data
      * @param environmentId - The ID of the Portainer environment
@@ -324,6 +588,18 @@ export class PortainerApiClient {
             throw new Error('Stack name and compose content are required');
         }
 
+        // Check if stack already exists
+        try {
+            const existingStack = await this.getStackByName(stackName);
+            if (existingStack) {
+                console.log(`⚠️ Stack "${stackName}" already exists (ID: ${existingStack.Id})`);
+                return existingStack as unknown as Record<string, unknown>;
+            }
+        } catch (error) {
+            // Stack doesn't exist, continue with creation
+            console.log('Stack does not exist, proceeding with creation...');
+        }
+
         // Method 1: Try the standard Portainer stack creation with compose string
         try {
             console.log('📋 Method 1: Standard stack creation with compose string...');
@@ -331,7 +607,7 @@ export class PortainerApiClient {
             const payload = {
                 Name: stackName,
                 ComposeFile: composeContent,
-                Env: [],
+                Env: stackData.Env || [],
                 FromAppTemplate: false
             };
             
@@ -349,328 +625,465 @@ export class PortainerApiClient {
         } catch (method1Error) {
             console.error('❌ Method 1 failed:', method1Error);
             
-            // Method 2: Try alternative stack creation endpoint
+            // Method 2: Try the string-based endpoint
             try {
-                console.log('📋 Method 2: Alternative stack creation endpoint...');
+                console.log('📋 Method 2: String-based stack creation...');
                 
                 const payload = {
                     Name: stackName,
                     StackFileContent: composeContent,
-                    Env: []
+                    Env: stackData.Env || []
                 };
                 
                 const response = await this.axiosInstance.post(
-                    `/api/stacks/create/compose/string?type=2&endpointId=${environmentId}`,
+                    `/api/stacks/create/standalone/string?endpointId=${environmentId}&type=2`,
                     payload
                 );
                 
-                console.log('✅ Method 2 Success! Stack created with alternative endpoint');
-                console.log('📥 Response:', JSON.stringify(response.data, null, 2));
+                console.log('✅ Method 2 Success! Stack created with string endpoint');
                 return response.data;
                 
             } catch (method2Error) {
                 console.error('❌ Method 2 failed:', method2Error);
                 
-                // Method 3: Try with body parameters instead of query parameters
+                // Method 3: Try with repository simulation
                 try {
-                    console.log('📋 Method 3: Body parameters approach...');
+                    console.log('📋 Method 3: Repository simulation...');
                     
                     const payload = {
-                        Name: stackName,
-                        StackFileContent: composeContent,
-                        EndpointId: environmentId,
-                        Type: 2, // Docker Compose
-                        Method: 'string',
-                        Env: []
+                        name: stackName,
+                        stackFileContent: composeContent,
+                        env: stackData.Env || [],
+                        fromAppTemplate: false,
+                        repositoryAuthentication: false,
+                        repositoryURL: "",
+                        repositoryReferenceName: "",
+                        composeFormat: true
                     };
                     
-                    const response = await this.axiosInstance.post('/api/stacks', payload);
+                    const response = await this.axiosInstance.post(
+                        `/api/stacks/create/compose/string?endpointId=${environmentId}&type=2`,
+                        payload
+                    );
                     
-                    console.log('✅ Method 3 Success! Stack created with body parameters');
-                    console.log('📥 Response:', JSON.stringify(response.data, null, 2));
+                    console.log('✅ Method 3 Success! Stack created with repository simulation');
                     return response.data;
                     
                 } catch (method3Error) {
                     console.error('❌ Method 3 failed:', method3Error);
                     
-                    // Method 4: Try with multipart form data approach (simulate file upload)
-                    try {
-                        console.log('📋 Method 4: Multipart form data approach...');
-                        
-                        // Create a form-like payload for file-based stack creation
-                        const boundary = '----formdata-' + Math.random().toString(36);
-                        const formData = [
-                            `--${boundary}`,
-                            'Content-Disposition: form-data; name="Name"',
-                            '',
-                            stackName,
-                            `--${boundary}`,
-                            'Content-Disposition: form-data; name="StackFileContent"',
-                            '',
-                            composeContent,
-                            `--${boundary}`,
-                            'Content-Disposition: form-data; name="EndpointId"',
-                            '',
-                            environmentId.toString(),
-                            `--${boundary}`,
-                            'Content-Disposition: form-data; name="Type"',
-                            '',
-                            '2',
-                            `--${boundary}`,
-                            'Content-Disposition: form-data; name="Method"',
-                            '',
-                            'string',
-                            `--${boundary}--`
-                        ].join('\r\n');
-                        
-                        const response = await this.axiosInstance.post('/api/stacks', formData, {
-                            headers: {
-                                'Content-Type': `multipart/form-data; boundary=${boundary}`
-                            }
-                        });
-                        
-                        console.log('✅ Method 4 Success! Stack created with multipart form data');
-                        console.log('📥 Response:', JSON.stringify(response.data, null, 2));
-                        return response.data;
-                        
-                    } catch (method4Error) {
-                        console.error('❌ Method 4 failed:', method4Error);
-                        
-                        // Method 5: Direct container creation (most reliable fallback)
-                        try {
-                            console.log('📋 Method 5: Direct container creation...');
-                            
-                            // Parse Docker Compose to extract container configuration
-                            const serviceName = stackName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-                            
-                            // Extract environment variables from compose content
-                            const envVars: string[] = [];
-                            const envMatch = composeContent.match(/environment:\s*([\s\S]*?)(?=\s*ports:|$)/);
-                            if (envMatch) {
-                                const envSection = envMatch[1];
-                                const envLines = envSection.split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#'));
-                                
-                                for (const line of envLines) {
-                                    if (line.includes(':')) {
-                                        const [key, ...valueParts] = line.split(':');
-                                        const value = valueParts.join(':').trim().replace(/^['"]|['"]$/g, ''); // Remove quotes
-                                        if (key && value) {
-                                            envVars.push(`${key.trim()}=${value}`);
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            // Extract port mappings
-                            const portBindings: Record<string, Array<{HostPort: string}>> = {};
-                            const exposedPorts: Record<string, object> = {};
-                            const portsMatch = composeContent.match(/ports:\s*([\s\S]*?)(?=\s*volumes:|restart:|networks:|$)/);
-                            if (portsMatch) {
-                                const portsSection = portsMatch[1];
-                                const portLines = portsSection.split('\n').map(line => line.trim()).filter(line => line.startsWith('-'));
-                                
-                                for (const line of portLines) {
-                                    const portMapping = line.replace(/^-\s*['"]?/, '').replace(/['"]?$/, '');
-                                    if (portMapping.includes(':')) {
-                                        const [hostPort, containerPort] = portMapping.split(':');
-                                        const containerPortKey = `${containerPort}/tcp`;
-                                        exposedPorts[containerPortKey] = {};
-                                        portBindings[containerPortKey] = [{ HostPort: hostPort }];
-                                    }
-                                }
-                            }
-                            
-                            // Extract volume mounts
-                            const binds: string[] = [];
-                            const volumesMatch = composeContent.match(/volumes:\s*([\s\S]*?)(?=\s*restart:|networks:|environment:|$)/);
-                            if (volumesMatch) {
-                                const volumesSection = volumesMatch[1];
-                                const volumeLines = volumesSection.split('\n').map(line => line.trim()).filter(line => line.startsWith('-'));
-                                
-                                for (const line of volumeLines) {
-                                    const volumeMapping = line.replace(/^-\s*['"]?/, '').replace(/['"]?$/, '');
-                                    if (volumeMapping.includes(':')) {
-                                        binds.push(volumeMapping);
-                                    }
-                                }
-                            }
-                            
-                            console.log(`📦 Creating container with:`);
-                            console.log(`   Name: ${serviceName}`);
-                            console.log(`   Environment variables: ${envVars.length} vars`);
-                            console.log(`   Port bindings:`, portBindings);
-                            console.log(`   Volume binds:`, binds);
-                            
-                            // Create container payload
-                            const containerPayload = {
-                                Image: 'itzg/minecraft-server:latest',
-                                name: serviceName,
-                                Env: envVars,
-                                ExposedPorts: exposedPorts,
-                                HostConfig: {
-                                    PortBindings: portBindings,
-                                    Binds: binds,
-                                    RestartPolicy: {
-                                        Name: 'unless-stopped'
-                                    }
-                                },
-                                AttachStdin: true,
-                                AttachStdout: true,
-                                AttachStderr: true,
-                                Tty: true,
-                                OpenStdin: true,
-                                Labels: {
-                                    'minecraft.server.id': stackName.replace('minecraft-', ''),
-                                    'minecraft.server.name': serviceName,
-                                    'minecraft.server.type': 'PAPER',
-                                    'minecraft.managed-by': 'minecraft-server-creator'
-                                }
-                            };
-                            
-                            console.log('📤 Creating container with payload:', JSON.stringify(containerPayload, null, 2));
-                            
-                            const response = await this.axiosInstance.post(
-                                `/api/endpoints/${environmentId}/docker/containers/create?name=${serviceName}`,
-                                containerPayload
-                            );
-                            
-                            console.log('✅ Container created successfully!');
-                            console.log('📥 Container ID:', response.data.Id);
-                            
-                            // Start the container
-                            const containerId = response.data.Id;
-                            console.log('▶️ Starting container...');
-                            await this.axiosInstance.post(`/api/endpoints/${environmentId}/docker/containers/${containerId}/start`);
-                            
-                            console.log('🎉 Container started successfully!');
-                            return { 
-                                Id: containerId, 
-                                Name: serviceName,
-                                method: 'direct-container',
-                                containerCreated: true 
-                            };
-                            
-                        } catch (method5Error) {
-                            console.error('❌ Method 5 failed:', method5Error);
-                            
-                            // Final attempt: Log all errors and throw the most informative one
-                            const errors = {
-                                method1: method1Error instanceof Error ? method1Error.message : 'Unknown error',
-                                method2: method2Error instanceof Error ? method2Error.message : 'Unknown error',
-                                method3: method3Error instanceof Error ? method3Error.message : 'Unknown error',
-                                method4: method4Error instanceof Error ? method4Error.message : 'Unknown error',
-                                method5: method5Error instanceof Error ? method5Error.message : 'Unknown error'
-                            };
-                            
-                            console.error('🚨 All stack creation methods failed:', errors);
-                            
-                            // Check if this is an authentication or permission issue
-                            const method1AxiosError = method1Error as { response?: { status?: number, data?: unknown } };
-                            if (method1AxiosError?.response?.status === 403) {
-                                throw new Error('Permission denied: Check if the user has sufficient permissions to create stacks in Portainer');
-                            }
-                            if (method1AxiosError?.response?.status === 401) {
-                                throw new Error('Authentication failed: Check Portainer credentials and ensure the user is logged in');
-                            }
-                            if (method1AxiosError?.response?.status === 405) {
-                                throw new Error('Method not allowed: This Portainer version may not support stack creation via API');
-                            }
-                            
-                            throw new Error(`Failed to create stack after trying 5 different methods. First error: ${errors.method1}`);
-                        }
-                    }
+                    // Method 4: Direct container creation fallback
+                    console.log('📋 Method 4: Falling back to direct container creation...');
+                    return await this.createContainerFromCompose(stackData, environmentId);
                 }
             }
         }
     }
 
     /**
-     * Alternative Portainer deployment - try Docker service creation instead of stacks
+     * Alternative Portainer deployment - try Docker container creation instead of stacks
+     * This is more compatible than Docker services which require swarm mode
      */
     async deployToPortainerService(stackData: Record<string, unknown>, environmentId: number): Promise<Record<string, unknown>> {
         try {
-            console.log('Trying Portainer service creation as alternative to stacks...');
+            console.log('🔄 Trying direct container creation as alternative to stacks...');
             
-            // Extract service configuration from stack data
-            const serviceName = stackData.Name as string;
+            // Use the existing container creation method which is more reliable
+            // and doesn't require Docker swarm mode
+            const containerResult = await this.createContainerFromCompose(stackData, environmentId);
             
-            // Parse the compose content to extract service definition
-            const serviceConfig = {
-                Name: serviceName,
-                TaskTemplate: {
-                    ContainerSpec: {
-                        Image: 'itzg/minecraft-server:latest',
-                        Env: (stackData.Env as Array<{name: string, value: string}>)?.map(env => `${env.name}=${env.value}`) || []
-                    }
-                },
-                Mode: {
-                    Replicated: {
-                        Replicas: 1
-                    }
-                }
-            };
-            
-            const response = await this.axiosInstance.post(
-                `/api/endpoints/${environmentId}/docker/services/create`,
-                serviceConfig
-            );
-            
-            console.log('Service created successfully with Portainer service API');
-            return response.data;
+            console.log('✅ Container created successfully via direct container API');
+            return containerResult;
         } catch (error) {
-            console.error('Failed to create service via Portainer service API:', error);
+            console.error('❌ Failed to create container via direct container API:', error);
             throw error;
         }
     }
 
     /**
-     * Start a stack in Portainer
-     * @param stackId - The ID of the stack to start
-     * @returns Promise resolving to the start operation result
-     */
-    async startStack(stackId: number): Promise<Record<string, unknown>> {
-        try {
-            const response = await this.axiosInstance.post(`/api/stacks/${stackId}/start`);
-            return response.data;
-        } catch (error) {
-            console.error(`Failed to start stack ${stackId}:`, error);
-            throw error;
-        }
-    }
-
-    /**
-     * Stop a stack in Portainer
-     * @param stackId - The ID of the stack to stop
-     * @returns Promise resolving to the stop operation result
-     */
-    async stopStack(stackId: number): Promise<Record<string, unknown>> {
-        try {
-            const response = await this.axiosInstance.post(`/api/stacks/${stackId}/stop`);
-            return response.data;
-        } catch (error) {
-            console.error(`Failed to stop stack ${stackId}:`, error);
-            throw error;
-        }
-    }
-
-    /**
-     * Delete a stack from Portainer
-     * @param stackId - The ID of the stack to delete
+     * Smart stack creation with automatic fallback and verification
+     * @param stackData - The stack configuration data
      * @param environmentId - The ID of the Portainer environment
-     * @returns Promise resolving to the delete operation result
+     * @returns Promise resolving to the created stack data
      */
-    async deleteStack(stackId: number, environmentId: number | null = this.defaultEnvironmentId): Promise<Record<string, unknown>> {
+    async createStackSmart(stackData: Record<string, unknown>, environmentId: number | null = this.defaultEnvironmentId): Promise<Record<string, unknown>> {
         if (environmentId === null) {
-            throw new Error('Environment ID is required to delete a stack.');
+            throw new Error('Environment ID is required to create a stack.');
         }
+        
+        const stackName = stackData.Name as string;
+        const composeContent = (stackData.ComposeFile || stackData.StackFileContent) as string;
+        
+        if (!stackName || !composeContent) {
+            throw new Error('Stack name and compose content are required');
+        }
+
+        console.log(`🧠 Smart stack creation for "${stackName}" on environment ${environmentId}`);
+
+        // Check if stack already exists
+        const existingStack = await this.getStackByName(stackName);
+        if (existingStack) {
+            console.log(`⚠️ Stack "${stackName}" already exists (ID: ${existingStack.Id})`);
+            return existingStack as unknown as Record<string, unknown>;
+        }
+
+        // Try the main create stack method first
         try {
-            const response = await this.axiosInstance.delete(
-                `/api/stacks/${stackId}?external=false&endpointId=${environmentId}`
-            );
-            return response.data;
+            const result = await this.createStack(stackData, environmentId);
+            
+            // Verify the stack was actually created
+            const verified = await this.verifyStackCreation(stackName, 10000);
+            if (verified) {
+                console.log(`✅ Stack creation successful`);
+                return result;
+            } else {
+                console.warn(`⚠️ Stack creation returned success but verification failed`);
+                throw new Error('Stack creation verification failed');
+            }
         } catch (error) {
-            console.error(`Failed to delete stack ${stackId}:`, error);
-            throw error;
+            console.error(`❌ Stack creation failed:`, error);
+            
+            // If stack creation fails, try direct container creation as fallback
+            console.log('🔄 Falling back to direct container creation...');
+            try {
+                const containerResult = await this.createContainerFromCompose(stackData, environmentId);
+                console.log('✅ Fallback container creation successful');
+                return containerResult;
+            } catch (containerError) {
+                console.error('❌ Fallback container creation also failed:', containerError);
+                throw new Error(`Stack creation failed: ${error instanceof Error ? error.message : 'Unknown error'}. Container fallback error: ${containerError instanceof Error ? containerError.message : 'Unknown error'}`);
+            }
+        }
+    }
+
+    /**
+     * Create stack using Portainer 2.x optimized format
+     */
+    async createStackPortainer2x(stackData: Record<string, unknown>, environmentId: number): Promise<Record<string, unknown>> {
+        console.log('📋 Portainer 2.x stack creation...');
+        
+        const stackName = stackData.Name as string;
+        const composeContent = (stackData.ComposeFile || stackData.StackFileContent) as string;
+        
+        const payload = {
+            name: stackName, // lowercase 'name' for newer Portainer versions
+            stackFileContent: composeContent, // camelCase for newer versions
+            env: stackData.Env || [],
+            fromAppTemplate: false,
+            repositoryAuthentication: false,
+            repositoryURL: "",
+            repositoryReferenceName: "",
+            composeFormat: true
+        };
+        
+        const response = await this.axiosInstance.post(
+            `/api/stacks/create/compose/string?endpointId=${environmentId}&type=2`,
+            payload,
+            {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        
+        console.log('✅ Portainer 2.x stack created successfully');
+        return response.data;
+    }
+
+    /**
+     * Create stack using Portainer 1.x compatible format
+     */
+    async createStackPortainer1x(stackData: Record<string, unknown>, environmentId: number): Promise<Record<string, unknown>> {
+        console.log('📋 Portainer 1.x stack creation...');
+        
+        const stackName = stackData.Name as string;
+        const composeContent = (stackData.ComposeFile || stackData.StackFileContent) as string;
+        
+        const payload = {
+            Name: stackName, // uppercase 'Name' for older versions
+            ComposeFileContent: composeContent, // Different property name
+            Env: stackData.Env || [],
+            EndpointId: environmentId
+        };
+        
+        const response = await this.axiosInstance.post(
+            `/api/stacks?type=2&method=1&endpointId=${environmentId}`,
+            payload
+        );
+        
+        console.log('✅ Portainer 1.x stack created successfully');
+        return response.data;
+    }
+
+    /**
+     * Create stack using endpoint-specific API path
+     */
+    async createStackEndpointSpecific(stackData: Record<string, unknown>, environmentId: number): Promise<Record<string, unknown>> {
+        console.log('📋 Endpoint-specific stack creation...');
+        
+        const stackName = stackData.Name as string;
+        const composeContent = (stackData.ComposeFile || stackData.StackFileContent) as string;
+        
+        const payload = {
+            Name: stackName,
+            StackFileContent: composeContent,
+            Env: stackData.Env || []
+        };
+        
+        const response = await this.axiosInstance.post(
+            `/api/endpoints/${environmentId}/stacks?type=2&method=string`,
+            payload
+        );
+        
+        console.log('✅ Endpoint-specific stack created successfully');
+        return response.data;
+    }
+
+    /**
+     * Create stack using legacy API format
+     */
+    async createStackLegacy(stackData: Record<string, unknown>, environmentId: number): Promise<Record<string, unknown>> {
+        console.log('📋 Legacy stack creation...');
+        
+        const stackName = stackData.Name as string;
+        const composeContent = (stackData.ComposeFile || stackData.StackFileContent) as string;
+        
+        const payload = {
+            name: stackName,
+            compose: composeContent, // Very basic property name
+            environmentId: environmentId,
+            type: 'compose'
+        };
+        
+        const response = await this.axiosInstance.post('/api/stacks/compose', payload);
+        
+        console.log('✅ Legacy stack created successfully');
+        return response.data;
+    }
+
+    /**
+     * Create stack using minimal payload (last resort before container creation)
+     */
+    async createStackMinimal(stackData: Record<string, unknown>, environmentId: number): Promise<Record<string, unknown>> {
+        console.log('📋 Minimal stack creation...');
+        
+        const stackName = stackData.Name as string;
+        const composeContent = (stackData.ComposeFile || stackData.StackFileContent) as string;
+        
+        // Absolutely minimal payload
+        const payload = {
+            Name: stackName,
+            ComposeFile: composeContent
+        };
+        
+        const response = await this.axiosInstance.post(
+            `/api/stacks?endpointId=${environmentId}`,
+            payload
+        );
+        
+        console.log('✅ Minimal stack created successfully');
+        return response.data;
+    }
+
+    /**
+     * Create stack with comprehensive verification and retry logic
+     * @param stackData - The stack configuration data
+     * @param environmentId - The ID of the Portainer environment
+     * @param maxRetries - Maximum number of retry attempts
+     * @returns Promise resolving to the created stack data with verification
+     */
+    async createStackWithVerification(stackData: Record<string, unknown>, environmentId: number | null = this.defaultEnvironmentId, maxRetries: number = 3): Promise<Record<string, unknown>> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to create a stack.');
+        }
+
+        const stackName = stackData.Name as string;
+        let lastError: Error | null = null;
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                console.log(`🔄 Stack creation attempt ${attempt}/${maxRetries} for "${stackName}"`);
+                
+                // Try smart stack creation
+                const result = await this.createStackSmart(stackData, environmentId);
+                
+                // Double-check verification
+                console.log('🔍 Final verification of stack creation...');
+                const verified = await this.verifyStackCreation(stackName, 10000);
+                
+                if (verified) {
+                    console.log(`🎉 Stack "${stackName}" created and verified successfully!`);
+                    return result;
+                } else {
+                    throw new Error('Stack creation reported success but verification failed');
+                }
+                
+            } catch (error) {
+                lastError = error instanceof Error ? error : new Error('Unknown error');
+                console.error(`❌ Stack creation attempt ${attempt} failed:`, lastError.message);
+                
+                if (attempt < maxRetries) {
+                    console.log(`⏳ Waiting 2 seconds before retry...`);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                } else {
+                    console.error(`🚨 All ${maxRetries} stack creation attempts failed`);
+                }
+            }
+        }
+
+        // If all stack creation attempts fail, try direct container creation as final fallback
+        console.log('🔄 Stack creation failed, falling back to direct container creation...');
+        try {
+            const containerResult = await this.createContainerFromCompose(stackData, environmentId);
+            console.log('✅ Fallback container creation successful');
+            return containerResult;
+        } catch (containerError) {
+            console.error('❌ Fallback container creation also failed:', containerError);
+            throw new Error(`Stack creation failed after ${maxRetries} attempts. Last error: ${lastError?.message}. Container fallback error: ${containerError instanceof Error ? containerError.message : 'Unknown error'}`);
+        }
+    }
+
+    /**
+     * Rollback operation - cleanup any resources that were created during a failed deployment
+     */
+    private rollbackResources: Array<{
+        type: 'stack' | 'container';
+        id: string | number;
+        environmentId: number;
+        name: string;
+    }> = [];
+
+    /**
+     * Track a resource for potential rollback
+     * @param resource - The resource to track
+     */
+    private trackResourceForRollback(resource: {
+        type: 'stack' | 'container';
+        id: string | number;
+        environmentId: number;
+        name: string;
+    }): void {
+        this.rollbackResources.push(resource);
+        console.log(`🔍 Tracking ${resource.type} "${resource.name}" (ID: ${resource.id}) for potential rollback`);
+    }
+
+    /**
+     * Clear rollback tracking (call when operation succeeds)
+     */
+    private clearRollbackTracking(): void {
+        console.log(`✅ Operation successful, clearing rollback tracking for ${this.rollbackResources.length} resources`);
+        this.rollbackResources = [];
+    }
+
+    /**
+     * Execute rollback - remove all tracked resources
+     * @param reason - The reason for the rollback
+     */
+    async executeRollback(reason: string): Promise<void> {
+        if (this.rollbackResources.length === 0) {
+            console.log('ℹ️ No resources to rollback');
+            return;
+        }
+
+        console.log(`🔄 Executing rollback due to: ${reason}`);
+        console.log(`🗑️ Rolling back ${this.rollbackResources.length} resources...`);
+
+        const rollbackErrors: string[] = [];
+
+        // Rollback in reverse order (last created first)
+        for (let i = this.rollbackResources.length - 1; i >= 0; i--) {
+            const resource = this.rollbackResources[i];
+            
+            try {
+                console.log(`🗑️ Rolling back ${resource.type} "${resource.name}" (ID: ${resource.id})...`);
+                
+                if (resource.type === 'stack') {
+                    await this.deleteStack(resource.id as number, resource.environmentId);
+                } else if (resource.type === 'container') {
+                    // Stop and remove container
+                    try {
+                        await this.axiosInstance.post(`/api/endpoints/${resource.environmentId}/docker/containers/${resource.id}/stop`);
+                    } catch (stopError) {
+                        // Container might already be stopped
+                        console.warn(`Warning: Could not stop container ${resource.id}:`, stopError);
+                    }
+                    
+                    await this.axiosInstance.delete(`/api/endpoints/${resource.environmentId}/docker/containers/${resource.id}`);
+                }
+                
+                console.log(`✅ Successfully rolled back ${resource.type} "${resource.name}"`);
+            } catch (error) {
+                const errorMsg = `Failed to rollback ${resource.type} "${resource.name}": ${error instanceof Error ? error.message : 'Unknown error'}`;
+                rollbackErrors.push(errorMsg);
+                console.error(`❌ ${errorMsg}`);
+            }
+        }
+
+        // Clear tracking after rollback attempt
+        this.rollbackResources = [];
+
+        if (rollbackErrors.length > 0) {
+            console.warn(`⚠️ Rollback completed with ${rollbackErrors.length} errors:`, rollbackErrors);
+        } else {
+            console.log('✅ Rollback completed successfully');
+        }
+    }
+
+    /**
+     * Create stack with comprehensive rollback on failure
+     * @param stackData - The stack configuration data
+     * @param environmentId - The ID of the Portainer environment
+     * @returns Promise resolving to the created stack data
+     */
+    async createStackWithRollback(stackData: Record<string, unknown>, environmentId: number | null = this.defaultEnvironmentId): Promise<Record<string, unknown>> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to create a stack.');
+        }
+
+        const stackName = stackData.Name as string;
+        let result: Record<string, unknown>;
+
+        try {
+            console.log(`🚀 Creating stack "${stackName}" with rollback protection...`);
+            
+            // Clear any previous rollback tracking
+            this.clearRollbackTracking();
+            
+            // Try to create the stack
+            result = await this.createStackSmart(stackData, environmentId);
+            
+            // Track the created resource
+            if (result.Id) {
+                this.trackResourceForRollback({
+                    type: result.containerCreated ? 'container' : 'stack',
+                    id: result.Id as string | number,
+                    environmentId,
+                    name: stackName
+                });
+            }
+            
+            // Verify the creation
+            const verified = result.containerCreated ? 
+                await this.verifyContainerCreation(stackName, environmentId, 10000) :
+                await this.verifyStackCreation(stackName, 10000);
+            
+            if (!verified) {
+                throw new Error(`${result.containerCreated ? 'Container' : 'Stack'} creation verification failed`);
+            }
+            
+            console.log(`✅ Stack "${stackName}" created and verified successfully`);
+            this.clearRollbackTracking();
+            return result;
+            
+        } catch (error) {
+            const errorMessage = `Stack creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+            console.error(`❌ ${errorMessage}`);
+            
+            // Execute rollback
+            await this.executeRollback(errorMessage);
+            
+            // Re-throw the original error with rollback info
+            throw new Error(`${errorMessage}. All created resources have been cleaned up.`);
         }
     }
 
@@ -685,13 +1098,15 @@ export class PortainerApiClient {
         if (environmentId === null) {
             throw new Error('Environment ID is required to get container logs.');
         }
+        
         try {
+            console.log(`📄 Getting logs for container ${containerId}...`);
             const response = await this.axiosInstance.get(
-                `/api/endpoints/${environmentId}/docker/containers/${containerId}/logs?stdout=1&stderr=1&tail=${tail}`
+                `/api/endpoints/${environmentId}/docker/containers/${containerId}/logs?stdout=1&stderr=1&tail=${tail}&timestamps=1`
             );
             return response.data;
         } catch (error) {
-            console.error(`Failed to get logs for container ${containerId}:`, error);
+            console.error(`❌ Failed to get logs for container ${containerId}:`, error);
             throw error;
         }
     }
@@ -703,174 +1118,97 @@ export class PortainerApiClient {
      */
     async getUsedPorts(environmentId: number | null = this.defaultEnvironmentId): Promise<number[]> {
         if (environmentId === null) {
-            throw new Error('Environment ID is required to fetch used ports.');
+            throw new Error('Environment ID is required to get used ports.');
         }
+        
         try {
             const containers = await this.getContainers(environmentId, true);
             const usedPorts: number[] = [];
             
             for (const container of containers) {
-                // Check ports from container list (faster method)
-                if (container.Ports && Array.isArray(container.Ports)) {
-                    for (const portMapping of container.Ports) {
-                        if (portMapping.PublicPort && portMapping.PublicPort >= 25565 && portMapping.PublicPort <= 25595) {
-                            usedPorts.push(portMapping.PublicPort);
+                if (container.Ports) {
+                    for (const port of container.Ports) {
+                        if (port.PublicPort) {
+                            usedPorts.push(port.PublicPort);
                         }
                     }
                 }
                 
-                // Fallback: Check detailed container information if needed
-                try {
-                    const containerDetails = await this.getContainerDetails(container.Id, environmentId);
-                    
-                    if (containerDetails?.NetworkSettings?.Ports) {
-                        for (const [, hostBindings] of Object.entries(containerDetails.NetworkSettings.Ports)) {
-                            if (hostBindings && Array.isArray(hostBindings)) {
-                                for (const binding of hostBindings) {
-                                    if (binding.HostPort) {
-                                        const hostPort = parseInt(binding.HostPort, 10);
-                                        if (!isNaN(hostPort) && hostPort >= 25565 && hostPort <= 25595) {
-                                            usedPorts.push(hostPort);
-                                        }
-                                    }
+                // Also check NetworkSettings.Ports
+                if (container.NetworkSettings?.Ports) {
+                    for (const [portKey, portMappings] of Object.entries(container.NetworkSettings.Ports)) {
+                        if (portMappings) {
+                            for (const mapping of portMappings) {
+                                if (mapping.HostPort) {
+                                    usedPorts.push(parseInt(mapping.HostPort));
                                 }
                             }
                         }
                     }
-                } catch (detailError) {
-                    // If we can't get detailed info, continue with basic port info
-                    console.warn(`Could not get detailed port info for container ${container.Id}:`, detailError);
                 }
             }
             
-            return [...new Set(usedPorts)]; // Remove duplicates
+            return [...new Set(usedPorts)].sort((a, b) => a - b);
         } catch (error) {
-            console.error(`Failed to fetch used ports for environment ${environmentId}:`, error);
+            console.error(`❌ Failed to get used ports for environment ${environmentId}:`, error);
             throw error;
         }
     }
 
     /**
-     * Get Portainer system information (including version)
-     * @returns Promise resolving to system information
+     * Delete a stack from Portainer
+     * @param stackId - The ID of the stack to delete
+     * @param environmentId - The ID of the Portainer environment
+     * @returns Promise resolving to the delete operation result
      */
-    async getSystemInfo(): Promise<Record<string, unknown>> {
+    async deleteStack(stackId: number, environmentId: number | null = this.defaultEnvironmentId): Promise<Record<string, unknown>> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to delete a stack.');
+        }
+        
         try {
-            const response = await this.axiosInstance.get('/api/system/info');
+            console.log(`🗑️ Deleting stack ${stackId} from environment ${environmentId}...`);
+            const response = await this.axiosInstance.delete(`/api/stacks/${stackId}?endpointId=${environmentId}`);
+            console.log('✅ Stack deleted successfully');
             return response.data;
         } catch (error) {
-            console.error('Failed to get system info:', error);
+            console.error(`❌ Failed to delete stack ${stackId}:`, error);
             throw error;
         }
     }
 
     /**
-     * Test Portainer API connectivity and version
-     * @returns Promise resolving to connectivity test result
+     * Start a stack in Portainer
+     * @param stackId - The ID of the stack to start
+     * @returns Promise resolving to the start operation result
      */
-    async testApiConnectivity(): Promise<{ success: boolean; version?: string; error?: string }> {
+    async startStack(stackId: number): Promise<Record<string, unknown>> {
         try {
-            await this.axiosInstance.get('/api/status');
-            const systemInfo = await this.getSystemInfo();
-            return {
-                success: true,
-                version: systemInfo.ServerVersion as string || 'Unknown'
-            };
+            console.log(`▶️ Starting stack ${stackId}...`);
+            const response = await this.axiosInstance.post(`/api/stacks/${stackId}/start`);
+            console.log('✅ Stack started successfully');
+            return response.data;
         } catch (error) {
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Unknown error'
-            };
+            console.error(`❌ Failed to start stack ${stackId}:`, error);
+            throw error;
         }
     }
 
     /**
-     * Get a specific stack by name
-     * @param stackName - The name of the stack to find
-     * @returns Promise resolving to the stack data or null if not found
+     * Stop a stack in Portainer
+     * @param stackId - The ID of the stack to stop
+     * @returns Promise resolving to the stop operation result
      */
-    async getStackByName(stackName: string): Promise<PortainerStack | null> {
+    async stopStack(stackId: number): Promise<Record<string, unknown>> {
         try {
-            const stacks = await this.getStacks();
-            const stack = stacks.find(s => s.Name === stackName);
-            return stack || null;
+            console.log(`🛑 Stopping stack ${stackId}...`);
+            const response = await this.axiosInstance.post(`/api/stacks/${stackId}/stop`);
+            console.log('✅ Stack stopped successfully');
+            return response.data;
         } catch (error) {
-            console.error('Failed to get stack by name:', error);
-            return null;
+            console.error(`❌ Failed to stop stack ${stackId}:`, error);
+            throw error;
         }
-    }
-
-    /**
-     * Verify that a stack was created successfully
-     * @param stackName - The name of the stack to verify
-     * @param maxWaitTime - Maximum time to wait for stack to appear (in milliseconds)
-     * @returns Promise resolving to true if stack exists, false otherwise
-     */
-    async verifyStackCreation(stackName: string, maxWaitTime: number = 10000): Promise<boolean> {
-        const startTime = Date.now();
-        
-        while (Date.now() - startTime < maxWaitTime) {
-            const stack = await this.getStackByName(stackName);
-            if (stack) {
-                console.log(`✅ Stack "${stackName}" verified successfully (ID: ${stack.Id})`);
-                return true;
-            }
-            
-            // Wait 1 second before checking again
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-        
-        console.error(`❌ Stack "${stackName}" not found after ${maxWaitTime}ms`);
-        return false;
-    }
-
-    /**
-     * Get a specific container by name
-     * @param containerName - The name of the container to find
-     * @param environmentId - The ID of the Portainer environment
-     * @returns Promise resolving to the container data or null if not found
-     */
-    async getContainerByName(containerName: string, environmentId: number | null = this.defaultEnvironmentId): Promise<PortainerContainer | null> {
-        try {
-            if (environmentId === null) {
-                throw new Error('Environment ID is required to get container by name.');
-            }
-            
-            const containers = await this.getContainers(environmentId);
-            const container = containers.find(c => 
-                c.Names.some(name => name.includes(containerName)) ||
-                c.Names.some(name => name === `/${containerName}`) // Docker adds leading slash
-            );
-            return container || null;
-        } catch (error) {
-            console.error('Failed to get container by name:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Verify that a container was created successfully
-     * @param containerName - The name of the container to verify
-     * @param environmentId - The ID of the Portainer environment
-     * @param maxWaitTime - Maximum time to wait for container to appear (in milliseconds)
-     * @returns Promise resolving to true if container exists, false otherwise
-     */
-    async verifyContainerCreation(containerName: string, environmentId: number, maxWaitTime: number = 10000): Promise<boolean> {
-        const startTime = Date.now();
-        
-        while (Date.now() - startTime < maxWaitTime) {
-            const container = await this.getContainerByName(containerName, environmentId);
-            if (container) {
-                console.log(`✅ Container "${containerName}" verified successfully (ID: ${container.Id})`);
-                return true;
-            }
-            
-            // Wait 1 second before checking again
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-        
-        console.error(`❌ Container "${containerName}" not found after ${maxWaitTime}ms`);
-        return false;
     }
 }
 

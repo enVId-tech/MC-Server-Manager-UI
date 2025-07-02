@@ -379,7 +379,8 @@ async function deployServer(serverId: string, server: Record<string, unknown>, u
             (server as any).serverName,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (server as any).uniqueId,
-            portainerEnvironmentId
+            portainerEnvironmentId,
+            user.email
         );
 
         await new Promise(resolve => setTimeout(resolve, 800));

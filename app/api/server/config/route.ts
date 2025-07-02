@@ -256,7 +256,7 @@ export async function POST(request: NextRequest) {
         const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
         const userFolder = email.split('@')[0];
         const folderPath = `${baseServerPath}/${userFolder}/${uniqueId}`;
-        
+
         const newServer = new Server({
             email: user.email,
             uniqueId: uniqueId,

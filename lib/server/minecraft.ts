@@ -120,6 +120,9 @@ export interface MinecraftServerConfig {
     ENABLE_RCON?: boolean;
     RCON_PORT?: number;
     RCON_PASSWORD?: string;
+    
+    // User Management
+    userEmail?: string; // Email address for organizing server files
 }
 
 /**
@@ -385,6 +388,15 @@ export class MinecraftServer {
         // Determine the server type and image configuration
         const serverTypeConfig = this.getServerTypeConfig();
 
+        // Get the minecraft environment variable from the local env file
+        const minecraftPath: string = process.env.MINECRAFT_PATH || '/minecraft-data';
+        
+        // Get email from the server config
+        const userEmail = this.getUserEmail();
+        
+        // Create the folder structure: env/email/uniqueId
+        const serverBasePath = `${minecraftPath}/${userEmail}/${this.uniqueId}`;
+
         const composeConfig = {
             version: '3.8',
             services: {
@@ -411,11 +423,11 @@ export class MinecraftServer {
                         ...(this.config.ENABLE_RCON ? [`${this.config.RCON_PORT || 25575}:25575`] : [])
                     ],
                     volumes: [
-                        `${this.uniqueId}-data:/data`,
-                        `${this.uniqueId}-plugins:/data/plugins`,
-                        `${this.uniqueId}-mods:/data/mods`,
-                        `${this.uniqueId}-worlds:/data/worlds`,
-                        `${this.uniqueId}-backups:/backups`,
+                        `${serverBasePath}/data:/data`,
+                        `${serverBasePath}/plugins:/data/plugins`,
+                        `${serverBasePath}/mods:/data/mods`,
+                        `${serverBasePath}/worlds:/data/worlds`,
+                        `${serverBasePath}/backups:/backups`,
                         ...serverTypeConfig.additionalVolumes
                     ],
                     restart: 'unless-stopped',
@@ -553,26 +565,31 @@ export class MinecraftServer {
 
             console.log('📤 Sending stack data to Portainer:', JSON.stringify(stackData, null, 2));
 
-            // Attempt to create the stack
-            const response = await portainer.createStack(stackData, this.environmentId);
+            // Attempt to create the stack with verification and retry
+            const response = await portainer.createStackWithVerification(stackData, this.environmentId, 2);
             console.log('✅ Stack creation response received');
             console.log('📥 Portainer response:', JSON.stringify(response, null, 2));
             
-            // Extract stack ID from response - different formats depending on Portainer version
+            // Extract deployment information
             let stackId: number | undefined;
             let containerId: string | undefined;
             let deploymentMethod: 'stack' | 'container' = 'stack';
             
-            if (typeof response === 'object' && response !== null) {
+            if (response) {
                 // Check if this was a direct container creation
-                if ((response as { method?: string }).method === 'direct-container') {
-                    containerId = (response as { Id?: string }).Id;
+                if (response.method === 'direct-container' && response.containerCreated) {
+                    containerId = response.Id as string;
                     deploymentMethod = 'container';
                     console.log(`🐳 Container deployment successful - Container ID: ${containerId}`);
-                } else {
+                } else if (response.Id) {
                     // Regular stack creation
-                    stackId = (response as { Id?: number; id?: number }).Id || (response as { Id?: number; id?: number }).id;
+                    stackId = response.Id as number;
                     console.log(`📦 Stack deployment successful - Stack ID: ${stackId}`);
+                    if (response.verified) {
+                        console.log(`✅ Stack creation verified successfully`);
+                    } else {
+                        console.warn(`⚠️ Stack was created but verification may have failed`);
+                    }
                 }
             }
             
@@ -677,10 +694,13 @@ export class MinecraftServer {
             // Save compose file to WebDAV for manual deployment
             const composeFileName = `docker-compose-${this.uniqueId}.yml`;
             
-            if (userEmail) {
-                // Use the proper folder structure when user email is provided
+            // Use provided email or fall back to instance email
+            const emailToUse = userEmail || this.getUserEmail();
+            
+            if (emailToUse && emailToUse !== 'default-user') {
+                // Use the proper folder structure when user email is available
                 const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
-                const userFolder = userEmail.split('@')[0];
+                const userFolder = emailToUse.split('@')[0];
                 const composePath = `${baseServerPath}/${userFolder}/${this.uniqueId}/${composeFileName}`;
                 
                 // Ensure the directory exists before uploading
@@ -700,7 +720,7 @@ export class MinecraftServer {
                 };
             } else {
                 // Fallback: just return the compose content for manual saving
-                console.log('No user email provided, returning compose content for manual deployment');
+                console.log('No user email available, returning compose content for manual deployment');
                 return { 
                     success: true, 
                     composeFile: composeFileName,
@@ -1065,6 +1085,50 @@ export class MinecraftServer {
         }
     }
 
+    /**
+     * Set the user email for organizing server files
+     */
+    setUserEmail(email: string): void {
+        this.config.userEmail = email;
+    }
+
+    /**
+     * Get the user email, with fallback to default
+     */
+    getUserEmail(): string {
+        return this.config.userEmail || 'default-user';
+    }
+
+    /**
+     * Get the server base path with the env/email/id structure
+     */
+    getServerBasePath(): string {
+        const minecraftPath = process.env.MINECRAFT_PATH || '/minecraft-data';
+        const userEmail = this.getUserEmail();
+        
+        return `${minecraftPath}/${userEmail}/${this.uniqueId}`;
+    }
+
+    /**
+     * Update user email and regenerate Docker Compose configuration
+     */
+    updateUserEmailAndRegenerate(email: string): { 
+        success: boolean; 
+        previousEmail: string; 
+        newEmail: string;
+        newBasePath: string;
+    } {
+        const previousEmail = this.getUserEmail();
+        this.setUserEmail(email);
+        const newBasePath = this.getServerBasePath();
+        
+        return {
+            success: true,
+            previousEmail,
+            newEmail: email,
+            newBasePath
+        };
+    }
 
 }
 
@@ -1075,15 +1139,116 @@ export function createMinecraftServer(
     config: MinecraftServerConfig, 
     serverName: string, 
     uniqueId: string, 
-    environmentId: number = 1
+    environmentId: number = 1,
+    userEmail: string
 ): MinecraftServer {
-    return new MinecraftServer(config, serverName, uniqueId, environmentId);
+    const server = new MinecraftServer(config, serverName, uniqueId, environmentId);
+    
+    // Set user email if provided
+    if (userEmail) {
+        if (userEmail.includes('@')) {
+            // Use only the first part of the email as the user identifier
+            const emailParts = userEmail.split('@');
+            server.setUserEmail(emailParts[0]);
+        } else {
+            // If no '@' is found, treat it as a username
+            server.setUserEmail(userEmail);
+        }
+    }
+    
+    return server;
+}
+
+/**
+ * Alternative factory function that automatically fetches user email from authentication context
+ * This function would typically integrate with your authentication system
+ */
+export async function createMinecraftServerWithAuth(
+    config: MinecraftServerConfig, 
+    serverName: string, 
+    uniqueId: string, 
+    environmentId: number = 1,
+    authToken?: string
+): Promise<MinecraftServer> {
+    let userEmail = 'default-user';
+    
+    // Example: Fetch user email from authentication system
+    if (authToken) {
+        try {
+            // This would typically make a call to your auth service
+            // For now, this is a placeholder implementation
+            userEmail = await fetchUserEmailFromAuth(authToken);
+        } catch (error) {
+            console.warn('Failed to fetch user email from auth token, using default:', error);
+        }
+    }
+    
+    return createMinecraftServer(config, serverName, uniqueId, environmentId, userEmail);
+}
+
+/**
+ * Example integration with Next.js authentication system
+ * This shows how you might integrate with a real authentication system
+ */
+export async function createMinecraftServerFromSession(
+    config: MinecraftServerConfig,
+    serverName: string,
+    uniqueId: string,
+    environmentId: number = 1,
+    req?: any // Next.js request object or session data
+): Promise<MinecraftServer> {
+    let userEmail = 'default-user';
+    
+    if (req) {
+        try {
+            // Example for Next.js with next-auth
+            // const session = await getServerSession(req, res, authOptions);
+            // if (session?.user?.email) {
+            //     userEmail = session.user.email;
+            // }
+            
+            // Example for custom auth headers
+            // const authHeader = req.headers.authorization;
+            // if (authHeader) {
+            //     const token = authHeader.replace('Bearer ', '');
+            //     userEmail = await verifyTokenAndGetEmail(token);
+            // }
+            
+            // Example for session cookies
+            // if (req.session?.user?.email) {
+            //     userEmail = req.session.user.email;
+            // }
+            
+            console.log(`Creating server for user: ${userEmail}`);
+        } catch (error) {
+            console.warn('Failed to extract user email from session:', error);
+        }
+    }
+    
+    return createMinecraftServer(config, serverName, uniqueId, environmentId, userEmail);
+}
+
+/**
+ * Helper function to fetch user email from authentication system
+ * This should be replaced with your actual authentication integration
+ */
+async function fetchUserEmailFromAuth(authToken: string): Promise<string> {
+    // Placeholder implementation - replace with actual auth service call
+    // Example: 
+    // const response = await fetch('/api/auth/user', {
+    //     headers: { Authorization: `Bearer ${authToken}` }
+    // });
+    // const user = await response.json();
+    // return user.email;
+    
+    // For now, just return a placeholder
+    return 'user@example.com';
 }
 
 /**
  * Helper function to convert ClientServerConfig to MinecraftServerConfig
  */
-export function convertClientConfigToServerConfig(clientConfig: ClientServerConfig): MinecraftServerConfig {
+export function convertClientConfigToServerConfig(clientConfig: ClientServerConfig, userEmail?: string): MinecraftServerConfig {
     // Map client server types to Docker image server types
     const serverTypeMap: Record<string, 'VANILLA' | 'SPIGOT' | 'PAPER' | 'BUKKIT' | 'PURPUR' | 'FORGE' | 'FABRIC'> = {
         'vanilla': 'VANILLA',
@@ -1129,6 +1294,7 @@ export function convertClientConfigToServerConfig(clientConfig: ClientServerConf
         ENABLE_RCON: clientConfig.rconEnabled,
         RCON_PORT: 25575,
         RCON_PASSWORD: clientConfig.rconPassword || 'changeme',
+        userEmail: userEmail || 'default-user', // Add user email for folder structure
     };
 }
 
@@ -1150,15 +1316,29 @@ export function convertClientConfigToServerConfig(clientConfig: ClientServerConf
  *   // ... other properties
  * };
  * 
- * // Convert to server configuration
- * const serverConfig = convertClientConfigToServerConfig(clientConfig);
+ * // Convert to server configuration with user email
+ * const serverConfig = convertClientConfigToServerConfig(clientConfig, "user@example.com");
  * 
- * // Create server instance
+ * // Create server instance (Method 1: Pass email directly)
  * const server = createMinecraftServer(
  *   serverConfig, 
  *   "my-awesome-server", 
  *   "unique-server-id-123", 
- *   1 // environment ID
+ *   1, // environment ID
+ *   "user@example.com" // user email
+ * );
+ * 
+ * // Create server instance (Method 2: Set email after creation)
+ * const server2 = createMinecraftServer(serverConfig, "my-server", "id-456", 1);
+ * server2.setUserEmail("user@example.com");
+ * 
+ * // Create server instance (Method 3: Using auth token to fetch email)
+ * const server3 = await createMinecraftServerWithAuth(
+ *   serverConfig, 
+ *   "my-server", 
+ *   "id-789", 
+ *   1,
+ *   "auth-token-here"
  * );
  * 
  * // Deploy to Portainer

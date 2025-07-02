@@ -144,7 +144,10 @@ export async function DELETE(request: NextRequest) {
                     customOptions: ''
                 });
 
-                const minecraftServer = createMinecraftServer(tempConfig, server.serverName, server.uniqueId);
+                const minecraftServer = createMinecraftServer(tempConfig, server.serverName, server.uniqueId, server.environmentId, user.email);
+
+                // Attempt to delete the DNS record
+                console.log("Attempting to delete DNS record...");
                 const dnsResult = await minecraftServer.deleteDnsRecord(
                     server.dnsRecord.domain,
                     server.dnsRecord.subdomain
