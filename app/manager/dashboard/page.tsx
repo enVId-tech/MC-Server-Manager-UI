@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import styles from './dashboard.module.scss';
 import { useRouter } from "next/navigation";
+import { useNotifications } from '@/lib/contexts/NotificationContext';
 import dashboardBg from "@/public/dashboard-bg.png";
 
 // Define servers interfaces for better type checking
@@ -28,6 +29,7 @@ interface ServerConfig {
 }
 
 export default function Dashboard() {
+    const { showNotification } = useNotifications();
     const [servers, setServers] = useState<MCServer[]>([]);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [serverToDelete, setServerToDelete] = useState<MCServer | null>(null);
@@ -59,7 +61,7 @@ export default function Dashboard() {
                     id: server.id,
                     name: server.serverName,
                     type: server.serverType,
-                    status: server.isOnline,
+                    status: server.isOnline ? 'online' : 'offline',
                     players: server.players,
                     maxPlayers: server.maxPlayers,
                     version: server.version,
@@ -159,11 +161,19 @@ export default function Dashboard() {
             
             // Simulate download process for now
             await new Promise(resolve => setTimeout(resolve, 2000));
-            alert('Server download would start here. TODO: Implement server download API endpoint.');
+            showNotification({
+                type: 'info',
+                title: 'Download Notice',
+                message: 'Server download would start here. TODO: Implement server download API endpoint.'
+            });
             
         } catch (error) {
             console.error('Error downloading server:', error);
-            alert('Failed to download server. Please try again.');
+            showNotification({
+                type: 'error',
+                title: 'Download Failed',
+                message: 'Failed to download server. Please try again.'
+            });
         } finally {
             setIsDownloading(false);
         }
@@ -205,7 +215,11 @@ export default function Dashboard() {
                 if (!response.ok) {
                     // Hide loading and show error
                     setIsDeleting(false);
-                    alert(`Failed to delete server: ${response.statusText}`);
+                    showNotification({
+                        type: 'error',
+                        title: 'Deletion Failed',
+                        message: `Failed to delete server: ${response.statusText}`
+                    });
                     return;
                 }
 
@@ -227,10 +241,18 @@ export default function Dashboard() {
                 clearInterval(progressInterval);
                 setIsDeleting(false);
                 console.error('Error deleting server:', error);
-                alert('Network error occurred while deleting server. Please try again.');
+                showNotification({
+                    type: 'error',
+                    title: 'Network Error',
+                    message: 'Network error occurred while deleting server. Please try again.'
+                });
             }
         } else {
-            alert("The IP address you entered does not match. Please try again.");
+            showNotification({
+                type: 'warning',
+                title: 'Invalid Input',
+                message: 'The subdomain name you entered does not match. Please try again.'
+            });
         }
     };
 
@@ -264,11 +286,28 @@ export default function Dashboard() {
                 ) : (
                     <div className={styles.serverGrid}>
                         {servers.map(server => (
-                            <div key={server.id} className={styles.serverCard}>
+                            <div 
+                                key={server.id} 
+                                className={styles.serverCard}
+                                onClick={() => {
+                                    const serverSlug = server.subdomainName && server.subdomainName !== 'N/A' 
+                                        ? server.subdomainName 
+                                        : server.id;
+                                    console.log('Navigating to server:', serverSlug, 'Full server object:', server);
+                                    router.push(`/manager/servers/${serverSlug}`);
+                                }}
+                                style={{ cursor: 'pointer' }}
+                                title="Click to manage server"
+                            >
+                                <div className={styles.cardClickIndicator}>
+                                    <span>Click to manage →</span>
+                                </div>
                                 <span className={`${styles.serverStatus} ${styles[server.status]}`}>
                                     {server.status}
                                 </span>
-                                <h3 className={styles.serverName}>{server.name}</h3>
+                                <h3 className={styles.serverName}>
+                                    {server.name}
+                                </h3>
                                 <div className={styles.serverDetails}>
                                     <p className={styles.serverSubdomain}>
                                         Server IP: {server.subdomainName || 'N/A'}
@@ -282,27 +321,42 @@ export default function Dashboard() {
                                     {server.status === 'offline' ? (
                                         <button
                                             className={`${styles.button} ${styles.primary}`}
-                                            onClick={() => handleStartServer(server.id)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleStartServer(server.id);
+                                            }}
                                         >
                                             Start
                                         </button>
                                     ) : (
                                         <button
                                             className={`${styles.button} ${styles.secondary}`}
-                                            onClick={() => handleStopServer(server.id)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleStopServer(server.id);
+                                            }}
                                         >
                                             Stop
                                         </button>
                                     )}
                                     <button
                                         className={`${styles.button} ${styles.secondary}`}
-                                        onClick={() => alert('Server settings functionality would go here')}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const serverSlug = server.subdomainName && server.subdomainName !== 'N/A' 
+                                                ? server.subdomainName 
+                                                : server.id;
+                                            router.push(`/manager/servers/${serverSlug}`);
+                                        }}
                                     >
                                         Settings
                                     </button>
                                     <button
                                         className={`${styles.button} ${styles.danger}`}
-                                        onClick={() => handleDeleteServer(server.id)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteServer(server.id);
+                                        }}
                                     >
                                         Delete
                                     </button>

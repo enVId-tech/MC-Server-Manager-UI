@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { poppins, pressStart2P } from './fonts';
 import "./globals.scss";
 import Navbar from "@/app/_components/Navbar/Navbar";
+import { NotificationProvider } from "@/lib/contexts/NotificationContext";
+import NotificationSystem from "@/app/_components/NotificationSystem/NotificationSystem";
 import MinecraftServer from "@/public/minecraft-server.svg"
 
 export const metadata: Metadata = {
@@ -35,8 +37,11 @@ export default function RootLayout({
     return (
         <html lang="en">
         <body className={fontClasses}>
-        <Navbar />
-        {children}
+        <NotificationProvider>
+            <Navbar />
+            {children}
+            <NotificationSystem />
+        </NotificationProvider>
         </body>
         </html>
     );

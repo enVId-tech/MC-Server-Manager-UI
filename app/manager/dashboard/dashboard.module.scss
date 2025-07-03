@@ -142,6 +142,8 @@
   background-color: $dark-card;
   border: 1px solid $border-color;
   transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
   
   @media (min-width: $mobile) {
     padding: 1.5rem;
@@ -151,6 +153,28 @@
     transform: translateY(-5px);
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
     border-color: $accent-blue;
+    
+    .serverName {
+      color: $accent-blue;
+    }
+    
+    &::before {
+      opacity: 0.05;
+    }
+  }
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: $accent-blue;
+    border-radius: 12px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
   }
 }
 
@@ -159,6 +183,7 @@
   font-weight: 600;
   margin: 0.5rem 0 1rem;
   color: $text-primary;
+  transition: color 0.2s ease;
   
   @media (min-width: $mobile) {
     font-size: 1.25rem;
@@ -208,6 +233,8 @@
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 10;
 }
 
 .button {
@@ -637,5 +664,26 @@
   }
   100% {
     transform: translateX(100%);
+  }
+}
+
+.cardClickIndicator {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background-color: rgba($accent-blue, 0.1);
+  color: $accent-blue;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  opacity: 0;
+  transform: translateY(-5px);
+  transition: all 0.3s ease;
+  pointer-events: none;
+  
+  .serverCard:hover & {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

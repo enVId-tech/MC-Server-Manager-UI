@@ -1,0 +1,282 @@
+@use "../../variables" as *;
+@use "sass:color";
+
+// Notification Container
+.notificationContainer {
+  position: fixed;
+  top: 2rem;
+  right: 2rem;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 450px;
+  
+  @media (max-width: $mobile) {
+    top: 1rem;
+    right: 1rem;
+    left: 1rem;
+    max-width: none;
+  }
+}
+
+// Individual Notification
+.notification {
+  background-color: $dark-card;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  animation: slideInRight 0.3s ease-out;
+  min-width: 320px;
+  
+  @media (max-width: $mobile) {
+    min-width: auto;
+  }
+  
+  &.success {
+    border-color: $success-green;
+    
+    .notificationContent {
+      background: linear-gradient(135deg, rgba($success-green, 0.1), rgba($success-green, 0.05));
+    }
+    
+    .notificationIcon {
+      color: $success-green;
+    }
+  }
+  
+  &.error {
+    border-color: $error-red;
+    
+    .notificationContent {
+      background: linear-gradient(135deg, rgba($error-red, 0.1), rgba($error-red, 0.05));
+    }
+    
+    .notificationIcon {
+      color: $error-red;
+    }
+  }
+  
+  &.warning {
+    border-color: #f59e0b;
+    
+    .notificationContent {
+      background: linear-gradient(135deg, rgba(#f59e0b, 0.1), rgba(#f59e0b, 0.05));
+    }
+    
+    .notificationIcon {
+      color: #f59e0b;
+    }
+  }
+  
+  &.info {
+    border-color: $accent-blue;
+    
+    .notificationContent {
+      background: linear-gradient(135deg, rgba($accent-blue, 0.1), rgba($accent-blue, 0.05));
+    }
+    
+    .notificationIcon {
+      color: $accent-blue;
+    }
+  }
+}
+
+.notificationContent {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  
+  .notificationIcon {
+    font-size: 1.125rem;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+  }
+  
+  .notificationText {
+    flex: 1;
+    
+    .notificationTitle {
+      color: $text-primary;
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 0.25rem;
+    }
+    
+    .notificationMessage {
+      color: $text-primary;
+      font-weight: 400;
+      line-height: 1.4;
+      font-size: 0.9rem;
+    }
+  }
+  
+  .notificationClose {
+    background: none;
+    border: none;
+    color: $text-secondary;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    margin-top: -0.125rem;
+    
+    &:hover {
+      color: $text-primary;
+      background-color: rgba($border-color, 0.2);
+    }
+  }
+}
+
+// Confirmation Dialog Modal
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.confirmDialog {
+  background-color: $dark-card;
+  border: 1px solid $border-color;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  min-width: 400px;
+  max-width: 500px;
+  animation: slideInScale 0.3s ease-out;
+  
+  @media (max-width: $mobile) {
+    min-width: auto;
+    max-width: 90vw;
+    margin: 1rem;
+  }
+}
+
+.dialogHeader {
+  padding: 1.5rem 1.5rem 0.5rem 1.5rem;
+  border-bottom: 1px solid rgba($border-color, 0.3);
+  
+  .dialogTitle {
+    margin: 0;
+    font-family: $heading-font;
+    font-size: 1.25rem;
+    color: $accent-blue;
+    font-weight: 600;
+  }
+}
+
+.dialogContent {
+  padding: 1rem 1.5rem;
+  
+  .dialogMessage {
+    margin: 0;
+    color: $text-primary;
+    line-height: 1.5;
+    font-size: 0.95rem;
+  }
+}
+
+.dialogActions {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem 1.5rem 1.5rem;
+  justify-content: flex-end;
+  
+  @media (max-width: $mobile) {
+    flex-direction: column-reverse;
+  }
+}
+
+.dialogButton {
+  padding: 0.75rem 1.5rem;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 100px;
+  
+  &.cancel {
+    background-color: rgba($border-color, 0.1);
+    color: $text-secondary;
+    
+    &:hover {
+      background-color: rgba($border-color, 0.2);
+      color: $text-primary;
+      border-color: rgba($border-color, 0.8);
+    }
+  }
+  
+  &.confirm {
+    background-color: rgba($accent-blue, 0.1);
+    color: $accent-blue;
+    border-color: $accent-blue;
+    
+    &:hover {
+      background-color: $accent-blue;
+      color: white;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba($accent-blue, 0.3);
+    }
+    
+    &.danger {
+      background-color: rgba($error-red, 0.1);
+      color: $error-red;
+      border-color: $error-red;
+      
+      &:hover {
+        background-color: $error-red;
+        color: white;
+        box-shadow: 0 4px 12px rgba($error-red, 0.3);
+      }
+    }
+  }
+  
+  @media (max-width: $mobile) {
+    min-width: auto;
+    width: 100%;
+  }
+}
+
+// Animations
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}

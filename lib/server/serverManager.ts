@@ -222,7 +222,7 @@ export class MinecraftServerManager {
                 `${baseServerPath}/${userFolder}`, // User folder
                 serverPath, // Server folder
                 `${serverPath}/data`,
-                `${serverPath}/worlds`,
+                `${serverPath}/world`,
                 `${serverPath}/backups`,
                 `${serverPath}/config`,
                 `${serverPath}/logs`
@@ -264,7 +264,7 @@ export class MinecraftServerManager {
             }
             
             // Verify all critical folders exist
-            const criticalFolders = [serverPath, `${serverPath}/data`, `${serverPath}/worlds`];
+            const criticalFolders = [serverPath, `${serverPath}/data`, `${serverPath}/world`];
             for (const folder of criticalFolders) {
                 const exists = await webdavService.exists(folder);
                 if (!exists) {

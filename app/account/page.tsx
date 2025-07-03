@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import styles from './account.module.scss';
 import { FiUser, FiLock, FiSave, FiTrash2 } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
+import { useNotifications } from '@/lib/contexts/NotificationContext';
 
 interface UserProfile {
     email: string;
@@ -19,6 +20,7 @@ interface ServerData {
 }
 
 export default function AccountPage() {
+    const { showNotification } = useNotifications();
     const [activeTab, setActiveTab] = useState('profile');
     const [isSaving, setIsSaving] = useState(false);
     const [fullyLoaded, setFullyLoaded] = useState(false);
@@ -135,7 +137,11 @@ export default function AccountPage() {
 
     const handlePasswordChange = async () => {
         if (passwords.newPassword !== passwords.confirmPassword) {
-            alert('New passwords do not match');
+            showNotification({
+                type: 'error',
+                title: 'Password Mismatch',
+                message: 'New passwords do not match'
+            });
             return;
         }
 
@@ -161,10 +167,18 @@ export default function AccountPage() {
             if (!response.ok) {
                 throw new Error('Failed to change password');
             }
-            alert('Password changed successfully');
+            showNotification({
+                type: 'success',
+                title: 'Password Changed',
+                message: 'Password changed successfully'
+            });
         } catch (error) {
             console.error('Error changing password:', error);
-            alert('Failed to change password');
+            showNotification({
+                type: 'error',
+                title: 'Password Change Failed',
+                message: 'Failed to change password'
+            });
         } finally {
             setIsSaving(false);
         }
@@ -173,17 +187,29 @@ export default function AccountPage() {
     const handleDeleteAccount = async () => {
         // Validate confirmation inputs
         if (deleteConfirmation.email !== userProfile.email) {
-            alert('Email address does not match your account email');
+            showNotification({
+                type: 'error',
+                title: 'Email Mismatch',
+                message: 'Email address does not match your account email'
+            });
             return;
         }
 
         if (deleteConfirmation.confirmText !== 'DELETE MY ACCOUNT') {
-            alert('Please type "DELETE MY ACCOUNT" exactly as shown');
+            showNotification({
+                type: 'error',
+                title: 'Confirmation Text Incorrect',
+                message: 'Please type "DELETE MY ACCOUNT" exactly as shown'
+            });
             return;
         }
 
         if (!deleteConfirmation.password) {
-            alert('Please enter your password to confirm account deletion');
+            showNotification({
+                type: 'error',
+                title: 'Password Required',
+                message: 'Please enter your password to confirm account deletion'
+            });
             return;
         }
 
@@ -208,11 +234,19 @@ export default function AccountPage() {
             // Clear localStorage and redirect
             localStorage.clear();
             sessionStorage.clear();
-            alert('Account deleted successfully');
-            router.push('/');
+            showNotification({
+                type: 'success',
+                title: 'Account Deleted',
+                message: 'Account deleted successfully'
+            });
+            setTimeout(() => router.push('/'), 2000);
         } catch (error) {
             console.error('Error deleting account:', error);
-            alert('Failed to delete account. Please try again.');
+            showNotification({
+                type: 'error',
+                title: 'Account Deletion Failed',
+                message: 'Failed to delete account. Please try again.'
+            });
         } finally {
             setIsDeleting(false);
             setShowDeleteModal(false);

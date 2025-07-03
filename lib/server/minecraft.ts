@@ -423,10 +423,11 @@ export class MinecraftServer {
                         ...(this.config.ENABLE_RCON ? [`${this.config.RCON_PORT || 25575}:25575`] : [])
                     ],
                     volumes: [
+                        `${serverBasePath}:/data`,
                         `${serverBasePath}/data:/data`,
                         `${serverBasePath}/plugins:/data/plugins`,
                         `${serverBasePath}/mods:/data/mods`,
-                        `${serverBasePath}/worlds:/data/worlds`,
+                        `${serverBasePath}/world:/data/world`,
                         `${serverBasePath}/backups:/backups`,
                         ...serverTypeConfig.additionalVolumes
                     ],
@@ -451,7 +452,7 @@ export class MinecraftServer {
                 [`${this.uniqueId}-data`]: {},
                 [`${this.uniqueId}-plugins`]: {},
                 [`${this.uniqueId}-mods`]: {},
-                [`${this.uniqueId}-worlds`]: {},
+                [`${this.uniqueId}-world`]: {},
                 [`${this.uniqueId}-backups`]: {}
             }
         };
@@ -841,17 +842,25 @@ export class MinecraftServer {
     /**
      * Upload server files to WebDAV
      */
-    async uploadServerFiles(files: { [path: string]: Buffer | string }): Promise<{ success: boolean; error?: string }> {
+    async uploadServerFiles(files: { [path: string]: Buffer | string }, type: 'plugins' | 'mods' | 'world'): Promise<{ success: boolean; error?: string }> {
         try {
             const serverPath = `/servers/${this.uniqueId}`;
             
             // Ensure server directory exists
             await webdavService.createDirectory(serverPath);
-            await webdavService.createDirectory(`${serverPath}/plugins`);
-            await webdavService.createDirectory(`${serverPath}/mods`);
-            await webdavService.createDirectory(`${serverPath}/worlds`);
-            await webdavService.createDirectory(`${serverPath}/backups`);
-            
+
+            switch (type) {
+                case 'plugins':
+                    await webdavService.createDirectory(`${serverPath}/plugins`);
+                    break;
+                case 'mods':
+                    await webdavService.createDirectory(`${serverPath}/mods`);
+                    break;
+                case 'world':
+                    await webdavService.createDirectory(`${serverPath}/world`);
+                    break;
+            }
+
             for (const [relativePath, content] of Object.entries(files)) {
                 const fullPath = `${serverPath}/${relativePath}`;
                 await webdavService.uploadFile(fullPath, content);
@@ -879,8 +888,8 @@ export class MinecraftServer {
                 const pluginBuffer = Buffer.from(await plugin.arrayBuffer());
                 pluginFiles[`plugins/${plugin.name}`] = pluginBuffer;
             }
-            
-            return await this.uploadServerFiles(pluginFiles);
+
+            return await this.uploadServerFiles(pluginFiles, 'plugins');
         } catch (error) {
             console.error('Error uploading plugins:', error);
             return { 
@@ -901,8 +910,8 @@ export class MinecraftServer {
                 const modBuffer = Buffer.from(await mod.arrayBuffer());
                 modFiles[`mods/${mod.name}`] = modBuffer;
             }
-            
-            return await this.uploadServerFiles(modFiles);
+
+            return await this.uploadServerFiles(modFiles, 'mods');
         } catch (error) {
             console.error('Error uploading mods:', error);
             return { 
@@ -919,9 +928,9 @@ export class MinecraftServer {
         try {
             const worldBuffer = Buffer.from(await worldFile.arrayBuffer());
             const worldFiles: { [path: string]: Buffer } = {};
-            worldFiles[`worlds/${worldFile.name}`] = worldBuffer;
-            
-            return await this.uploadServerFiles(worldFiles);
+            worldFiles[`world/${worldFile.name}`] = worldBuffer;
+
+            return await this.uploadServerFiles(worldFiles, 'world');
         } catch (error) {
             console.error('Error uploading world file:', error);
             return { 
