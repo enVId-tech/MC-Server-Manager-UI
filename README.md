@@ -18,8 +18,22 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 ### 🖥️ Dashboard & Monitoring
 - **Real-time Server Status**: Live monitoring of server online/offline status
 - **Server Management**: Start, stop, and delete servers with progress tracking
-- **Advanced Security**: Multi-step deletion confirmation with IP verification
+- **Advanced Security**: Multi-step deletion confirmation with subdomain verification
 - **Auto-refresh**: Automatic dashboard updates every 60 seconds
+
+### 📁 File Management & Editor
+- **WebDAV Integration**: Browse and manage server files through the web interface
+- **Built-in File Editor**: Edit configuration files directly in the browser
+- **Real-time Preview**: View file contents with syntax highlighting
+- **Auto-save Protection**: Unsaved changes warning when navigating away
+- **File Navigation**: Breadcrumb navigation and folder browsing
+
+### 💬 User Interface & Notifications
+- **Styled Notification System**: Beautiful notifications replacing browser alerts
+- **Confirmation Dialogs**: Themed modal confirmations for destructive actions
+- **Real-time Feedback**: Success, error, warning, and info notifications
+- **Auto-dismiss**: Smart notification timing with manual close options
+- **Mobile-responsive**: Touch-friendly interface on all devices
 
 ### 🔐 Authentication & Security
 - **JWT Authentication**: Secure session management with HTTP-only cookies
@@ -34,15 +48,18 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 
 ### 🎨 User Experience
 - **Responsive Design**: Mobile-first approach that works on all devices
-- **Real-time Feedback**: Live progress tracking for all operations
+- **Professional UI**: Styled notifications and confirmation dialogs
+- **Real-time Feedback**: Live progress tracking and status updates
 - **Error Handling**: Comprehensive error messages and recovery options
-- **Progressive UI**: Loading states and progress indicators
+- **Progressive UI**: Loading states, progress indicators, and smooth animations
+- **Accessibility**: Keyboard navigation and screen reader support
 
 ## 🛠️ Technology Stack
 
 - **Frontend**: Next.js 15, React 19, TypeScript, SCSS Modules
 - **Backend**: Next.js API Routes, MongoDB, JWT Authentication
 - **Infrastructure**: Docker, Portainer, WebDAV, Porkbun DNS
+- **UI/UX**: React Context API, Custom Notification System, Mobile-responsive Design
 - **Development**: ESLint, TypeScript, SASS, Node.js 18+
 
 ## 🚦 Quick Start
@@ -76,10 +93,11 @@ For detailed setup instructions, see the installation guide in the project docum
 ### Development Guidelines
 - Follow TypeScript best practices
 - Use SCSS modules for styling
-- Implement proper error handling
+- Implement proper error handling with styled notifications
 - Write comprehensive commit messages
 - Test all authentication flows
 - Ensure mobile responsiveness
+- Use the global notification system for user feedback
 
 ## 📝 License
 
