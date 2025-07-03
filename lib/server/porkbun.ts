@@ -63,6 +63,20 @@ interface DeleteDnsRecordResponse {
     message?: string;
 }
 
+interface SrvValidationDetails {
+    step: 'connectivity_test' | 'basic_record_test' | 'srv_creation_success' | 'srv_creation_failed' | 'exception';
+    testResult?: { success: boolean; error?: string };
+    error?: unknown;
+}
+
+interface DnsFallbackDetails {
+    method: 'srv' | 'cname_fallback' | 'both_failed' | 'exception';
+    srvError?: string;
+    note?: string;
+    srvResult?: { success: boolean; recordId?: string; error?: string; details?: SrvValidationDetails };
+    error?: unknown;
+}
+
 
 export class PorkbunService {
     private api: AxiosInstance;
@@ -331,13 +345,11 @@ export class PorkbunService {
         // Where target is the actual server hostname, not the subdomain
         const srvFormats = [
             // Format 1: Standard RFC 2782 format (priority weight port target)
-            `0 5 ${port} ${target}`,
+            `0 ${port} ${cleanSubdomain}`,
             // Format 2: Alternative priority/weight values  
-            `10 5 ${port} ${target}`,
+            `5 ${port} ${cleanSubdomain}`,
             // Format 3: Different weight value
-            `0 10 ${port} ${target}`,
-            // Format 4: Simple format (some DNS providers prefer this)
-            `0 ${port} ${target}`,
+            `10 ${port} ${cleanSubdomain}`,
         ];
 
         for (let i = 0; i < srvFormats.length; i++) {
@@ -457,7 +469,7 @@ export class PorkbunService {
         port: number, 
         target: string, 
         ttl: string = '300'
-    ): Promise<{ success: boolean; recordId?: string; error?: string; details?: any }> {
+    ): Promise<{ success: boolean; recordId?: string; error?: string; details?: SrvValidationDetails }> {
         try {
             this.validateCredentials();
             
@@ -622,7 +634,7 @@ export class PorkbunService {
         recordId?: string; 
         recordType?: 'SRV' | 'CNAME'; 
         error?: string; 
-        details?: any 
+        details?: DnsFallbackDetails 
     }> {
         try {
             console.log(`=== Creating Minecraft DNS with Fallback ===`);
@@ -722,21 +734,6 @@ export class PorkbunService {
         console.log(`   Players can connect to: ${cleanSubdomain}.${domain} (port automatically detected)`);
         
         return recordId;
-    }
-
-    /**
-     * @deprecated This method is deprecated. Use createMinecraftSrvRecordStrict instead.
-     * The application no longer supports CNAME fallback for better user experience.
-     */
-    public async createMinecraftSrvRecordDeprecated(
-        domain: string, 
-        subdomain: string, 
-        port: number, 
-        target: string, 
-        ttl: string = '300'
-    ): Promise<string | null> {
-        console.warn(`createMinecraftSrvRecordDeprecated is deprecated. Please use createMinecraftSrvRecordStrict instead.`);
-        return this.createMinecraftSrvRecordStrict(domain, subdomain, port, target, ttl);
     }
 }
 
