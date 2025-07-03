@@ -1026,30 +1026,80 @@ export class MinecraftServer {
         subdomain: string, 
         target: string, 
         port: number = 25565
-    ): Promise<{ success: boolean; recordId?: string; error?: string }> {
+    ): Promise<{ success: boolean; recordId?: string; recordType?: string; error?: string }> {
         try {
-            console.log(`Creating DNS SRV record for ${subdomain}.${domain} -> ${target}:${port}`);
+            console.log(`Creating DNS record for ${subdomain}.${domain} -> ${target}:${port}`);
+            
+            // Validate inputs
+            if (!domain || !domain.includes('.')) {
+                return { 
+                    success: false, 
+                    error: `Invalid domain format: "${domain}". Expected format like "example.com"` 
+                };
+            }
+            
+            if (!subdomain || subdomain.trim() === '') {
+                return { 
+                    success: false, 
+                    error: 'Subdomain cannot be empty' 
+                };
+            }
+            
+            // Clean up subdomain to ensure it doesn't already contain the domain
+            let cleanSubdomain = subdomain;
+            if (subdomain.endsWith(`.${domain}`)) {
+                cleanSubdomain = subdomain.replace(`.${domain}`, '');
+                console.log(`⚠️  Subdomain parameter contained domain suffix. Cleaned: "${subdomain}" -> "${cleanSubdomain}"`);
+            }
+            
+            if (!target || target.trim() === '') {
+                return { 
+                    success: false, 
+                    error: 'Target hostname cannot be empty' 
+                };
+            }
+            
+            if (port < 1 || port > 65535) {
+                return { 
+                    success: false, 
+                    error: `Invalid port number: ${port}. Must be between 1 and 65535` 
+                };
+            }
             
             // Lazy load porkbun to avoid build-time errors with missing environment variables
             const { default: porkbun } = await import('./porkbun');
-            const recordId = await porkbun.createMinecraftSrvRecord(domain, subdomain, port, target);
             
-            if (recordId) {
-                return { 
-                    success: true, 
-                    recordId 
-                };
-            } else {
-                return { 
-                    success: false, 
-                    error: 'Failed to create DNS record - no record ID returned' 
-                };
-            }
+            console.log(`Attempting to create SRV DNS record with validated parameters:`);
+            console.log(`- Domain: ${domain}`);
+            console.log(`- Subdomain: ${cleanSubdomain}`);
+            console.log(`- Target: ${target}`);
+            console.log(`- Port: ${port}`);
+            
+            // Create SRV record only - strict mode with no fallback
+            const recordId = await porkbun.createMinecraftSrvRecordStrict(domain, cleanSubdomain, port, target);
+            
+            console.log(`✅ SRV record created successfully with ID: ${recordId}`);
+            console.log(`   Players can connect to: ${cleanSubdomain}.${domain} (port automatically detected)`);
+            console.log(`   Full SRV record: _minecraft._tcp.${cleanSubdomain}.${domain}`);
+            
+            return { 
+                success: true, 
+                recordId: recordId,
+                recordType: 'SRV' 
+            };
         } catch (error) {
             console.error('Error creating DNS record:', error);
+            
+            let errorMessage = 'Unknown error occurred';
+            if (error instanceof Error) {
+                errorMessage = error.message;
+            } else if (typeof error === 'string') {
+                errorMessage = error;
+            }
+            
             return { 
                 success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+                error: `DNS record creation failed: ${errorMessage}` 
             };
         }
     }

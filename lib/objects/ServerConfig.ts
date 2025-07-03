@@ -61,6 +61,12 @@ export interface IServerConfig extends Document {
     
     // Memory and performance
     serverMemory: number;
+    
+    // DNS and networking (optional fields for tracking DNS records)
+    dnsRecordId?: string;
+    dnsRecordType?: 'SRV' | 'CNAME' | 'A';
+    customDomain?: string;
+    subdomain?: string;
 }
 
 // Type for plain server configuration object (without Mongoose Document methods)

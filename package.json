@@ -10,7 +10,11 @@
     "update-schema": "node scripts/updateSchema.ts",
     "update-schema:force": "NODE_ENV=development npx tsx scripts/updateSchema.ts",
     "test:portainer": "tsx scripts/test-portainer.ts",
-    "test:deployment": "tsx scripts/test-deployment.ts"
+    "test:deployment": "tsx scripts/test-deployment.ts",
+    "test:porkbun-dns": "tsx scripts/test-porkbun-dns.ts",
+    "test:dns-quick": "tsx scripts/quick-dns-test.ts",
+    "validate:porkbun": "tsx scripts/validate-porkbun.ts",
+    "setup:porkbun": "tsx scripts/setup-porkbun.ts"
   },
   "dependencies": {
     "@types/js-yaml": "^4.0.9",
