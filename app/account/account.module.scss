@@ -2,540 +2,540 @@
 @use "sass:color";
 
 .accountPage {
-    min-height: 100vh;
-    background-color: $dark-bg;
-    color: $text-primary;
-    padding: 2rem 1rem;
-    padding-top: 9rem;
-    background-image: url('/settings-bg.png');
-    background-position: center;
-    background-size: cover;
-    background-blend-mode: overlay;
-    position: relative;
+  min-height: 100vh;
+  background-color: $dark-bg;
+  color: $text-primary;
+  padding: 2rem 1rem;
+  padding-top: 9rem;
+  background-image: url('/settings-bg.png');
+  background-position: center;
+  background-size: cover;
+  background-blend-mode: overlay;
+  position: relative;
 
-    &::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: rgba($dark-bg, 0.15);
-        z-index: 0;
-    }
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba($dark-bg, 0.15);
+    z-index: 0;
+  }
 }
 
 .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    position: relative;
-    z-index: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
 }
 
 .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2.5rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 3px solid rgba($accent-blue, 0.3);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 3px solid rgba($accent-blue, 0.3);
 }
 
 .pageTitle {
-    font-size: 1.6rem;
-    font-weight: 600;
-    font-family: $heading-font;
-    color: $text-primary;
-    text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
-    line-height: 1.2;
+  font-size: 1.6rem;
+  font-weight: 600;
+  font-family: $heading-font;
+  color: $text-primary;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+  line-height: 1.2;
 
-    @media (min-width: $mobile) {
-        font-size: 2rem;
-    }
-    
-    @media (min-width: $tablet) {
-        font-size: 2.5rem;
-    }
+  @media (min-width: $mobile) {
+    font-size: 2rem;
+  }
+
+  @media (min-width: $tablet) {
+    font-size: 2.5rem;
+  }
 }
 
 .accountContainer {
-    display: grid;
-    grid-template-columns: 300px 1fr;
-    gap: 2rem;
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 2rem;
 
-    @media (max-width: 1024px) {
-        grid-template-columns: 1fr;
-        gap: 1.5rem;
-    }
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
 }
 
 // Sidebar Styles
 .sidebar {
-    background: linear-gradient(135deg,
-            rgba($dark-card, 0.95) 0%,
-            rgba(color.adjust($dark-card, $lightness: 5%), 0.95) 100%);
-    border: 2px solid rgba($accent-blue, 0.3);
-    border-radius: 12px;
-    padding: 1.5rem;
-    height: fit-content;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(135deg,
+      rgba($dark-card, 0.95) 0%,
+      rgba(color.adjust($dark-card, $lightness: 5%), 0.95) 100%);
+  border: 2px solid rgba($accent-blue, 0.3);
+  border-radius: 12px;
+  padding: 1.5rem;
+  height: fit-content;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .userInfo {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 2rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid rgba($border-color, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba($border-color, 0.3);
 }
 
 .avatar {
-    width: 60px;
-    height: 60px;
-    background: linear-gradient(135deg, $accent-blue, color.adjust($accent-blue, $lightness: 15%));
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 1.5rem;
-    box-shadow: 0 4px 15px rgba($accent-blue, 0.3);
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, $accent-blue, color.adjust($accent-blue, $lightness: 15%));
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.5rem;
+  box-shadow: 0 4px 15px rgba($accent-blue, 0.3);
 }
 
 .userDetails {
-    h3 {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: $text-primary;
-        margin-bottom: 0.25rem;
-    }
+  h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: $text-primary;
+    margin-bottom: 0.25rem;
+  }
 
-    p {
-        font-size: 0.9rem;
-        color: $text-secondary;
-    }
+  p {
+    font-size: 0.9rem;
+    color: $text-secondary;
+  }
 }
 
 .navigation {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .navButton {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.875rem 1rem;
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    color: $text-secondary;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 0.95rem;
-    font-weight: 500;
-    text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: $text-secondary;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-align: left;
 
-    &:hover {
-        background: rgba($accent-blue, 0.1);
-        border-color: rgba($accent-blue, 0.3);
-        color: $text-primary;
-        transform: translateX(4px);
+  &:hover {
+    background: rgba($accent-blue, 0.1);
+    border-color: rgba($accent-blue, 0.3);
+    color: $text-primary;
+    transform: translateX(4px);
+  }
+
+  &.active {
+    background: linear-gradient(135deg, $accent-blue, color.adjust($accent-blue, $lightness: 10%));
+    border-color: $accent-blue;
+    color: white;
+    box-shadow: 0 4px 15px rgba($accent-blue, 0.3);
+
+    .navIcon {
+      filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
     }
-
-    &.active {
-        background: linear-gradient(135deg, $accent-blue, color.adjust($accent-blue, $lightness: 10%));
-        border-color: $accent-blue;
-        color: white;
-        box-shadow: 0 4px 15px rgba($accent-blue, 0.3);
-
-        .navIcon {
-            filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
-        }
-    }
+  }
 }
 
 .navIcon {
-    font-size: 1.1rem;
-    transition: all 0.3s ease;
+  font-size: 1.1rem;
+  transition: all 0.3s ease;
 }
 
 // Main Content Styles
 .mainContent {
-    background: linear-gradient(135deg,
-            rgba($dark-card, 0.95) 0%,
-            rgba(color.adjust($dark-card, $lightness: 5%), 0.95) 100%);
-    border: 2px solid rgba($accent-blue, 0.3);
-    border-radius: 12px;
-    padding: 2rem;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(135deg,
+      rgba($dark-card, 0.95) 0%,
+      rgba(color.adjust($dark-card, $lightness: 5%), 0.95) 100%);
+  border: 2px solid rgba($accent-blue, 0.3);
+  border-radius: 12px;
+  padding: 2rem;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 
-    @media (max-width: 640px) {
-        padding: 1.5rem;
-    }
+  @media (max-width: 640px) {
+    padding: 1.5rem;
+  }
 }
 
 .tabContent {
-    animation: fadeIn 0.3s ease-in-out;
+  animation: fadeIn 0.3s ease-in-out;
 }
 
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
 
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .sectionHeader {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
 
-    @media (max-width: 640px) {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 1rem;
-    }
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
 }
 
 .sectionTitle {
-    font-size: 1.8rem;
-    font-weight: 600;
-    color: $text-primary;
-    font-family: $heading-font;
-    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.3);
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: $text-primary;
+  font-family: $heading-font;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.3);
 }
 
 .editButton {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: transparent;
-    border: 1px solid $border-color;
-    border-radius: 6px;
-    color: $text-secondary;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  color: $text-secondary;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
 
-    &:hover {
-        border-color: $accent-blue;
-        color: $accent-blue;
-        transform: translateY(-2px);
-    }
+  &:hover {
+    border-color: $accent-blue;
+    color: $accent-blue;
+    transform: translateY(-2px);
+  }
 
-    &.active {
-        background: $error-red;
-        border-color: $error-red;
-        color: white;
-    }
+  &.active {
+    background: $error-red;
+    border-color: $error-red;
+    color: white;
+  }
 }
 
 // Form Styles
 .profileCard,
 .settingsCard,
 .securityCard {
-    background: rgba($dark-form, 0.7);
-    border: 1px solid rgba($border-color, 0.3);
-    border-radius: 10px;
-    padding: 2rem;
-    backdrop-filter: blur(5px);
+  background: rgba($dark-form, 0.7);
+  border: 1px solid rgba($border-color, 0.3);
+  border-radius: 10px;
+  padding: 2rem;
+  backdrop-filter: blur(5px);
 }
 
 .formGroup {
-    margin-bottom: 1.5rem;
+  margin-bottom: 1.5rem;
 
-    label {
-        display: block;
-        margin-bottom: 0.5rem;
-        font-weight: 500;
-        color: $text-primary;
-        font-size: 0.95rem;
-    }
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: $text-primary;
+    font-size: 0.95rem;
+  }
 
-    .saveButton {
-        margin-top: 1rem;
-    }
+  .saveButton {
+    margin-top: 1rem;
+  }
 }
 
 .input,
 .select {
-    width: 100%;
-    padding: 0.875rem;
-    background: rgba($dark-bg, 0.8);
-    border: 1px solid $border-color;
-    border-radius: 6px;
-    color: $text-primary;
-    font-size: 0.95rem;
-    transition: all 0.3s ease;
+  width: 100%;
+  padding: 0.875rem;
+  background: rgba($dark-bg, 0.8);
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  color: $text-primary;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
 
-    &:focus {
-        outline: none;
-        border-color: $accent-blue;
-        box-shadow: 0 0 0 3px rgba($accent-blue, 0.1);
-    }
+  &:focus {
+    outline: none;
+    border-color: $accent-blue;
+    box-shadow: 0 0 0 3px rgba($accent-blue, 0.1);
+  }
 
-    &:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-    }
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 
-    &::placeholder {
-        color: $text-secondary;
-    }
+  &::placeholder {
+    color: $text-secondary;
+  }
 }
 
 .statsGrid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 1rem;
-    margin: 2rem 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin: 2rem 0;
 }
 
 .statCard {
-    background: rgba($accent-blue, 0.1);
-    border: 1px solid rgba($accent-blue, 0.3);
-    border-radius: 8px;
-    padding: 1.5rem;
-    text-align: center;
+  background: rgba($accent-blue, 0.1);
+  border: 1px solid rgba($accent-blue, 0.3);
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-align: center;
 
-    h4 {
-        font-size: 0.85rem;
-        color: $text-secondary;
-        margin-bottom: 0.5rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
+  h4 {
+    font-size: 0.85rem;
+    color: $text-secondary;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
 
-    p {
-        font-size: 1.5rem;
-        font-weight: 600;
-        color: $accent-blue;
-    }
+  p {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: $accent-blue;
+  }
 }
 
 .formActions {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 2rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid rgba($border-color, 0.3);
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba($border-color, 0.3);
 }
 
 .saveButton,
 .passwordButton {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.875rem 1.5rem;
-    background: linear-gradient(135deg, $accent-blue, color.adjust($accent-blue, $lightness: 10%));
-    border: none;
-    border-radius: 6px;
-    color: white;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  background: linear-gradient(135deg, $accent-blue, color.adjust($accent-blue, $lightness: 10%));
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
 
-    &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba($accent-blue, 0.4);
-    }
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba($accent-blue, 0.4);
+  }
 
-    &:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-        transform: none;
-    }
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
 
-    &.loading {
-        opacity: 0.8;
-        cursor: wait;
-    }
+  &.loading {
+    opacity: 0.8;
+    cursor: wait;
+  }
 }
 
 // Settings Styles
 .settingGroup {
-    margin-bottom: 2.5rem;
+  margin-bottom: 2.5rem;
 
-    &:last-child {
-        margin-bottom: 0;
-    }
+  &:last-child {
+    margin-bottom: 0;
+  }
 
-    h3 {
-        font-size: 1.2rem;
-        font-weight: 600;
-        color: $text-primary;
-        margin-bottom: 1.5rem;
-        border-bottom: 1px solid rgba($border-color, 0.3);
-        padding-bottom: 0.5rem;
-    }
+  h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: $text-primary;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid rgba($border-color, 0.3);
+    padding-bottom: 0.5rem;
+  }
 }
 
 .settingItem {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 0;
-    border-bottom: 1px solid rgba($border-color, 0.2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0;
+  border-bottom: 1px solid rgba($border-color, 0.2);
 
-    &:last-child {
-        border-bottom: none;
-    }
+  &:last-child {
+    border-bottom: none;
+  }
 
-    @media (max-width: 640px) {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 1rem;
-    }
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
 }
 
 .settingInfo {
-    flex: 1;
+  flex: 1;
 
-    label {
-        font-size: 1rem;
-        font-weight: 500;
-        color: $text-primary;
-        margin-bottom: 0.25rem;
-    }
+  label {
+    font-size: 1rem;
+    font-weight: 500;
+    color: $text-primary;
+    margin-bottom: 0.25rem;
+  }
 
-    p {
-        font-size: 0.85rem;
-        color: $text-secondary;
-        line-height: 1.4;
-    }
+  p {
+    font-size: 0.85rem;
+    color: $text-secondary;
+    line-height: 1.4;
+  }
 }
 
 // Toggle Switch
 .toggle {
-    position: relative;
-    display: inline-block;
-    width: 50px;
-    height: 28px;
-    cursor: pointer;
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+  cursor: pointer;
 
-    input {
-        opacity: 0;
-        width: 0;
-        height: 0;
+  input {
+    opacity: 0;
+    width: 0;
+    height: 0;
 
-        &:checked+.slider {
-            background-color: $accent-blue;
+    &:checked+.slider {
+      background-color: $accent-blue;
 
-            &:before {
-                transform: translateX(22px);
-            }
-        }
+      &:before {
+        transform: translateX(22px);
+      }
     }
+  }
 }
 
 .slider {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: $border-color;
-    transition: 0.3s;
-    border-radius: 28px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: $border-color;
+  transition: 0.3s;
+  border-radius: 28px;
 
-    &:before {
-        position: absolute;
-        content: "";
-        height: 22px;
-        width: 22px;
-        left: 3px;
-        bottom: 3px;
-        background-color: white;
-        transition: 0.3s;
-        border-radius: 50%;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    }
+  &:before {
+    position: absolute;
+    content: "";
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
 }
 
 // Password Form
 .passwordForm {
-    .formGroup {
-        margin-bottom: 1rem;
-    }
+  .formGroup {
+    margin-bottom: 1rem;
+  }
 
-    .passwordButton {
-        margin-top: 1rem;
-    }
+  .passwordButton {
+    margin-top: 1rem;
+  }
 }
 
 // Danger Zone
 .dangerZone {
-    margin-top: 3rem;
-    padding-top: 2rem;
-    border-top: 2px solid rgba($error-red, 0.3);
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 2px solid rgba($error-red, 0.3);
 
-    h3 {
-        color: $error-red;
-        font-size: 1.2rem;
-        margin-bottom: 1rem;
-    }
+  h3 {
+    color: $error-red;
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+  }
 }
 
 .dangerAction {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1.5rem;
-    background: rgba($error-red, 0.1);
-    border: 1px solid rgba($error-red, 0.3);
-    border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  background: rgba($error-red, 0.1);
+  border: 1px solid rgba($error-red, 0.3);
+  border-radius: 8px;
 
-    @media (max-width: 640px) {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 1rem;
-    }
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
 }
 
 .dangerInfo {
-    h4 {
-        font-size: 1rem;
-        color: $text-primary;
-        margin-bottom: 0.25rem;
-    }
+  h4 {
+    font-size: 1rem;
+    color: $text-primary;
+    margin-bottom: 0.25rem;
+  }
 
-    p {
-        font-size: 0.85rem;
-        color: $text-secondary;
-    }
+  p {
+    font-size: 0.85rem;
+    color: $text-secondary;
+  }
 }
 
 .dangerButton {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.25rem;
-    background: transparent;
-    border: 1px solid $error-red;
-    border-radius: 6px;
-    color: $error-red;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: transparent;
+  border: 1px solid $error-red;
+  border-radius: 6px;
+  color: $error-red;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
 
-    &:hover {
-        background: $error-red;
-        color: white;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 15px rgba($error-red, 0.3);
-    }
+  &:hover {
+    background: $error-red;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba($error-red, 0.3);
+  }
 }
 
 // Delete Account Modal Styles
@@ -553,7 +553,7 @@
   justify-content: center !important;
   padding: 1rem !important;
   animation: fadeInOverlay 0.3s ease-out;
-  
+
   // Force it to be above everything
   isolation: isolate;
   will-change: transform;
@@ -565,6 +565,7 @@
     opacity: 0;
     backdrop-filter: blur(0px);
   }
+
   to {
     opacity: 1;
     backdrop-filter: blur(8px);
@@ -572,27 +573,27 @@
 }
 
 .deleteModal {
-  background: linear-gradient(135deg, 
-    rgba($dark-card, 0.98) 0%, 
-    rgba(color.adjust($dark-card, $lightness: 3%), 0.98) 100%) !important;
+  background: linear-gradient(135deg,
+      rgba($dark-card, 0.98) 0%,
+      rgba(color.adjust($dark-card, $lightness: 3%), 0.98) 100%) !important;
   border: 2px solid $error-red !important;
   border-radius: 16px !important;
   max-width: 600px !important;
   width: 100% !important;
   max-height: 90vh !important;
   overflow-y: auto !important;
-  box-shadow: 
+  box-shadow:
     0 20px 60px rgba(0, 0, 0, 0.5),
     0 0 40px rgba($error-red, 0.2) !important;
   animation: slideInModal 0.4s ease-out;
   position: relative !important;
   z-index: 1000000 !important;
-  
+
   // Force new stacking context
   isolation: isolate;
   will-change: transform;
   transform: translateZ(0);
-  
+
   &::before {
     content: '';
     position: absolute;
@@ -600,7 +601,7 @@
     left: 0;
     right: 0;
     height: 4px;
-    background: linear-gradient(90deg, $error-red, color.scale($error-red, $lightness:10%));
+    background: linear-gradient(90deg, $error-red, color.scale($error-red, $lightness: 10%));
     border-radius: 16px 16px 0 0;
   }
 }
@@ -610,6 +611,7 @@
     opacity: 0;
     transform: translateY(-50px) scale(0.9);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -622,7 +624,7 @@
   align-items: center;
   padding: 2rem 2rem 1rem;
   border-bottom: 1px solid rgba($error-red, 0.3);
-  
+
   h2 {
     font-size: 1.8rem;
     font-weight: 700;
@@ -647,13 +649,13 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  
+
   &:hover {
     background: rgba($error-red, 0.1);
     color: $error-red;
     transform: scale(1.1);
   }
-  
+
   &:active {
     transform: scale(0.95);
   }
@@ -668,14 +670,14 @@
 }
 
 .warningBox {
-  background: linear-gradient(135deg, 
-    rgba($error-red, 0.15) 0%, 
-    rgba($error-red, 0.08) 100%);
+  background: linear-gradient(135deg,
+      rgba($error-red, 0.15) 0%,
+      rgba($error-red, 0.08) 100%);
   border: 2px solid rgba($error-red, 0.4);
   border-radius: 12px;
   padding: 2rem;
   position: relative;
-  
+
   &::before {
     content: '';
     position: absolute;
@@ -683,10 +685,10 @@
     left: 0;
     right: 0;
     height: 3px;
-    background: linear-gradient(90deg, $error-red, color.scale($error-red, $lightness:15%));
+    background: linear-gradient(90deg, $error-red, color.scale($error-red, $lightness: 15%));
     border-radius: 12px 12px 0 0;
   }
-  
+
   h3 {
     font-size: 1.3rem;
     font-weight: 700;
@@ -695,30 +697,30 @@
     text-align: center;
     font-family: $heading-font;
   }
-  
+
   p {
     font-size: 1rem;
     line-height: 1.6;
     margin-bottom: 1rem;
     color: $text-primary;
-    
+
     strong {
       color: $error-red;
       font-weight: 700;
     }
   }
-  
+
   ul {
     margin: 1.5rem 0;
     padding-left: 0;
     list-style: none;
-    
+
     li {
       padding: 0.5rem 0;
       font-size: 0.95rem;
       color: $text-primary;
       line-height: 1.4;
-      
+
       &::before {
         content: '';
         margin-right: 0.5rem;
@@ -741,9 +743,12 @@
 }
 
 @keyframes pulseWarning {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 5px rgba($error-red, 0.3);
   }
+
   50% {
     box-shadow: 0 0 20px rgba($error-red, 0.6);
   }
@@ -756,7 +761,7 @@
     color: $text-primary;
     margin-bottom: 1rem;
   }
-  
+
   p {
     color: $text-secondary;
     margin-bottom: 1.5rem;
@@ -777,7 +782,7 @@
     font-weight: 500;
     color: $text-primary;
     font-size: 0.95rem;
-    
+
     strong {
       color: $accent-blue;
       background: rgba($accent-blue, 0.1);
@@ -806,22 +811,22 @@
   color: $text-primary;
   font-size: 0.95rem;
   transition: all 0.3s ease;
-  
+
   &:focus {
     outline: none;
     border-color: $error-red;
     box-shadow: 0 0 0 3px rgba($error-red, 0.2);
     background: rgba($dark-bg, 0.95);
   }
-  
+
   &::placeholder {
     color: $text-secondary;
   }
-  
+
   // Valid state styling
   &[value]:not([value=""]) {
     border-color: $success-green;
-    
+
     &:focus {
       border-color: $success-green;
       box-shadow: 0 0 0 3px rgba($success-green, 0.2);
@@ -835,7 +840,7 @@
   margin-top: 2rem;
   padding-top: 1.5rem;
   border-top: 1px solid rgba($border-color, 0.3);
-  
+
   @media (max-width: 640px) {
     flex-direction: column;
   }
@@ -851,17 +856,17 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
-  
+
   &:hover {
     background: rgba($border-color, 0.1);
-    border-color: color.scale($border-color, $lightness:10%);
+    border-color: color.scale($border-color, $lightness: 10%);
     transform: translateY(-1px);
   }
-  
+
   &:active {
     transform: translateY(0);
   }
-  
+
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -886,19 +891,19 @@
   font-size: 0.9rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  
+
   &:hover:not(:disabled) {
-    background: linear-gradient(135deg, 
-      color.adjust($error-red, $lightness: 5%), 
-      color.adjust($error-red, $lightness: -5%));
+    background: linear-gradient(135deg,
+        color.adjust($error-red, $lightness: 5%),
+        color.adjust($error-red, $lightness: -5%));
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba($error-red, 0.4);
   }
-  
+
   &:active:not(:disabled) {
     transform: translateY(0);
   }
-  
+
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -906,11 +911,11 @@
     background: rgba($error-red, 0.3);
     border-color: rgba($error-red, 0.3);
   }
-  
+
   &.loading {
     opacity: 0.8;
     cursor: wait;
-    
+
     &::after {
       content: '';
       width: 16px;
@@ -925,66 +930,71 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 // Responsive Design
 @media (max-width: 1024px) {
-    .sidebar {
-        order: 2;
-    }
+  .sidebar {
+    order: 2;
+  }
 
-    .mainContent {
-        order: 1;
-    }
+  .mainContent {
+    order: 1;
+  }
 }
 
 @media (max-width: 640px) {
-    .accountPage {
-        padding: 1rem 0.5rem;
-        padding-top: 8rem;
-    }
+  .accountPage {
+    padding: 1rem 0.5rem;
+    padding-top: 8rem;
+  }
 
-    .pageTitle {
-        font-size: 1.8rem;
-    }
+  .pageTitle {
+    font-size: 1.8rem;
+  }
 
-    .profileCard,
-    .settingsCard,
-    .securityCard {
-        padding: 1.5rem;
-    }
+  .profileCard,
+  .settingsCard,
+  .securityCard {
+    padding: 1.5rem;
+  }
 
-    .statsGrid {
-        grid-template-columns: 1fr;
-    }
-    
-    .deleteModal {
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .deleteModal {
     margin: 1rem;
     max-width: calc(100% - 2rem);
   }
-  
+
   .modalHeader {
     padding: 1.5rem 1.5rem 1rem;
-    
+
     h2 {
       font-size: 1.5rem;
     }
   }
-  
+
   .modalContent {
     padding: 1rem 1.5rem 1.5rem;
   }
-  
+
   .warningBox {
     padding: 1.5rem;
-    
+
     h3 {
       font-size: 1.1rem;
     }
   }
-  
+
   .confirmationSteps {
     gap: 1rem;
   }
@@ -995,11 +1005,11 @@
   .deleteModal {
     border-width: 3px;
   }
-  
+
   .warningBox {
     border-width: 3px;
   }
-  
+
   .confirmInput {
     border-width: 3px;
   }
@@ -1007,12 +1017,13 @@
 
 // Reduced motion support
 @media (prefers-reduced-motion: reduce) {
+
   .modalOverlay,
   .deleteModal,
   .pulseWarning {
     animation: none;
   }
-  
+
   .confirmDeleteButton:hover,
   .cancelButton:hover,
   .closeButton:hover {

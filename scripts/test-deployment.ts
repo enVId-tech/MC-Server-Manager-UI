@@ -17,11 +17,11 @@ import { MinecraftServer } from '../lib/server/minecraft.js';
 
 async function testMinecraftDeployment() {
     console.log('🎮 Testing Minecraft Server Deployment...\n');
-    
+
     try {
         // Create a test Minecraft server instance
         console.log('1. Creating test Minecraft server...');
-        
+
         const serverConfig = {
             EULA: true,
             VERSION: '1.21.6',
@@ -38,28 +38,28 @@ async function testMinecraftDeployment() {
             VIEW_DISTANCE: 10,
             SIMULATION_DISTANCE: 10
         };
-        
+
         const serverName = 'test-deployment-' + Date.now();
         const uniqueId = Math.random().toString(36).substring(2, 15);
         const environmentId = 3; // Environment ID from our test
-        
+
         const testServer = new MinecraftServer(
             serverConfig,
             serverName,
             uniqueId,
             environmentId
         );
-        
+
         console.log('✅ Test server created successfully');
         console.log(`   - Name: ${serverName}`);
         console.log(`   - Config Version: ${serverConfig.VERSION}`);
         console.log(`   - Config Type: ${serverConfig.TYPE}`);
         console.log(`   - Config Port: ${serverConfig.SERVER_PORT}`);
-        
+
         // Test deployment to Portainer
         console.log('\n2. Deploying to Portainer...');
         const deploymentResult = await testServer.deployToPortainer();
-        
+
         if (deploymentResult.success) {
             console.log('🎉 Deployment successful!');
             console.log(`   - Method: ${deploymentResult.deploymentMethod || 'unknown'}`);
@@ -73,7 +73,7 @@ async function testMinecraftDeployment() {
         } else {
             console.error('❌ Deployment failed');
         }
-        
+
     } catch (error) {
         console.error('❌ Test deployment failed:', error instanceof Error ? error.message : String(error));
         if (error instanceof Error && error.stack) {

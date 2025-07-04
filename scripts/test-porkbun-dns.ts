@@ -36,7 +36,7 @@ class PorkbunDnsTest {
      */
     async runAllTests(): Promise<void> {
         console.log('🧪 Starting Porkbun DNS Tests for Minecraft Server');
-        console.log('=' .repeat(60));
+        console.log('='.repeat(60));
         console.log(`Domain: ${this.config.domain}`);
         console.log(`Subdomain: ${this.config.subdomain}`);
         console.log(`Target: ${this.config.target}`);
@@ -53,7 +53,7 @@ class PorkbunDnsTest {
         console.log('');
         console.log('⚠️  Note: All test records will be automatically deleted');
         console.log('⚠️  SRV record creation is REQUIRED - no CNAME fallback');
-        console.log('=' .repeat(60));
+        console.log('='.repeat(60));
 
         try {
             // Test 1: Environment validation
@@ -116,7 +116,7 @@ class PorkbunDnsTest {
 
         try {
             const isConnected = await porkbun.testDnsConnectivity(this.config.domain);
-            
+
             if (isConnected) {
                 console.log('✅ DNS connectivity test passed');
             } else {
@@ -140,11 +140,11 @@ class PorkbunDnsTest {
 
         try {
             const result = await porkbun.testCreateSimpleRecord(this.config.domain, testSubdomain, testIp);
-            
+
             if (result.success && result.recordId) {
                 console.log(`✅ A record created: ${testSubdomain}.${this.config.domain} -> ${testIp}`);
                 console.log(`   Record ID: ${result.recordId}`);
-                
+
                 // Store for cleanup
                 this.createdRecords.push({
                     id: result.recordId,
@@ -172,7 +172,7 @@ class PorkbunDnsTest {
         try {
             console.log(`Attempting to create SRV record for: _minecraft._tcp.${srvSubdomain}.${this.config.domain}`);
             console.log(`Target: ${this.config.target}:${this.config.port}`);
-            
+
             const recordId = await porkbun.createMinecraftSrvRecord(
                 this.config.domain,
                 srvSubdomain,
@@ -185,18 +185,18 @@ class PorkbunDnsTest {
                 console.log(`   Record ID: ${recordId}`);
                 console.log(`   Full record: _minecraft._tcp.${srvSubdomain}.${this.config.domain}`);
                 console.log(`   🎮 Players can connect with: minecraft://${srvSubdomain}.${this.config.domain}`);
-                
+
                 // Store for cleanup
                 this.createdRecords.push({
                     id: recordId,
                     type: 'SRV',
                     name: `_minecraft._tcp.${srvSubdomain}`
                 });
-                
+
                 // Test that the record actually exists
                 console.log('   🔍 Verifying SRV record was created...');
                 await this.verifySrvRecord(srvSubdomain, recordId);
-                
+
             } else {
                 console.log('❌ SRV record creation failed');
                 console.log('   This indicates that SRV records are not supported by Porkbun for this domain');
@@ -205,7 +205,7 @@ class PorkbunDnsTest {
                 console.log('      - Your domain supports SRV records');
                 console.log('      - Your API credentials have DNS management permissions');
                 console.log('      - The domain is properly configured in Porkbun');
-                
+
                 throw new Error('SRV record creation failed - this is required for Minecraft servers');
             }
         } catch (error) {
@@ -228,7 +228,7 @@ class PorkbunDnsTest {
             console.log(`Attempting strict SRV record creation for: _minecraft._tcp.${strictSrvSubdomain}.${this.config.domain}`);
             console.log(`Target: ${this.config.target}:${this.config.port}`);
             console.log(`Note: This test will fail if SRV records are not supported (no fallback)`);
-            
+
             const recordId = await porkbun.createMinecraftSrvRecordStrict(
                 this.config.domain,
                 strictSrvSubdomain,
@@ -240,18 +240,18 @@ class PorkbunDnsTest {
             console.log(`   Record ID: ${recordId}`);
             console.log(`   Full record: _minecraft._tcp.${strictSrvSubdomain}.${this.config.domain}`);
             console.log(`   🎮 Players can connect with: minecraft://${strictSrvSubdomain}.${this.config.domain}`);
-            
+
             // Store for cleanup
             this.createdRecords.push({
                 id: recordId,
                 type: 'SRV',
                 name: `_minecraft._tcp.${strictSrvSubdomain}`
             });
-            
+
             // Test that the record actually exists
             console.log('   🔍 Verifying strict SRV record was created...');
             await this.verifySrvRecord(strictSrvSubdomain, recordId);
-            
+
         } catch (error) {
             console.error('❌ Strict SRV record creation failed:', error);
             console.log('   This means SRV records are not working for this domain configuration');
@@ -271,13 +271,13 @@ class PorkbunDnsTest {
 
         try {
             const records = await porkbun.getDnsRecords(this.config.domain);
-            
+
             if (!records) {
                 throw new Error('Failed to retrieve DNS records');
             }
 
             console.log(`✅ Retrieved ${records.length} DNS records for ${this.config.domain}`);
-            
+
             // Verify our created records exist
             let foundRecords = 0;
             for (const createdRecord of this.createdRecords) {
@@ -372,25 +372,25 @@ class PorkbunDnsTest {
      */
     displaySummary(): void {
         console.log('\n📈 Test Summary');
-        console.log('=' .repeat(60));
+        console.log('='.repeat(60));
         console.log(`Domain tested: ${this.config.domain}`);
         console.log(`Records created: ${this.createdRecords.length}`);
         console.log(`Target server: ${this.config.target}:${this.config.port}`);
         console.log('');
-        
+
         // Analyze which record types worked
         const recordTypes = {
             A: this.createdRecords.filter(r => r.type === 'A').length,
             SRV: this.createdRecords.filter(r => r.type === 'SRV').length
         };
-        
+
         console.log('📊 Record Creation Results:');
         console.log(`   A records: ${recordTypes.A > 0 ? '✅' : '❌'} (${recordTypes.A} created)`);
         console.log(`   SRV records: ${recordTypes.SRV > 0 ? '✅' : '❌'} (${recordTypes.SRV} created)`);
-        
+
         console.log('');
         console.log('🎮 Minecraft Server DNS Configuration:');
-        
+
         if (recordTypes.SRV > 0) {
             console.log('   ✅ SRV records work - REQUIRED method');
             console.log(`   📡 Players connect: minecraft://${this.config.subdomain}.${this.config.domain}`);
@@ -401,10 +401,10 @@ class PorkbunDnsTest {
             console.log('   � Minecraft server creation will fail');
             console.log('   📋 SRV records are required - no fallback available');
         }
-        
+
         console.log('');
         console.log('💡 Recommendations for your Minecraft server:');
-        
+
         if (recordTypes.SRV > 0) {
             console.log('   🎯 SRV records are working correctly');
             console.log('   📋 Your application can create Minecraft servers successfully');
@@ -417,8 +417,8 @@ class PorkbunDnsTest {
             console.log('      - Ensure the domain is properly configured in Porkbun');
             console.log('      - Contact Porkbun support if issues persist');
         }
-        
-        console.log('=' .repeat(60));
+
+        console.log('='.repeat(60));
     }
 
     /**
@@ -430,7 +430,7 @@ class PorkbunDnsTest {
         console.log('-'.repeat(40));
 
         const minecraftSubdomain = `mc-test-${Date.now()}`;
-        
+
         console.log(`Testing Minecraft DNS for subdomain: ${minecraftSubdomain}`);
         console.log(`Server details: ${this.config.target}:${this.config.port}`);
         console.log(`⚠️  This test requires SRV record support - no fallback to CNAME`);
@@ -449,7 +449,7 @@ class PorkbunDnsTest {
             console.log(`✅ Minecraft SRV record created: _minecraft._tcp.${minecraftSubdomain}.${this.config.domain}`);
             console.log(`   Record ID: ${srvRecordId}`);
             console.log(`   🎮 Players connect: ${minecraftSubdomain}.${this.config.domain} (port auto-detected)`);
-            
+
             this.createdRecords.push({
                 id: srvRecordId,
                 type: 'SRV',
@@ -459,7 +459,7 @@ class PorkbunDnsTest {
             // Wait a moment for DNS propagation simulation
             console.log('   ⏳ Waiting 2 seconds before verification...');
             await new Promise(resolve => setTimeout(resolve, 2000));
-            
+
             await this.verifySrvRecord(minecraftSubdomain, srvRecordId);
 
         } catch (error) {
@@ -474,9 +474,9 @@ class PorkbunDnsTest {
         console.log(`   Domain: ${this.config.domain}`);
         console.log(`   Subdomain tested: ${minecraftSubdomain}`);
         console.log(`   Target server: ${this.config.target}:${this.config.port}`);
-        
+
         const srvWorking = this.createdRecords.some(r => r.type === 'SRV' && r.name.includes(minecraftSubdomain));
-        
+
         if (srvWorking) {
             console.log('   ✅ SRV records: WORKING (required method)');
             console.log(`   🎮 Players connect: ${minecraftSubdomain}.${this.config.domain}`);
@@ -510,7 +510,7 @@ async function main() {
     }
 
     const tester = new PorkbunDnsTest(testConfig);
-    
+
     try {
         await tester.runAllTests();
         tester.displaySummary();

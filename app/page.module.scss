@@ -20,7 +20,7 @@ $body-font: var(--font-poppins);
 
 // Option 2: Classic Sans-Serif Body, 8-Bit Heading
 // $body-font: var(--font-inter);
- $heading-font: var(--font-press-start);
+$heading-font: var(--font-press-start);
 
 
 // Base
@@ -81,11 +81,11 @@ $body-font: var(--font-poppins);
     color: $white;
     text-shadow: 0 0 15px rgba($accent-blue, 0.4);
     line-height: 1.2;
-    
+
     @media (min-width: 480px) {
       font-size: 2.8rem;
     }
-    
+
     @media (min-width: 768px) {
       font-size: 5.5rem;
     }
@@ -97,6 +97,7 @@ $body-font: var(--font-poppins);
     color: $text-secondary;
     line-height: 1.6;
     text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5); // Improved readability
+
     @media (min-width: 768px) {
       font-size: 1.5rem;
     }
@@ -107,6 +108,7 @@ $body-font: var(--font-poppins);
     flex-direction: column;
     gap: 1rem;
     margin-top: 2rem;
+
     @media (min-width: 640px) {
       flex-direction: row;
       gap: 1.5rem;
@@ -132,6 +134,7 @@ $body-font: var(--font-poppins);
   &--primary {
     background-color: $accent-blue;
     color: $white;
+
     &:hover {
       background-color: color.scale($accent-blue, $lightness: 5%);
       transform: translateY(-2px);
@@ -143,6 +146,7 @@ $body-font: var(--font-poppins);
     background-color: transparent;
     border-color: $border-color;
     color: $text-primary;
+
     &:hover {
       background-color: $dark-card;
       border-color: $accent-blue;
@@ -169,6 +173,7 @@ $body-font: var(--font-poppins);
     text-align: center;
     margin-bottom: 4rem;
     color: $text-primary;
+
     @media (min-width: 768px) {
       font-size: 3.5rem; // Adjusted
     }
@@ -178,6 +183,7 @@ $body-font: var(--font-poppins);
     display: grid;
     grid-template-columns: 1fr;
     gap: 2rem;
+
     @media (min-width: 768px) {
       grid-template-columns: repeat(3, 1fr);
     }
@@ -208,6 +214,7 @@ $body-font: var(--font-poppins);
     display: flex;
     align-items: center;
     justify-content: center;
+
     svg {
       width: 2rem;
       height: 2rem;
@@ -243,6 +250,7 @@ $body-font: var(--font-poppins);
     flex-direction: column;
     gap: 4rem;
     position: relative;
+
     @media (min-width: 992px) {
       flex-direction: row;
       align-items: center;
@@ -259,6 +267,7 @@ $body-font: var(--font-poppins);
     font-weight: 400;
     margin-bottom: 2rem;
     color: $text-primary;
+
     @media (min-width: 768px) {
       font-size: 3.5rem; // Adjusted
     }
@@ -290,6 +299,7 @@ $body-font: var(--font-poppins);
     overflow: hidden;
     border: 1px solid $border-color;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+
     @media (min-width: 768px) {
       height: 450px;
     }
@@ -314,6 +324,7 @@ $body-font: var(--font-poppins);
     font-weight: 400;
     font-size: 3rem; // Adjusted
     margin-bottom: 1.5rem;
+
     @media (min-width: 768px) {
       font-size: 3.5rem; // Adjusted
     }
@@ -334,6 +345,7 @@ $body-font: var(--font-poppins);
     background-color: $white;
     color: #2a4860;
     border-color: transparent;
+
     &:hover {
       background-color: $text-primary;
       transform: translateY(-2px);
@@ -362,10 +374,12 @@ $body-font: var(--font-poppins);
   &__links {
     display: flex;
     gap: 1.5rem;
+
     a {
       color: $text-primary;
       text-decoration: none;
       transition: color 0.2s;
+
       &:hover {
         color: $accent-blue;
       }
@@ -374,13 +388,15 @@ $body-font: var(--font-poppins);
 
   &__copy {
     font-size: 0.9rem;
+
     a {
-        color: $text-primary;
-        text-decoration: underline;
-        transition: color 0.2s;
-        &:hover {
-            color: $accent-blue;
-        }
+      color: $text-primary;
+      text-decoration: underline;
+      transition: color 0.2s;
+
+      &:hover {
+        color: $accent-blue;
+      }
     }
   }
 }

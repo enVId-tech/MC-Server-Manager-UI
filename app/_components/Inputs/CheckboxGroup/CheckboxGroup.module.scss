@@ -51,7 +51,7 @@
     padding: 0.75rem 0.85rem;
     min-height: 48px;
   }
-  
+
   input[type="checkbox"] {
     appearance: none;
     -webkit-appearance: none;
@@ -81,20 +81,20 @@
       margin-right: 0.75rem;
       border-radius: 3px; // Reaffirm square shape
     }
-    
+
     // Additional browser-specific resets for consistent square
     &::-webkit-appearance {
       display: none;
     }
-    
+
     &::-moz-appearance {
       display: none;
     }
-    
+
     &:checked {
       border-color: $accent-blue;
       background-color: $accent-blue;
-      
+
       &::after {
         content: '';
         position: absolute;
@@ -108,13 +108,13 @@
         display: block; // Ensure the checkmark is displayed
       }
     }
-    
+
     &:focus {
       box-shadow: 0 0 0 2px rgba($accent-blue, 0.3);
       outline: none;
     }
   }
-  
+
   span {
     font-family: var(--font-poppins);
     color: $text-primary;
@@ -128,13 +128,13 @@
       font-size: 0.95rem;
     }
   }
-  
+
   &:hover {
     background-color: rgba($accent-blue, 0.1);
     transform: translateY(-1px);
-    
+
     input[type="checkbox"] {
-      border-color: color.scale($border-color, $lightness:10%);
+      border-color: color.scale($border-color, $lightness: 10%);
     }
 
     // Disable transform on touch devices
@@ -142,11 +142,11 @@
       transform: none;
     }
   }
-  
+
   &:has(input:checked) {
     background-color: rgba($accent-blue, 0.1);
     border-color: rgba($accent-blue, 0.3);
-    
+
     span {
       color: $accent-blue;
     }

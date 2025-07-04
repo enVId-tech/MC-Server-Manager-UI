@@ -44,7 +44,7 @@ const UserSchema: pkg.Schema = new pkg.Schema({
         type: [Number],
         default: [],
         validate: {
-            validator: function(ports: number[]) {
+            validator: function (ports: number[]) {
                 // Check if all ports are in the allowed range (25565-25595)
                 return ports.every(port => port >= 25565 && port <= 25595);
             },
@@ -56,7 +56,7 @@ const UserSchema: pkg.Schema = new pkg.Schema({
 });
 
 // Hash password before saving
-UserSchema.pre('save', async function(next) {
+UserSchema.pre('save', async function (next) {
     if (!this.isModified('password')) return next();
 
     try {
@@ -69,7 +69,7 @@ UserSchema.pre('save', async function(next) {
 });
 
 // Method to compare passwords
-UserSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
+UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
     return bcrypt.compare(candidatePassword, this.password);
 };
 

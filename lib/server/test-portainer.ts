@@ -9,12 +9,12 @@ import { PortainerApiClient } from './portainer';
 
 async function testPortainerConnection() {
     console.log('🧪 Testing Portainer API Connection...');
-    
+
     // Create Portainer client
     const portainer = new PortainerApiClient(
         process.env.PORTAINER_URL || 'https://your-portainer-instance.com:9443',
-        process.env.PORTAINER_API_KEY ? 
-            process.env.PORTAINER_API_KEY : 
+        process.env.PORTAINER_API_KEY ?
+            process.env.PORTAINER_API_KEY :
             {
                 username: process.env.PORTAINER_USERNAME || 'admin',
                 password: process.env.PORTAINER_PASSWORD || 'password'
@@ -76,11 +76,11 @@ async function testPortainerConnection() {
 
 async function testStackCreation() {
     console.log('\n🏗️ Testing Stack Creation...');
-    
+
     const portainer = new PortainerApiClient(
         process.env.PORTAINER_URL || 'https://your-portainer-instance.com:9443',
-        process.env.PORTAINER_API_KEY ? 
-            process.env.PORTAINER_API_KEY : 
+        process.env.PORTAINER_API_KEY ?
+            process.env.PORTAINER_API_KEY :
             {
                 username: process.env.PORTAINER_USERNAME || 'admin',
                 password: process.env.PORTAINER_PASSWORD || 'password'
@@ -148,10 +148,10 @@ volumes:
 async function runTests() {
     console.log('🚀 Starting Portainer API Tests...');
     console.log('='.repeat(50));
-    
+
     await testPortainerConnection();
     await testStackCreation();
-    
+
     console.log('\n' + '='.repeat(50));
     console.log('🏁 All tests completed!');
 }

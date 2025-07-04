@@ -10,7 +10,7 @@ export interface ClientServerConfig {
     serverType: string;
     version: string;
     description: string;
-    
+
     // World settings
     seed?: string;
     gameMode: string;
@@ -18,12 +18,12 @@ export interface ClientServerConfig {
     worldType: string;
     worldGeneration: string;
     worldFile?: File | null;
-    
+
     // Player settings
     maxPlayers: number;
     whitelistEnabled: boolean;
     onlineMode: boolean;
-    
+
     // Game mechanics
     pvpEnabled: boolean;
     commandBlocksEnabled: boolean;
@@ -32,26 +32,26 @@ export interface ClientServerConfig {
     spawnMonstersEnabled: boolean;
     spawnNpcsEnabled: boolean;
     generateStructuresEnabled: boolean;
-    
+
     // Network settings
     port: number;
-    
+
     // Performance settings
     viewDistance: number;
     simulationDistance: number;
     spawnProtection: number;
-    
+
     // Server management
     rconEnabled: boolean;
     rconPassword: string;
     motd: string;
-    
+
     // Resource settings
     resourcePackUrl: string;
     resourcePackSha1: string;
     resourcePackPrompt: string;
     forceResourcePack: boolean;
-    
+
     // Advanced settings
     enableJmxMonitoring: boolean;
     syncChunkWrites: boolean;
@@ -60,10 +60,10 @@ export interface ClientServerConfig {
     hideOnlinePlayers: boolean;
     broadcastRconToOps: boolean;
     broadcastConsoleToOps: boolean;
-    
+
     // Memory and performance
     serverMemory: number;
-    
+
     // Client-specific properties for form handling
     plugins: File[];
     mods: File[];
@@ -120,7 +120,7 @@ export interface MinecraftServerConfig {
     ENABLE_RCON?: boolean;
     RCON_PORT?: number;
     RCON_PASSWORD?: string;
-    
+
     // User Management
     userEmail?: string; // Email address for organizing server files
 }
@@ -364,14 +364,14 @@ export class MinecraftServer {
      */
     private parseVersion(version: string): number {
         if (version === 'LATEST') return 999;
-        
+
         const match = version.match(/^(\d+)\.(\d+)(?:\.(\d+))?/);
         if (!match) return 0;
-        
+
         const major = parseInt(match[1]);
         const minor = parseInt(match[2]);
         const patch = parseInt(match[3] || '0');
-        
+
         return major + (minor / 100) + (patch / 10000);
     }
 
@@ -390,10 +390,10 @@ export class MinecraftServer {
 
         // Get the minecraft environment variable from the local env file
         const minecraftPath: string = process.env.MINECRAFT_PATH || '/minecraft-data';
-        
+
         // Get email from the server config
         const userEmail = this.getUserEmail();
-        
+
         // Create the folder structure: env/email/uniqueId
         const serverBasePath = `${minecraftPath}/${userEmail}/${this.uniqueId}`;
 
@@ -539,23 +539,23 @@ export class MinecraftServer {
     /**
      * Deploy server to Portainer as a stack
      */
-    async deployToPortainer(): Promise<{ 
-        success: boolean; 
-        stackId?: number; 
-        stackName?: string; 
+    async deployToPortainer(): Promise<{
+        success: boolean;
+        stackId?: number;
+        stackName?: string;
         containerId?: string;
         deploymentMethod?: 'stack' | 'container';
-        error?: string 
+        error?: string
     }> {
         try {
             const composeContent = this.generateDockerComposeYaml();
             const stackName = `minecraft-${this.uniqueId}`;
-            
+
             console.log('🚀 Starting Portainer deployment process...');
             console.log(`📋 Stack name: ${stackName}`);
             console.log('🐳 Generated Docker Compose content:');
             console.log(composeContent);
-            
+
             // Create stack payload for Portainer with proper structure
             const stackData = {
                 Name: stackName,
@@ -570,12 +570,12 @@ export class MinecraftServer {
             const response = await portainer.createStackWithVerification(stackData, this.environmentId, 2);
             console.log('✅ Stack creation response received');
             console.log('📥 Portainer response:', JSON.stringify(response, null, 2));
-            
+
             // Extract deployment information
             let stackId: number | undefined;
             let containerId: string | undefined;
             let deploymentMethod: 'stack' | 'container' = 'stack';
-            
+
             if (response) {
                 // Check if this was a direct container creation
                 if (response.method === 'direct-container' && response.containerCreated) {
@@ -593,11 +593,11 @@ export class MinecraftServer {
                     }
                 }
             }
-            
+
             // Verify the deployment was actually successful
             console.log('🔍 Verifying deployment...');
             let deploymentExists = false;
-            
+
             if (deploymentMethod === 'container' && containerId) {
                 // Verify container exists
                 const containerName = stackName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
@@ -606,19 +606,19 @@ export class MinecraftServer {
                 // Verify stack exists
                 deploymentExists = await portainer.verifyStackCreation(stackName, 15000);
             }
-            
+
             if (deploymentExists) {
                 console.log(`🎉 Successfully deployed Minecraft server ${this.serverName} to Portainer as ${deploymentMethod}: ${stackName}`);
-                
+
                 if (deploymentMethod === 'container') {
                     // Get the actual container details for confirmation
                     const containerName = stackName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
                     const createdContainer = await portainer.getContainerByName(containerName, this.environmentId);
                     if (createdContainer) {
                         console.log(`📊 Container details: ID=${createdContainer.Id}, Name=${createdContainer.Names[0]}, State=${createdContainer.State}`);
-                        return { 
-                            success: true, 
-                            containerId: createdContainer.Id, 
+                        return {
+                            success: true,
+                            containerId: createdContainer.Id,
                             stackName: containerName,
                             deploymentMethod: 'container'
                         };
@@ -628,9 +628,9 @@ export class MinecraftServer {
                     const createdStack = await portainer.getStackByName(stackName);
                     if (createdStack) {
                         console.log(`📊 Stack details: ID=${createdStack.Id}, Name=${createdStack.Name}, EndpointId=${createdStack.EndpointId}`);
-                        return { 
-                            success: true, 
-                            stackId: createdStack.Id, 
+                        return {
+                            success: true,
+                            stackId: createdStack.Id,
                             stackName: createdStack.Name,
                             deploymentMethod: 'stack'
                         };
@@ -639,18 +639,18 @@ export class MinecraftServer {
             } else {
                 console.warn(`⚠️ Deployment appeared successful but ${deploymentMethod} not found in verification`);
             }
-            
-            return { 
-                success: true, 
-                stackId, 
+
+            return {
+                success: true,
+                stackId,
                 containerId,
                 stackName,
                 deploymentMethod
             };
-            
+
         } catch (error) {
             console.error('❌ Error deploying to Portainer:', error);
-            
+
             // Try alternative deployment method as fallback
             try {
                 console.log('🔄 Attempting fallback deployment using service creation...');
@@ -659,24 +659,24 @@ export class MinecraftServer {
                     StackFileContent: this.generateDockerComposeYaml(),
                     Env: []
                 };
-                
+
                 const serviceResponse = await portainer.deployToPortainerService(fallbackStackData, this.environmentId);
                 console.log('✅ Fallback service deployment successful:', serviceResponse);
-                return { 
-                    success: true, 
-                    stackName: `minecraft-${this.uniqueId}` 
+                return {
+                    success: true,
+                    stackName: `minecraft-${this.uniqueId}`
                 };
-                
+
             } catch (fallbackError) {
                 console.error('❌ Fallback deployment also failed:', fallbackError);
-                
+
                 // Provide detailed error information
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
                 const fallbackErrorMessage = fallbackError instanceof Error ? fallbackError.message : 'Unknown fallback error';
-                
-                return { 
-                    success: false, 
-                    error: `Primary deployment failed: ${errorMessage}. Fallback also failed: ${fallbackErrorMessage}` 
+
+                return {
+                    success: false,
+                    error: `Primary deployment failed: ${errorMessage}. Fallback also failed: ${fallbackErrorMessage}`
                 };
             }
         }
@@ -688,50 +688,50 @@ export class MinecraftServer {
     async deployToDockerCompose(userEmail?: string): Promise<{ success: boolean; composeFile?: string; error?: string }> {
         try {
             const composeContent = this.generateDockerComposeYaml();
-            
+
             console.log('Generated Docker Compose content for direct deployment:');
             console.log(composeContent);
-            
+
             // Save compose file to WebDAV for manual deployment
             const composeFileName = `docker-compose-${this.uniqueId}.yml`;
-            
+
             // Use provided email or fall back to instance email
             const emailToUse = userEmail || this.getUserEmail();
-            
+
             if (emailToUse && emailToUse !== 'default-user') {
                 // Use the proper folder structure when user email is available
                 const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
                 const userFolder = emailToUse.split('@')[0];
                 const composePath = `${baseServerPath}/${userFolder}/${this.uniqueId}/${composeFileName}`;
-                
+
                 // Ensure the directory exists before uploading
                 const directoryPath = `${baseServerPath}/${userFolder}/${this.uniqueId}`;
                 const directoryExists = await webdavService.exists(directoryPath);
-                
+
                 if (!directoryExists) {
                     console.log(`Creating directory for Docker Compose file: ${directoryPath}`);
                     await webdavService.createDirectory(directoryPath);
                 }
-                
+
                 await webdavService.uploadFile(composePath, composeContent);
-                
-                return { 
-                    success: true, 
+
+                return {
+                    success: true,
                     composeFile: `${directoryPath}/${composeFileName}`,
                 };
             } else {
                 // Fallback: just return the compose content for manual saving
                 console.log('No user email available, returning compose content for manual deployment');
-                return { 
-                    success: true, 
+                return {
+                    success: true,
                     composeFile: composeFileName,
                 };
             }
         } catch (error) {
             console.error('Error creating Docker Compose file:', error);
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
             };
         }
     }
@@ -743,7 +743,7 @@ export class MinecraftServer {
         try {
             const stacks = await portainer.getStacks();
             const serverStack = stacks.find(stack => stack.Name === `minecraft-${this.uniqueId}`);
-            
+
             if (!serverStack) {
                 return { success: false, error: 'Server stack not found' };
             }
@@ -753,9 +753,9 @@ export class MinecraftServer {
             return { success: true };
         } catch (error) {
             console.error('Error starting server:', error);
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
             };
         }
     }
@@ -767,7 +767,7 @@ export class MinecraftServer {
         try {
             const stacks = await portainer.getStacks();
             const serverStack = stacks.find(stack => stack.Name === `minecraft-${this.uniqueId}`);
-            
+
             if (!serverStack) {
                 return { success: false, error: 'Server stack not found' };
             }
@@ -777,9 +777,9 @@ export class MinecraftServer {
             return { success: true };
         } catch (error) {
             console.error('Error stopping server:', error);
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
             };
         }
     }
@@ -791,7 +791,7 @@ export class MinecraftServer {
         try {
             const stacks = await portainer.getStacks();
             const serverStack = stacks.find(stack => stack.Name === `minecraft-${this.uniqueId}`);
-            
+
             if (!serverStack) {
                 return { success: false, error: 'Server stack not found' };
             }
@@ -801,9 +801,9 @@ export class MinecraftServer {
             return { success: true };
         } catch (error) {
             console.error('Error deleting server from Portainer:', error);
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
             };
         }
     }
@@ -811,14 +811,14 @@ export class MinecraftServer {
     /**
      * Get server status from Portainer
      */
-    async getServerStatus(): Promise<{ 
-        running: boolean; 
-        containerInfo?: PortainerContainer; 
-        error?: string 
+    async getServerStatus(): Promise<{
+        running: boolean;
+        containerInfo?: PortainerContainer;
+        error?: string
     }> {
         try {
             const containers = await portainer.getContainers(this.environmentId);
-            const serverContainer = containers.find(container => 
+            const serverContainer = containers.find(container =>
                 container.Names.some(name => name.includes(`mc-${this.uniqueId}`))
             );
 
@@ -832,9 +832,9 @@ export class MinecraftServer {
             };
         } catch (error) {
             console.error('Error getting server status:', error);
-            return { 
-                running: false, 
-                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            return {
+                running: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
             };
         }
     }
@@ -845,7 +845,7 @@ export class MinecraftServer {
     async uploadServerFiles(files: { [path: string]: Buffer | string }, type: 'plugins' | 'mods' | 'world'): Promise<{ success: boolean; error?: string }> {
         try {
             const serverPath = `/servers/${this.uniqueId}`;
-            
+
             // Ensure server directory exists
             await webdavService.createDirectory(serverPath);
 
@@ -870,9 +870,9 @@ export class MinecraftServer {
             return { success: true };
         } catch (error) {
             console.error('Error uploading server files:', error);
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
             };
         }
     }
@@ -883,7 +883,7 @@ export class MinecraftServer {
     async uploadPlugins(plugins: File[]): Promise<{ success: boolean; error?: string }> {
         try {
             const pluginFiles: { [path: string]: Buffer } = {};
-            
+
             for (const plugin of plugins) {
                 const pluginBuffer = Buffer.from(await plugin.arrayBuffer());
                 pluginFiles[`plugins/${plugin.name}`] = pluginBuffer;
@@ -892,9 +892,9 @@ export class MinecraftServer {
             return await this.uploadServerFiles(pluginFiles, 'plugins');
         } catch (error) {
             console.error('Error uploading plugins:', error);
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
             };
         }
     }
@@ -905,7 +905,7 @@ export class MinecraftServer {
     async uploadMods(mods: File[]): Promise<{ success: boolean; error?: string }> {
         try {
             const modFiles: { [path: string]: Buffer } = {};
-            
+
             for (const mod of mods) {
                 const modBuffer = Buffer.from(await mod.arrayBuffer());
                 modFiles[`mods/${mod.name}`] = modBuffer;
@@ -914,9 +914,9 @@ export class MinecraftServer {
             return await this.uploadServerFiles(modFiles, 'mods');
         } catch (error) {
             console.error('Error uploading mods:', error);
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
             };
         }
     }
@@ -933,9 +933,9 @@ export class MinecraftServer {
             return await this.uploadServerFiles(worldFiles, 'world');
         } catch (error) {
             console.error('Error uploading world file:', error);
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
             };
         }
     }
@@ -943,15 +943,15 @@ export class MinecraftServer {
     /**
      * Download server files from WebDAV
      */
-    async downloadServerFiles(paths: string[]): Promise<{ 
-        success: boolean; 
-        files?: { [path: string]: Buffer }; 
-        error?: string 
+    async downloadServerFiles(paths: string[]): Promise<{
+        success: boolean;
+        files?: { [path: string]: Buffer };
+        error?: string
     }> {
         try {
             const serverPath = `/servers/${this.uniqueId}`;
             const files: { [path: string]: Buffer } = {};
-            
+
             for (const relativePath of paths) {
                 const fullPath = `${serverPath}/${relativePath}`;
                 try {
@@ -965,9 +965,9 @@ export class MinecraftServer {
             return { success: true, files };
         } catch (error) {
             console.error('Error downloading server files:', error);
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
             };
         }
     }
@@ -979,20 +979,20 @@ export class MinecraftServer {
         try {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const backupPath = `/servers/${this.uniqueId}/backups/backup-${timestamp}.zip`;
-            
+
             // In a real implementation, you would:
             // 1. Stop the server temporarily
             // 2. Create a zip archive of all server files
             // 3. Upload the backup to WebDAV
             // 4. Restart the server
-            
+
             console.log(`Created backup for ${this.serverName} at ${backupPath}`);
             return { success: true, backupPath };
         } catch (error) {
             console.error('Error creating backup:', error);
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
             };
         }
     }
@@ -1003,7 +1003,7 @@ export class MinecraftServer {
     async getServerLogs(): Promise<{ success: boolean; logs?: string; error?: string }> {
         try {
             const containers = await portainer.getContainers(this.environmentId);
-            const serverContainer = containers.find(container => 
+            const serverContainer = containers.find(container =>
                 container.Names.some(name => name.includes(`mc-${this.uniqueId}`))
             );
 
@@ -1015,9 +1015,9 @@ export class MinecraftServer {
             return { success: true, logs };
         } catch (error) {
             console.error('Error getting server logs:', error);
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
             };
         }
     }
@@ -1031,84 +1031,84 @@ export class MinecraftServer {
      * @returns Object with success status and record ID if successful
      */
     async createDnsRecord(
-        domain: string, 
-        subdomain: string, 
-        target: string, 
+        domain: string,
+        subdomain: string,
+        target: string,
         port: number = 25565
     ): Promise<{ success: boolean; recordId?: string; recordType?: string; error?: string }> {
         try {
             console.log(`Creating DNS record for ${subdomain}.${domain} -> ${target}:${port}`);
-            
+
             // Validate inputs
             if (!domain || !domain.includes('.')) {
-                return { 
-                    success: false, 
-                    error: `Invalid domain format: "${domain}". Expected format like "example.com"` 
+                return {
+                    success: false,
+                    error: `Invalid domain format: "${domain}". Expected format like "example.com"`
                 };
             }
-            
+
             if (!subdomain || subdomain.trim() === '') {
-                return { 
-                    success: false, 
-                    error: 'Subdomain cannot be empty' 
+                return {
+                    success: false,
+                    error: 'Subdomain cannot be empty'
                 };
             }
-            
+
             // Clean up subdomain to ensure it doesn't already contain the domain
             let cleanSubdomain = subdomain;
             if (subdomain.endsWith(`.${domain}`)) {
                 cleanSubdomain = subdomain.replace(`.${domain}`, '');
                 console.log(`⚠️  Subdomain parameter contained domain suffix. Cleaned: "${subdomain}" -> "${cleanSubdomain}"`);
             }
-            
+
             if (!target || target.trim() === '') {
-                return { 
-                    success: false, 
-                    error: 'Target hostname cannot be empty' 
+                return {
+                    success: false,
+                    error: 'Target hostname cannot be empty'
                 };
             }
-            
+
             if (port < 1 || port > 65535) {
-                return { 
-                    success: false, 
-                    error: `Invalid port number: ${port}. Must be between 1 and 65535` 
+                return {
+                    success: false,
+                    error: `Invalid port number: ${port}. Must be between 1 and 65535`
                 };
             }
-            
+
             // Lazy load porkbun to avoid build-time errors with missing environment variables
             const { default: porkbun } = await import('./porkbun');
-            
+
             console.log(`Attempting to create SRV DNS record with validated parameters:`);
             console.log(`- Domain: ${domain}`);
             console.log(`- Subdomain: ${cleanSubdomain}`);
             console.log(`- Target: ${target}`);
             console.log(`- Port: ${port}`);
-            
+
             // Create SRV record only - strict mode with no fallback
             const recordId = await porkbun.createMinecraftSrvRecordStrict(domain, cleanSubdomain, port, target);
-            
+
             console.log(`✅ SRV record created successfully with ID: ${recordId}`);
             console.log(`   Players can connect to: ${cleanSubdomain}.${domain} (port automatically detected)`);
             console.log(`   Full SRV record: _minecraft._tcp.${cleanSubdomain}.${domain}`);
-            
-            return { 
-                success: true, 
+
+            return {
+                success: true,
                 recordId: recordId,
-                recordType: 'SRV' 
+                recordType: 'SRV'
             };
         } catch (error) {
             console.error('Error creating DNS record:', error);
-            
+
             let errorMessage = 'Unknown error occurred';
             if (error instanceof Error) {
                 errorMessage = error.message;
             } else if (typeof error === 'string') {
                 errorMessage = error;
             }
-            
-            return { 
-                success: false, 
-                error: `DNS record creation failed: ${errorMessage}` 
+
+            return {
+                success: false,
+                error: `DNS record creation failed: ${errorMessage}`
             };
         }
     }
@@ -1122,24 +1122,24 @@ export class MinecraftServer {
     async deleteDnsRecord(domain: string, subdomain: string): Promise<{ success: boolean; error?: string }> {
         try {
             console.log(`Deleting DNS SRV record for ${subdomain}.${domain}`);
-            
+
             // Lazy load porkbun to avoid build-time errors with missing environment variables
             const { default: porkbun } = await import('./porkbun');
             const success = await porkbun.deleteMinecraftSrvRecord(domain, subdomain);
-            
+
             if (success) {
                 return { success: true };
             } else {
-                return { 
-                    success: false, 
-                    error: 'Failed to delete DNS record' 
+                return {
+                    success: false,
+                    error: 'Failed to delete DNS record'
                 };
             }
         } catch (error) {
             console.error('Error deleting DNS record:', error);
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
             };
         }
     }
@@ -1164,23 +1164,23 @@ export class MinecraftServer {
     getServerBasePath(): string {
         const minecraftPath = process.env.MINECRAFT_PATH || '/minecraft-data';
         const userEmail = this.getUserEmail();
-        
+
         return `${minecraftPath}/${userEmail}/${this.uniqueId}`;
     }
 
     /**
      * Update user email and regenerate Docker Compose configuration
      */
-    updateUserEmailAndRegenerate(email: string): { 
-        success: boolean; 
-        previousEmail: string; 
+    updateUserEmailAndRegenerate(email: string): {
+        success: boolean;
+        previousEmail: string;
         newEmail: string;
         newBasePath: string;
     } {
         const previousEmail = this.getUserEmail();
         this.setUserEmail(email);
         const newBasePath = this.getServerBasePath();
-        
+
         return {
             success: true,
             previousEmail,
@@ -1195,14 +1195,14 @@ export class MinecraftServer {
  * Factory function to create a new Minecraft server instance
  */
 export function createMinecraftServer(
-    config: MinecraftServerConfig, 
-    serverName: string, 
-    uniqueId: string, 
+    config: MinecraftServerConfig,
+    serverName: string,
+    uniqueId: string,
     environmentId: number = 1,
     userEmail: string
 ): MinecraftServer {
     const server = new MinecraftServer(config, serverName, uniqueId, environmentId);
-    
+
     // Set user email if provided
     if (userEmail) {
         if (userEmail.includes('@')) {
@@ -1214,7 +1214,7 @@ export function createMinecraftServer(
             server.setUserEmail(userEmail);
         }
     }
-    
+
     return server;
 }
 
@@ -1223,14 +1223,14 @@ export function createMinecraftServer(
  * This function would typically integrate with your authentication system
  */
 export async function createMinecraftServerWithAuth(
-    config: MinecraftServerConfig, 
-    serverName: string, 
-    uniqueId: string, 
+    config: MinecraftServerConfig,
+    serverName: string,
+    uniqueId: string,
     environmentId: number = 1,
     authToken?: string
 ): Promise<MinecraftServer> {
     let userEmail = 'default-user';
-    
+
     // Example: Fetch user email from authentication system
     if (authToken) {
         try {
@@ -1241,7 +1241,7 @@ export async function createMinecraftServerWithAuth(
             console.warn('Failed to fetch user email from auth token, using default:', error);
         }
     }
-    
+
     return createMinecraftServer(config, serverName, uniqueId, environmentId, userEmail);
 }
 
@@ -1257,7 +1257,7 @@ export async function createMinecraftServerFromSession(
     req?: Record<string, unknown> // Next.js request object or session data
 ): Promise<MinecraftServer> {
     const userEmail = 'default-user';
-    
+
     if (req) {
         try {
             // Example for Next.js with next-auth
@@ -1265,25 +1265,25 @@ export async function createMinecraftServerFromSession(
             // if (session?.user?.email) {
             //     userEmail = session.user.email;
             // }
-            
+
             // Example for custom auth headers
             // const authHeader = req.headers.authorization;
             // if (authHeader) {
             //     const token = authHeader.replace('Bearer ', '');
             //     userEmail = await verifyTokenAndGetEmail(token);
             // }
-            
+
             // Example for session cookies
             // if (req.session?.user?.email) {
             //     userEmail = req.session.user.email;
             // }
-            
+
             console.log(`Creating server for user: ${userEmail}`);
         } catch (error) {
             console.warn('Failed to extract user email from session:', error);
         }
     }
-    
+
     return createMinecraftServer(config, serverName, uniqueId, environmentId, userEmail);
 }
 
@@ -1300,7 +1300,7 @@ async function fetchUserEmailFromAuth(_authToken: string): Promise<string> {
     // });
     // const user = await response.json();
     // return user.email;
-    
+
     // For now, just return a placeholder
     return 'user@example.com';
 }

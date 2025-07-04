@@ -8,7 +8,7 @@ export interface IServerConfig extends Document {
     serverType: string;
     version: string;
     description: string;
-    
+
     // World settings
     seed: string;
     gameMode: string;
@@ -16,12 +16,12 @@ export interface IServerConfig extends Document {
     worldType: string;
     worldGeneration: string;
     worldFile?: File | null;
-    
+
     // Player settings
     maxPlayers: number;
     whitelistEnabled: boolean;
     onlineMode: boolean;
-    
+
     // Game mechanics
     pvpEnabled: boolean;
     commandBlocksEnabled: boolean;
@@ -30,26 +30,26 @@ export interface IServerConfig extends Document {
     spawnMonstersEnabled: boolean;
     spawnNpcsEnabled: boolean;
     generateStructuresEnabled: boolean;
-    
+
     // Network settings
     port: number;
-    
+
     // Performance settings
     viewDistance: number;
     simulationDistance: number;
     spawnProtection: number;
-    
+
     // Server management
     rconEnabled: boolean;
     rconPassword: string;
     motd: string;
-    
+
     // Resource settings
     resourcePackUrl: string;
     resourcePackSha1: string;
     resourcePackPrompt: string;
     forceResourcePack: boolean;
-    
+
     // Advanced settings
     enableJmxMonitoring: boolean;
     syncChunkWrites: boolean;
@@ -58,10 +58,10 @@ export interface IServerConfig extends Document {
     hideOnlinePlayers: boolean;
     broadcastRconToOps: boolean;
     broadcastConsoleToOps: boolean;
-    
+
     // Memory and performance
     serverMemory: number;
-    
+
     // DNS and networking (optional fields for tracking DNS records)
     dnsRecordId?: string;
     dnsRecordType?: 'SRV' | 'CNAME' | 'A';

@@ -1,5 +1,5 @@
 // Checks if there is an active session token in the request cookies
-import {NextRequest, NextResponse} from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db/dbConnect";
 import jwt from "jsonwebtoken";
 import User from "@/lib/objects/User";

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 
 // Custom body parser utility for Next.js API routes
 export class BodyParser {
-    
+
     /**
      * Parse JSON body with custom configuration
      */
@@ -37,11 +37,11 @@ export class BodyParser {
             const text = await request.text();
             const params = new URLSearchParams(text);
             const result: Record<string, string> = {};
-            
+
             for (const [key, value] of params) {
                 result[key] = value;
             }
-            
+
             return result;
         } catch (error) {
             throw new Error(`Failed to parse URL-encoded body: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -73,7 +73,7 @@ export class BodyParser {
         try {
             const formData = await request.formData();
             const result: Record<string, unknown> = {};
-            
+
             for (const [key, value] of formData.entries()) {
                 if (value instanceof File) {
                     result[key] = {
@@ -86,7 +86,7 @@ export class BodyParser {
                     result[key] = value;
                 }
             }
-            
+
             return result;
         } catch (error) {
             throw new Error(`Failed to parse form data: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -98,7 +98,7 @@ export class BodyParser {
      */
     static async parseAuto(request: NextRequest) {
         const contentType = request.headers.get('content-type') || '';
-        
+
         if (contentType.includes('application/json')) {
             return this.parseJSON(request);
         } else if (contentType.includes('application/x-www-form-urlencoded')) {

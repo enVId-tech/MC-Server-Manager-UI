@@ -1,4 +1,4 @@
-import {NextRequest, NextResponse} from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/dbConnect';
 import jwt from 'jsonwebtoken';
 import User from '@/lib/objects/User';
@@ -15,7 +15,7 @@ export async function PUT(request: NextRequest) {
         const { email, currentPassword, newPassword } = await request.json();
 
         // If the email doesn't exist or the current password and new password are not provided, return an error
-        
+
         // TODO: Change the currentPassword and newPassword to be both !password, however keep it as is for now
         // to prevent password logins from breaking.
         // This is because bcrypt is being weird and not hashing the password correctly.
@@ -137,7 +137,7 @@ export async function DELETE(request: NextRequest) {
         if (!token) {
             return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
         }
-        
+
         // Verify the token
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default');
         if (!decoded) {

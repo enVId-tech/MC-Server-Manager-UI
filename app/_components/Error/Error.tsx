@@ -10,12 +10,12 @@ interface ErrorProps {
   type?: 'error' | 'warning' | 'info';
 }
 
-export default function Error({ 
-  title = 'Error', 
-  message, 
-  details, 
-  onClose, 
-  type = 'error' 
+export default function Error({
+  title = 'Error',
+  message,
+  details,
+  onClose,
+  type = 'error'
 }: ErrorProps) {
   return (
     <div className={`${styles.errorContainer} ${styles[type]}`}>
@@ -28,7 +28,7 @@ export default function Error({
           <p className={styles.errorMessage}>{message}</p>
         </div>
         {onClose && (
-          <button 
+          <button
             className={styles.closeButton}
             onClick={onClose}
             type="button"

@@ -52,18 +52,19 @@
     padding: 1.5rem 1rem;
   }
 
-  &:hover, &.dragActive {
+  &:hover,
+  &.dragActive {
     border-color: $accent-blue;
     background-color: rgba($accent-blue, 0.1);
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1), inset 0 0 10px rgba(0, 0, 0, 0.1);
   }
-  
+
   &:active {
     transform: translateY(0);
     transition: all 0.1s ease;
   }
-  
+
   svg {
     font-size: 2.5rem;
     color: $accent-blue;
@@ -71,7 +72,7 @@
     transition: transform 0.3s ease;
     filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.2));
   }
-  
+
   &:hover svg {
     transform: scale(1.1) translateY(-5px);
   }
@@ -80,13 +81,13 @@
     margin-top: 1rem;
     color: $text-secondary;
     font-family: var(--font-poppins);
-    
+
     strong {
       color: $accent-blue;
       font-weight: 600;
     }
   }
-  
+
   &::after {
     content: '';
     position: absolute;
@@ -98,7 +99,7 @@
     opacity: 0;
     transition: opacity 0.3s ease;
   }
-  
+
   &:hover::after {
     opacity: 0.5;
   }
@@ -123,7 +124,7 @@
     gap: 0.75rem;
     margin-bottom: 0.5rem;
   }
-  
+
   &::before {
     content: '';
     position: absolute;
@@ -134,7 +135,7 @@
     background-color: $accent-blue;
     opacity: 0.7;
   }
-  
+
   &:hover {
     background-color: rgba($dark-bg, 0.8);
     border-color: $border-color;
@@ -182,7 +183,7 @@
     }
 
     &:hover {
-      color: color.scale($accent-red, $lightness:10%);
+      color: color.scale($accent-red, $lightness: 10%);
       background-color: rgba($accent-red, 0.15);
       transform: scale(1.1) rotate(90deg);
 
@@ -191,7 +192,7 @@
         transform: scale(1.05);
       }
     }
-    
+
     &:active {
       transform: scale(0.95);
     }

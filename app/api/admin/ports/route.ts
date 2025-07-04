@@ -9,7 +9,7 @@ import MinecraftServerManager from "@/lib/server/serverManager";
 export async function POST(request: NextRequest) {
     try {
         await dbConnect();
-        
+
         const token = request.cookies.get('sessionToken')?.value;
         if (!token) {
             return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
@@ -29,20 +29,20 @@ export async function POST(request: NextRequest) {
         const { targetUserEmail, ports } = await BodyParser.parseAuto(request);
 
         if (!targetUserEmail || !ports || !Array.isArray(ports)) {
-            return NextResponse.json({ 
-                error: "Target user email and ports array are required." 
+            return NextResponse.json({
+                error: "Target user email and ports array are required."
             }, { status: 400 });
         }
 
         // Validate ports
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const invalidPorts = ports.filter((port: any) => 
+        const invalidPorts = ports.filter((port: any) =>
             typeof port !== 'number' || port < 25565 || port > 25595
         );
-        
+
         if (invalidPorts.length > 0) {
-            return NextResponse.json({ 
-                error: `Invalid ports: ${invalidPorts.join(', ')}. Ports must be numbers between 25565-25595.` 
+            return NextResponse.json({
+                error: `Invalid ports: ${invalidPorts.join(', ')}. Ports must be numbers between 25565-25595.`
             }, { status: 400 });
         }
 
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: result.error }, { status: 400 });
         }
 
-        return NextResponse.json({ 
+        return NextResponse.json({
             message: `Successfully reserved ports ${ports.join(', ')} for user ${targetUserEmail}`,
             success: true
         }, { status: 200 });
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
     try {
         await dbConnect();
-        
+
         const token = request.cookies.get('sessionToken')?.value;
         if (!token) {
             return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
 
         const prohibitedSubdomains = MinecraftServerManager.getProhibitedSubdomains();
 
-        return NextResponse.json({ 
+        return NextResponse.json({
             prohibitedSubdomains,
             count: prohibitedSubdomains.length
         }, { status: 200 });
@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
     try {
         await dbConnect();
-        
+
         const token = request.cookies.get('sessionToken')?.value;
         if (!token) {
             return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
@@ -132,22 +132,22 @@ export async function PUT(request: NextRequest) {
         const { subdomain } = await BodyParser.parseAuto(request);
 
         if (!subdomain || typeof subdomain !== 'string') {
-            return NextResponse.json({ 
-                error: "Subdomain is required and must be a string." 
+            return NextResponse.json({
+                error: "Subdomain is required and must be a string."
             }, { status: 400 });
         }
 
         // Validate subdomain format
         const subdomainRegex = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
         if (!subdomainRegex.test(subdomain)) {
-            return NextResponse.json({ 
-                error: "Invalid subdomain format. Use only lowercase letters, numbers, and hyphens." 
+            return NextResponse.json({
+                error: "Invalid subdomain format. Use only lowercase letters, numbers, and hyphens."
             }, { status: 400 });
         }
 
         MinecraftServerManager.addProhibitedSubdomain(subdomain);
 
-        return NextResponse.json({ 
+        return NextResponse.json({
             message: `Successfully added "${subdomain}" to prohibited subdomains list.`,
             success: true
         }, { status: 200 });

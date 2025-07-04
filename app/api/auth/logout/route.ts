@@ -10,7 +10,7 @@ export async function DELETE(request: NextRequest) { // Removed 'response: NextR
         const token = request.cookies.get('sessionToken')?.value;
 
         if (!token) {
-            return NextResponse.json({message: 'No active session found.'}, {status: 401});
+            return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
         }
 
         // Verify the token
@@ -30,7 +30,7 @@ export async function DELETE(request: NextRequest) { // Removed 'response: NextR
         await user.save();
 
         // Create a new NextResponse and clear the cookie
-        const res = NextResponse.json({message: 'Logout successful.'}, {status: 200});
+        const res = NextResponse.json({ message: 'Logout successful.' }, { status: 200 });
         res.cookies.delete('sessionToken'); // Correctly delete the cookie
 
         return res;

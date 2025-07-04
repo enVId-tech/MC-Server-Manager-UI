@@ -34,7 +34,7 @@ async function getCreateConfig() {
 export async function GET() {
     try {
         console.log("Fetching server configuration options...");
-        
+
         await dbConnect();
         await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -52,7 +52,7 @@ export async function GET() {
         return NextResponse.json(cleanConfig, { status: 200 });
     } catch (error) {
         console.error("Error fetching server configuration options:", error);
-        return NextResponse.json({ 
+        return NextResponse.json({
             error: "Failed to fetch server configuration options.",
             details: error instanceof Error ? error.message : 'Unknown error'
         }, { status: 500 });
@@ -64,7 +64,7 @@ export async function GET() {
 // and only save to database after all steps succeed.
 export async function POST(request: NextRequest) {
     const rollbackActions: (() => Promise<void>)[] = [];
-    
+
     try {
         // Apply body parsing to get the configuration object
         const config = await BodyParser.parseAuto(request);
@@ -140,20 +140,20 @@ export async function POST(request: NextRequest) {
         try {
             const environments = await portainer.getEnvironments();
             if (environments.length === 0) {
-                return NextResponse.json({ 
-                    error: "No Portainer environments found. Server creation requires a valid Portainer environment." 
+                return NextResponse.json({
+                    error: "No Portainer environments found. Server creation requires a valid Portainer environment."
                 }, { status: 503 });
             }
-            
+
             // Use the first available environment (you can modify this logic to select a specific environment)
             const availableEnvironment = environments[0];
             portainer.DefaultEnvironmentId = availableEnvironment.Id;
             portainerEnvironmentId = availableEnvironment.Id;
             console.log(`Using Portainer environment: ${availableEnvironment.Id} (${availableEnvironment.Name})`);
-            
+
         } catch (error) {
             console.error("Failed to connect to Portainer:", error instanceof Error ? error.message : 'Unknown error');
-            return NextResponse.json({ 
+            return NextResponse.json({
                 error: "Unable to connect to Portainer. Server creation requires Portainer to be available.",
                 details: error instanceof Error ? error.message : 'Unknown error'
             }, { status: 503 });
@@ -175,15 +175,15 @@ export async function POST(request: NextRequest) {
 
         // Create server folder structure in WebDAV with JAR download
         const folderCreation = await MinecraftServerManager.createServerFolder(
-            uniqueId, 
-            email, 
-            config.serverType, 
+            uniqueId,
+            email,
+            config.serverType,
             config.version
         );
         if (!folderCreation.success) {
             return NextResponse.json({ error: folderCreation.error }, { status: 500 });
         }
-        
+
         if (folderCreation.rollbackAction) {
             rollbackActions.push(folderCreation.rollbackAction);
         }
@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
             serverType: config.serverType,
             version: config.version,
             description: config.description || '',
-            
+
             // World settings
             seed: config.seed || '',
             gameMode: config.gameMode || 'survival',
@@ -204,12 +204,12 @@ export async function POST(request: NextRequest) {
             worldType: config.worldType || 'default',
             worldGeneration: config.worldGeneration || 'new',
             worldFile: config.worldFile || null,
-            
+
             // Player settings
             maxPlayers: config.maxPlayers || 20,
             whitelistEnabled: config.whitelistEnabled || false,
             onlineMode: config.onlineMode !== undefined ? config.onlineMode : true,
-            
+
             // Game mechanics
             pvpEnabled: config.pvpEnabled !== undefined ? config.pvpEnabled : true,
             commandBlocksEnabled: config.commandBlocksEnabled || false,
@@ -218,26 +218,26 @@ export async function POST(request: NextRequest) {
             spawnMonstersEnabled: config.spawnMonstersEnabled !== undefined ? config.spawnMonstersEnabled : true,
             spawnNpcsEnabled: config.spawnNpcsEnabled !== undefined ? config.spawnNpcsEnabled : true,
             generateStructuresEnabled: config.generateStructuresEnabled !== undefined ? config.generateStructuresEnabled : true,
-            
+
             // Network settings - use allocated ports
             port: allocatedPort,
-            
+
             // Performance settings
             viewDistance: config.viewDistance || 10,
             simulationDistance: config.simulationDistance || 10,
             spawnProtection: config.spawnProtection !== undefined ? config.spawnProtection : 16,
-            
+
             // Server management
             rconEnabled: config.rconEnabled || false,
             rconPassword: config.rconPassword || '',
             motd: config.motd || 'A Minecraft Server',
-            
+
             // Resource settings
             resourcePackUrl: config.resourcePackUrl || '',
             resourcePackSha1: config.resourcePackSha1 || '',
             resourcePackPrompt: config.resourcePackPrompt || '',
             forceResourcePack: config.forceResourcePack || false,
-            
+
             // Advanced settings
             enableJmxMonitoring: config.enableJmxMonitoring || false,
             syncChunkWrites: config.syncChunkWrites !== undefined ? config.syncChunkWrites : true,
@@ -246,7 +246,7 @@ export async function POST(request: NextRequest) {
             hideOnlinePlayers: config.hideOnlinePlayers || false,
             broadcastRconToOps: config.broadcastRconToOps !== undefined ? config.broadcastRconToOps : true,
             broadcastConsoleToOps: config.broadcastConsoleToOps !== undefined ? config.broadcastConsoleToOps : true,
-            
+
             // Memory and performance
             serverMemory: config.serverMemory || 1024
         };
@@ -300,7 +300,7 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error("Error creating server:", error);
-        
+
         // Execute rollback actions if any external resources were created
         if (rollbackActions.length > 0) {
             console.log("Error occurred, executing rollback actions...");

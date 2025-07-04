@@ -27,7 +27,7 @@
     min-width: fit-content;
     min-height: 48px;
   }
-  
+
   .tabIcon {
     font-size: 1.35rem;
     transition: transform 0.3s ease;
@@ -49,7 +49,7 @@
     transition: background-color 0.3s ease;
     z-index: 1;
   }
-  
+
   &::before {
     content: '';
     position: absolute;
@@ -70,7 +70,7 @@
     &:after {
       background-color: $accent-blue;
     }
-    
+
     .tabIcon {
       transform: scale(1.2);
       color: $accent-blue;
@@ -83,23 +83,23 @@
   }
 
   &:hover:not(.active) {
-    color: color.scale($text-secondary, $lightness:25%);
+    color: color.scale($text-secondary, $lightness: 25%);
     transform: translateY(-2px);
-    
+
     // Disable transform on touch devices to prevent layout issues
     @media (max-width: 380px) {
       transform: none;
     }
-    
+
     &:after {
       background-color: rgba($accent-blue, 0.3);
     }
-    
+
     &::before {
       transform: translateY(95%);
       background-color: rgba($accent-blue, 0.05);
     }
-    
+
     .tabIcon {
       transform: translateY(-2px);
 
@@ -108,7 +108,7 @@
       }
     }
   }
-  
+
   &:active:not(.active) {
     transform: translateY(0);
   }

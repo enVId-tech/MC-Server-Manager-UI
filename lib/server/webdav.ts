@@ -12,13 +12,13 @@ import https from "https";
  */
 class WebDavService {
     private client: WebDAVClient;
-    private currentUrl: string;    
-    
+    private currentUrl: string;
+
     public constructor(webdavUrl: string) {
         this.client = this.createClientWithOptions(webdavUrl);
         this.currentUrl = webdavUrl;
-    }    
-    
+    }
+
     private createClientWithOptions(url: string): WebDAVClient {
         return createClient(url, {
             // For development only - disable SSL certificate validation
@@ -56,14 +56,14 @@ class WebDavService {
         try {
             // If a specific file path is provided, use it. Otherwise, use currentUrl
             let pathToFetch: string;
-            
+
             if (filePath) {
                 pathToFetch = filePath;
             } else {
                 // Extract the path from the current URL
                 const baseUrl = process.env.WEBDAV_URL || "https://webdav.etran.dev/";
                 let extractedPath = this.currentUrl;
-                
+
                 if (this.currentUrl.startsWith(baseUrl)) {
                     extractedPath = this.currentUrl.substring(baseUrl.length);
                 } else {
@@ -71,21 +71,21 @@ class WebDavService {
                     const url = new URL(this.currentUrl);
                     extractedPath = url.pathname;
                 }
-                
+
                 pathToFetch = extractedPath;
             }
-            
+
             // Clean up the path: remove double slashes and ensure single leading slash
             pathToFetch = pathToFetch.replace(/\/+/g, '/'); // Replace multiple slashes with single slash
-            
+
             // Ensure the path starts with /
             if (!pathToFetch.startsWith('/')) {
                 pathToFetch = '/' + pathToFetch;
             }
-            
+
             console.log(`Fetching file with path: ${pathToFetch}`);            // Use the webdav client's getFileContents method with the extracted path
             const contents = await this.client.getFileContents(pathToFetch);
-            
+
             // Always return a Buffer for consistency
             if (contents instanceof ArrayBuffer) {
                 return Buffer.from(contents);
@@ -103,7 +103,7 @@ class WebDavService {
             throw error;
         }
     }
-    
+
     /**
      * Upload a file to the WebDAV server.
      * @param filePath - The path to the file on the server.
@@ -118,7 +118,7 @@ class WebDavService {
             // Handle specific WebDAV error codes
             const webdavError = error as { status?: number; response?: { status?: number } };
             const statusCode = webdavError.status || webdavError.response?.status;
-            
+
             if (statusCode === 409 && forceOverwrite) {
                 console.warn(`File conflict at ${filePath}, attempting to delete and retry...`);
                 try {
@@ -129,7 +129,7 @@ class WebDavService {
                         await this.deleteFile(filePath);
                         console.log(`Deleted existing file at ${filePath}, retrying upload...`);
                     }
-                    
+
                     // Retry the upload
                     await this.client.putFileContents(filePath, data, { overwrite: true });
                     console.log(`File uploaded successfully to ${filePath} after conflict resolution`);
@@ -139,7 +139,7 @@ class WebDavService {
                     throw new Error(`WebDAV file conflict could not be resolved: ${retryError instanceof Error ? retryError.message : 'Unknown error'}`);
                 }
             }
-            
+
             console.error(`Error uploading file to ${filePath}:`, error);
             throw error;
         }

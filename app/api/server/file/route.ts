@@ -6,7 +6,7 @@ import webdavService from "@/lib/server/webdav";
 
 export async function GET(request: NextRequest) {
     await dbConnect();
-    
+
     try {
         // Check authentication
         const token = request.cookies.get('sessionToken')?.value;
@@ -36,22 +36,22 @@ export async function GET(request: NextRequest) {
         // Construct WebDAV URL for the server
         const baseWebDavUrl = process.env.WEBDAV_URL || "https://webdav.etran.dev/";
         const serverWebDavUrl = `${baseWebDavUrl}${user.username}/${serverSlug}`;
-        
+
         // Update the WebDAV service URL to point to this specific server
         webdavService.updateUrl(serverWebDavUrl);
 
         try {
             const fileBuffer = await webdavService.getFileContents(filePath);
             const content = fileBuffer.toString('utf-8');
-            
+
             // Check if the content is text-based
             const isTextFile = /\.(txt|properties|json|yml|yaml|log|conf|cfg|ini|md|xml|sh|bat|cmd)$/i.test(filePath) ||
-                              content.split('').every(char => {
-                                  const code = char.charCodeAt(0);
-                                  return code >= 32 || code === 9 || code === 10 || code === 13;
-                              });
+                content.split('').every(char => {
+                    const code = char.charCodeAt(0);
+                    return code >= 32 || code === 9 || code === 10 || code === 13;
+                });
 
-            return NextResponse.json({ 
+            return NextResponse.json({
                 content: isTextFile ? content : 'Binary file - content not displayable',
                 isTextFile,
                 filePath,
@@ -61,24 +61,24 @@ export async function GET(request: NextRequest) {
 
         } catch (webdavError) {
             console.error('WebDAV error:', webdavError);
-            return NextResponse.json({ 
+            return NextResponse.json({
                 message: 'Failed to fetch file content.',
-                error: (webdavError as Error).message 
+                error: (webdavError as Error).message
             }, { status: 500 });
         }
 
     } catch (error) {
         console.error('File content API error:', error);
-        return NextResponse.json({ 
+        return NextResponse.json({
             message: 'An error occurred while fetching file content.',
-            error: (error as Error).message 
+            error: (error as Error).message
         }, { status: 500 });
     }
 }
 
 export async function POST(request: NextRequest) {
     await dbConnect();
-    
+
     try {
         // Check authentication
         const token = request.cookies.get('sessionToken')?.value;
@@ -106,32 +106,32 @@ export async function POST(request: NextRequest) {
         // Construct WebDAV URL for the server
         const baseWebDavUrl = process.env.WEBDAV_URL || "https://webdav.etran.dev/";
         const serverWebDavUrl = `${baseWebDavUrl}${user.username}/${serverSlug}`;
-        
+
         // Update the WebDAV service URL to point to this specific server
         webdavService.updateUrl(serverWebDavUrl);
 
         try {
             await webdavService.uploadFile(filePath, content);
-            
-            return NextResponse.json({ 
+
+            return NextResponse.json({
                 message: 'File saved successfully',
                 filePath,
-                serverSlug 
+                serverSlug
             });
 
         } catch (webdavError) {
             console.error('WebDAV error:', webdavError);
-            return NextResponse.json({ 
+            return NextResponse.json({
                 message: 'Failed to save file.',
-                error: (webdavError as Error).message 
+                error: (webdavError as Error).message
             }, { status: 500 });
         }
 
     } catch (error) {
         console.error('File save API error:', error);
-        return NextResponse.json({ 
+        return NextResponse.json({
             message: 'An error occurred while saving file.',
-            error: (error as Error).message 
+            error: (error as Error).message
         }, { status: 500 });
     }
 }

@@ -27,7 +27,7 @@ export interface SubdomainValidationResult {
 
 // List of prohibited subdomains that only admins can use
 const PROHIBITED_SUBDOMAINS = [
-    'admin', 'api', 'www', 'mail', 'ftp', 'root', 'test', 'dev', 'staging', 
+    'admin', 'api', 'www', 'mail', 'ftp', 'root', 'test', 'dev', 'staging',
     'production', 'prod', 'demo', 'beta', 'alpha', 'support', 'help', 'docs',
     'blog', 'news', 'shop', 'store', 'cdn', 'static', 'assets', 'media',
     'images', 'files', 'download', 'upload', 'backup', 'panel', 'control',
@@ -40,17 +40,17 @@ const PROHIBITED_SUBDOMAINS = [
  * rollback functionality, and subdomain validation
  */
 export class MinecraftServerManager {
-    
+
     /**
      * Validate subdomain against prohibited list and admin status
      */
     static async validateSubdomain(subdomain: string, userEmail: string): Promise<SubdomainValidationResult> {
         try {
             await dbConnect();
-            
+
             // Check if subdomain is in prohibited list
             const isReserved = PROHIBITED_SUBDOMAINS.includes(subdomain.toLowerCase());
-            
+
             if (isReserved) {
                 // Check if user is admin
                 const user = await User.findOne({ email: userEmail });
@@ -62,7 +62,7 @@ export class MinecraftServerManager {
                     };
                 }
             }
-            
+
             // Check if subdomain is already taken
             const existingServer = await Server.findOne({ subdomainName: subdomain });
             if (existingServer) {
@@ -72,7 +72,7 @@ export class MinecraftServerManager {
                     error: `The subdomain "${subdomain}" is already in use.`
                 };
             }
-            
+
             return { isValid: true, isReserved };
         } catch (error) {
             return {
@@ -82,7 +82,7 @@ export class MinecraftServerManager {
             };
         }
     }
-    
+
     /**
      * Add prohibited subdomains to the list (admin only)
      */
@@ -91,45 +91,45 @@ export class MinecraftServerManager {
             PROHIBITED_SUBDOMAINS.push(subdomain.toLowerCase());
         }
     }
-    
+
     /**
      * Get list of prohibited subdomains
      */
     static getProhibitedSubdomains(): string[] {
         return [...PROHIBITED_SUBDOMAINS];
     }
-    
+
     /**
      * Find available port for a user, considering their reserved ports and global port usage
      */
     static async allocatePort(userEmail: string, needsRcon: boolean = false, environmentId: number = 1): Promise<PortAllocationResult> {
         try {
             await dbConnect();
-            
+
             // Get user's reserved ports
             const user = await User.findOne({ email: userEmail });
             if (!user) {
                 return { success: false, error: 'User not found' };
             }
-            
+
             // Get all used ports from Portainer - this is required
             const portainerUsedPorts = await portainer.getUsedPorts(environmentId);
-            
+
             // Get all used ports from MongoDB
             const serversWithPorts = await Server.find({}, { port: 1, rconPort: 1 });
-            const databaseUsedPorts = serversWithPorts.flatMap(server => 
+            const databaseUsedPorts = serversWithPorts.flatMap(server =>
                 [server.port, server.rconPort].filter(port => port !== undefined && port !== null)
             );
-            
+
             // Combine all used ports
             const allUsedPorts = [...new Set([...portainerUsedPorts, ...databaseUsedPorts])];
-            
+
             // If user has reserved ports, try to use them first
             if (user.reservedPorts && user.reservedPorts.length > 0) {
                 for (const reservedPort of user.reservedPorts) {
                     if (!allUsedPorts.includes(reservedPort)) {
                         let rconPort: number | undefined;
-                        
+
                         if (needsRcon) {
                             // Find available RCON port (usually +10 from main port)
                             const potentialRconPort = reservedPort + 10;
@@ -144,22 +144,22 @@ export class MinecraftServerManager {
                                     }
                                 }
                             }
-                            
+
                             if (!rconPort) {
                                 continue; // Try next reserved port if we can't find RCON port
                             }
                         }
-                        
+
                         return { success: true, port: reservedPort, rconPort };
                     }
                 }
             }
-            
+
             // If no reserved ports available, find any available port in the range
             for (let port = 25565; port <= 25595; port++) {
                 if (!allUsedPorts.includes(port)) {
                     let rconPort: number | undefined;
-                    
+
                     if (needsRcon) {
                         // Try port + 10 for RCON
                         const potentialRconPort = port + 10;
@@ -174,16 +174,16 @@ export class MinecraftServerManager {
                                 }
                             }
                         }
-                        
+
                         if (!rconPort) {
                             continue; // Try next port if we can't find RCON port
                         }
                     }
-                    
+
                     return { success: true, port, rconPort };
                 }
             }
-            
+
             return { success: false, error: 'No available ports in the range 25565-25595' };
         } catch (error) {
             return {
@@ -192,31 +192,31 @@ export class MinecraftServerManager {
             };
         }
     }
-    
+
     /**
      * Create server folder structure in WebDAV with rollback on failure
      * Now includes JAR download and proper mods/plugins separation
      */
     static async createServerFolder(
-        uniqueId: string, 
-        userEmail: string, 
-        serverType?: string, 
+        uniqueId: string,
+        userEmail: string,
+        serverType?: string,
         version?: string
     ): Promise<{ success: boolean; rollbackAction?: () => Promise<void>; error?: string }> {
         try {
             // Get base server path from environment variable
             const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
-            
+
             // Extract user folder name from email (part before @)
             const userFolder = userEmail.split('@')[0];
-            
+
             // Construct server path: /minecraft-servers/username/unique-id
             const serverPath = `${baseServerPath}/${userFolder}/${uniqueId}`;
-            
+
             // Determine if server supports mods or plugins
             const isModdedServer = ['FORGE', 'FABRIC', 'NEOFORGE'].includes(serverType?.toUpperCase() || '');
             const isPluginServer = ['SPIGOT', 'PAPER', 'PURPUR', 'BUKKIT'].includes(serverType?.toUpperCase() || '');
-            
+
             // Build folder structure based on server type
             const foldersToCreate = [
                 `${baseServerPath}/${userFolder}`, // User folder
@@ -227,20 +227,20 @@ export class MinecraftServerManager {
                 `${serverPath}/config`,
                 `${serverPath}/logs`
             ];
-            
+
             // Add appropriate folder for mods or plugins (not both)
             if (isModdedServer) {
                 foldersToCreate.push(`${serverPath}/mods`);
             } else if (isPluginServer) {
                 foldersToCreate.push(`${serverPath}/plugins`);
             }
-            
+
             const createdFolders: string[] = [];
             const uploadedFiles: string[] = [];
-            
+
             // Create folders with better error handling
             console.log(`Creating folder structure for server ${uniqueId}...`);
-            
+
             for (const folderPath of foldersToCreate) {
                 try {
                     await webdavService.createDirectory(folderPath);
@@ -258,11 +258,11 @@ export class MinecraftServerManager {
                         // We'll validate at the end
                     }
                 }
-                
+
                 // Small delay to avoid overwhelming the WebDAV server
                 await new Promise(resolve => setTimeout(resolve, 100));
             }
-            
+
             // Verify all critical folders exist
             const criticalFolders = [serverPath, `${serverPath}/data`, `${serverPath}/world`];
             for (const folder of criticalFolders) {
@@ -271,9 +271,9 @@ export class MinecraftServerManager {
                     throw new Error(`Critical folder ${folder} was not created successfully`);
                 }
             }
-            
+
             console.log('✓ All critical folders verified');
-            
+
             // Create initial server files
             const initialFiles: Record<string, string> = {
                 'server.properties': '# Minecraft server properties\n# This file will be automatically generated\n',
@@ -283,14 +283,14 @@ export class MinecraftServerManager {
                 'banned-players.json': '[]',
                 'banned-ips.json': '[]'
             };
-            
+
             // Download and upload server JAR if server type and version are provided
             if (serverType && version) {
                 try {
                     console.log(`Downloading ${serverType} ${version} server JAR...`);
                     const { default: MinecraftServerJarService } = await import('./serverJarDownloader');
                     const jarData = await MinecraftServerJarService.downloadServerJar(serverType, version);
-                    
+
                     const jarPath = `${serverPath}/${jarData.fileName}`;
                     await webdavService.uploadFile(jarPath, jarData.data);
                     uploadedFiles.push(jarPath);
@@ -300,7 +300,7 @@ export class MinecraftServerManager {
                     // Don't fail the entire process for JAR download issues
                 }
             }
-            
+
             // Upload initial configuration files
             for (const [fileName, content] of Object.entries(initialFiles)) {
                 try {
@@ -313,7 +313,7 @@ export class MinecraftServerManager {
                     // Continue with other files
                 }
             }
-            
+
             // Create server type specific files
             if (isModdedServer) {
                 try {
@@ -332,11 +332,11 @@ export class MinecraftServerManager {
                     console.warn('Could not create plugins README:', error);
                 }
             }
-            
+
             // Rollback function to clean up created folders and files
             const rollbackAction = async () => {
                 console.log(`Rolling back server folder creation for ${uniqueId}`);
-                
+
                 // Delete uploaded files
                 for (const filePath of uploadedFiles.reverse()) {
                     try {
@@ -345,7 +345,7 @@ export class MinecraftServerManager {
                         console.warn(`Could not delete file ${filePath} during rollback:`, deleteError);
                     }
                 }
-                
+
                 // Delete created folders (in reverse order)
                 for (const folderPath of createdFolders.reverse()) {
                     try {
@@ -355,10 +355,10 @@ export class MinecraftServerManager {
                     }
                 }
             };
-            
+
             console.log(`✓ Server folder structure created successfully for ${uniqueId}`);
             return { success: true, rollbackAction };
-            
+
         } catch (error) {
             return {
                 success: false,
@@ -366,13 +366,13 @@ export class MinecraftServerManager {
             };
         }
     }
-    
+
     /**
      * Execute rollback actions in reverse order
      */
     static async executeRollback(rollbackActions: (() => Promise<void>)[]): Promise<void> {
         console.log(`Executing ${rollbackActions.length} rollback actions...`);
-        
+
         for (const action of rollbackActions.reverse()) {
             try {
                 await action();
@@ -380,49 +380,49 @@ export class MinecraftServerManager {
                 console.error('Error during rollback action:', error);
             }
         }
-        
+
         console.log('Rollback completed');
     }
-    
+
     /**
      * Reserve ports for a specific user (admin only)
      */
     static async reservePortsForUser(adminEmail: string, targetUserEmail: string, ports: number[]): Promise<{ success: boolean; error?: string }> {
         try {
             await dbConnect();
-            
+
             // Verify admin status
             const admin = await User.findOne({ email: adminEmail });
             if (!admin?.isAdmin) {
                 return { success: false, error: 'Only administrators can reserve ports for users' };
             }
-            
+
             // Validate port range
             const invalidPorts = ports.filter(port => port < 25565 || port > 25595);
             if (invalidPorts.length > 0) {
                 return { success: false, error: `Invalid ports: ${invalidPorts.join(', ')}. Ports must be in range 25565-25595` };
             }
-            
+
             // Check if ports are already in use
             const usedPorts = await portainer.getUsedPorts();
             const serversWithPorts = await Server.find({}, { port: 1, rconPort: 1 });
-            const databaseUsedPorts = serversWithPorts.flatMap(server => 
+            const databaseUsedPorts = serversWithPorts.flatMap(server =>
                 [server.port, server.rconPort].filter(port => port !== undefined && port !== null)
             );
             const allUsedPorts = [...new Set([...usedPorts, ...databaseUsedPorts])];
-            
+
             const conflictingPorts = ports.filter(port => allUsedPorts.includes(port));
             if (conflictingPorts.length > 0) {
                 return { success: false, error: `Ports already in use: ${conflictingPorts.join(', ')}` };
             }
-            
+
             // Update user's reserved ports
             await User.findOneAndUpdate(
                 { email: targetUserEmail },
                 { $addToSet: { reservedPorts: { $each: ports } } },
                 { upsert: false }
             );
-            
+
             return { success: true };
         } catch (error) {
             return {

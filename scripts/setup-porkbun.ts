@@ -12,7 +12,7 @@ dotenv.config();
 
 function checkPorkbunCredentials() {
     console.log('🔧 Porkbun API Setup Helper');
-    console.log('=' .repeat(50));
+    console.log('='.repeat(50));
 
     const apiKey = process.env.PORKBUN_API_KEY;
     const secretKey = process.env.PORKBUN_SECRET_KEY;
@@ -21,10 +21,10 @@ function checkPorkbunCredentials() {
     console.log(`PORKBUN_API_KEY: ${apiKey || '❌ NOT SET'}`);
     console.log(`PORKBUN_SECRET_KEY: ${secretKey || '❌ NOT SET'}`);
 
-    const hasValidCredentials = 
-        apiKey && 
-        secretKey && 
-        apiKey.startsWith('pk1_') && 
+    const hasValidCredentials =
+        apiKey &&
+        secretKey &&
+        apiKey.startsWith('pk1_') &&
         secretKey.startsWith('sk1_') &&
         apiKey !== 'pk1_your_actual_porkbun_api_key_here' &&
         secretKey !== 'sk1_your_actual_porkbun_secret_key_here';
@@ -76,7 +76,7 @@ function checkPorkbunCredentials() {
 
 function updateEnvFile() {
     const envPath = join(process.cwd(), '.env');
-    
+
     console.log('\n🛠️  Interactive .env Setup (Optional)');
     console.log('-'.repeat(40));
     console.log('You can manually edit the .env file or use this interactive setup.');

@@ -130,7 +130,7 @@ export default function ServerGenerator() {
     details?: string;
     type?: 'error' | 'warning' | 'info';
   } | null>(null);
-    
+
   const fetchServerSettings = async () => {
     try {
       const response = await fetch('/api/server/config', {
@@ -334,7 +334,7 @@ export default function ServerGenerator() {
       // Step 1: Create server in database
       setCreationProgress(5);
       setCurrentStep('Creating server record in database...');
-      
+
       const response = await fetch('/api/server/config', {
         method: 'POST',
         headers: {
@@ -353,11 +353,11 @@ export default function ServerGenerator() {
         router.push('/auth/login');
         return;
       }
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         setIsCreating(false);
-        
+
         // Handle specific errors
         if (errorData.details && errorData.details.includes('E11000 duplicate key error')) {
           if (errorData.details.includes('email_1')) {
@@ -391,7 +391,7 @@ export default function ServerGenerator() {
         }
         return;
       }
-      
+
       const data = await response.json();
       setServerId(data.serverId);
       setServerUniqueId(data.uniqueId);
@@ -399,7 +399,7 @@ export default function ServerGenerator() {
       // Step 2: Start deployment process
       setCreationProgress(10);
       setCurrentStep('Starting deployment process...');
-      
+
       const deployResponse = await fetch('/api/server/deploy', {
         method: 'POST',
         headers: {
@@ -443,13 +443,13 @@ export default function ServerGenerator() {
     const poll = async () => {
       try {
         const statusResponse = await fetch(`/api/server/deploy?serverId=${serverId}`);
-        
+
         if (!statusResponse.ok) {
           throw new globalThis.Error('Failed to get deployment status');
         }
 
         const status = await statusResponse.json();
-        
+
         // Update UI with real deployment status
         setCreationProgress(status.progress);
         setCurrentStep(status.currentStep);
@@ -457,7 +457,7 @@ export default function ServerGenerator() {
 
         if (status.status === 'completed') {
           setCreationSuccess(true);
-          
+
           // Redirect after 5 seconds
           setTimeout(() => {
             router.push('/manager/dashboard');
@@ -508,17 +508,17 @@ export default function ServerGenerator() {
     // Start polling
     setTimeout(poll, 2000); // Start after 2 seconds
   };
-  
+
   // Retry deployment function
   const retryDeployment = async () => {
     if (!serverId) return;
-    
+
     setError(null);
     setIsCreating(true);
     setCanRetryDeployment(false);
     setCreationProgress(0);
     setCurrentStep('Retrying deployment...');
-    
+
     try {
       const deployResponse = await fetch('/api/server/deploy', {
         method: 'POST',
@@ -574,7 +574,7 @@ export default function ServerGenerator() {
                   Please wait while we set up your Minecraft server...
                 </p>
                 <div className={styles.progressBar}>
-                  <div 
+                  <div
                     className={styles.progressFill}
                     style={{ width: `${creationProgress}%` }}
                   ></div>
@@ -584,18 +584,17 @@ export default function ServerGenerator() {
                 <div className={styles.creationSteps}>
                   {deploymentSteps.length > 0 ? (
                     deploymentSteps.map((step) => (
-                      <div 
+                      <div
                         key={step.id}
-                        className={`${styles.step} ${
-                          step.status === 'completed' ? styles.completed : 
-                          step.status === 'running' ? styles.running : 
-                          step.status === 'failed' ? styles.failed : ''
-                        }`}
+                        className={`${styles.step} ${step.status === 'completed' ? styles.completed :
+                            step.status === 'running' ? styles.running :
+                              step.status === 'failed' ? styles.failed : ''
+                          }`}
                       >
                         <span className={styles.stepIcon}>
-                          {step.status === 'completed' ? '✓' : 
-                           step.status === 'running' ? '⟳' : 
-                           step.status === 'failed' ? '✗' : '○'}
+                          {step.status === 'completed' ? '✓' :
+                            step.status === 'running' ? '⟳' :
+                              step.status === 'failed' ? '✗' : '○'}
                         </span>
                         <span className={styles.stepName}>{step.name}</span>
                         {step.message && step.message !== step.name && (
@@ -1003,14 +1002,14 @@ export default function ServerGenerator() {
           </div>
 
           {error && (
-          <Error
-            title={error.title}
-            message={error.message}
-            details={error.details}
-            type={error.type}
-            onClose={() => setError(null)}
-          />
-        )}
+            <Error
+              title={error.title}
+              message={error.message}
+              details={error.details}
+              type={error.type}
+              onClose={() => setError(null)}
+            />
+          )}
 
           {fullyLoaded && (
             <div className={styles.actionButtons}>
@@ -1020,13 +1019,13 @@ export default function ServerGenerator() {
             </div>
           )}
         </form>
-        
+
         {/* Retry Deployment Button */}
         {canRetryDeployment && (
           <div className={styles.retrySection}>
             <h3>Deployment Failed</h3>
             <p>The server was created but deployment failed. You can retry the deployment process.</p>
-            <button 
+            <button
               onClick={retryDeployment}
               className={`${styles.button} ${styles.secondary}`}
               disabled={isCreating}

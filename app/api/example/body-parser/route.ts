@@ -17,13 +17,13 @@ export async function POST(request: NextRequest) {
         // Option 4: Parse URL-encoded data
         // const body = await BodyParser.parseUrlEncoded(request);
 
-        return NextResponse.json({ 
-            message: 'Body parsed successfully', 
-            data: body 
+        return NextResponse.json({
+            message: 'Body parsed successfully',
+            data: body
         });
     } catch (error) {
         console.error('Body parsing error:', error);
-        return NextResponse.json({ 
+        return NextResponse.json({
             error: 'Failed to parse request body',
             details: error instanceof Error ? error.message : 'Unknown error'
         }, { status: 400 });

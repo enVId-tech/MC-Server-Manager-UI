@@ -6,7 +6,7 @@ import webdavService from "@/lib/server/webdav";
 
 export async function GET(request: NextRequest) {
     await dbConnect();
-    
+
     try {
         // Check authentication
         const token = request.cookies.get('sessionToken')?.value;
@@ -36,13 +36,13 @@ export async function GET(request: NextRequest) {
         // Construct WebDAV URL for the server
         const baseWebDavUrl = process.env.WEBDAV_URL || "https://webdav.etran.dev/";
         const serverWebDavUrl = `${baseWebDavUrl}${user.username}/${serverSlug}`;
-        
+
         // Update the WebDAV service URL to point to this specific server
         webdavService.updateUrl(serverWebDavUrl);
 
         try {
             const contents = await webdavService.getDirectoryContents(path);
-            
+
             // Transform the WebDAV response to match our interface
             const files = (contents as Record<string, unknown>[]).map((item) => ({
                 name: item.basename as string,
@@ -53,25 +53,25 @@ export async function GET(request: NextRequest) {
                 mimeType: (item.mime as string) || 'application/octet-stream'
             }));
 
-            return NextResponse.json({ 
+            return NextResponse.json({
                 files,
                 currentPath: path,
-                serverSlug 
+                serverSlug
             });
 
         } catch (webdavError) {
             console.error('WebDAV error:', webdavError);
-            return NextResponse.json({ 
+            return NextResponse.json({
                 message: 'Failed to fetch server files.',
-                error: (webdavError as Error).message 
+                error: (webdavError as Error).message
             }, { status: 500 });
         }
 
     } catch (error) {
         console.error('Server files API error:', error);
-        return NextResponse.json({ 
+        return NextResponse.json({
             message: 'An error occurred while fetching server files.',
-            error: (error as Error).message 
+            error: (error as Error).message
         }, { status: 500 });
     }
 }

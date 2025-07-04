@@ -97,7 +97,7 @@ export async function DELETE(request: NextRequest) {
         if (server.dnsRecord && server.dnsRecord.domain && server.dnsRecord.subdomain) {
             try {
                 console.log(`Deleting DNS record for ${server.dnsRecord.subdomain}.${server.dnsRecord.domain}`);
-                
+
                 // Create a temporary MinecraftServer instance for DNS operations
                 const tempConfig = convertClientConfigToServerConfig({
                     name: server.serverName,
@@ -169,7 +169,7 @@ export async function DELETE(request: NextRequest) {
             portainer.DefaultEnvironmentId = (await portainer.getEnvironments()).pop()?.Id || null;
             const stacks = await portainer.getStacks();
             const serverStack = stacks.find(stack => stack.Name === server.uniqueId);
-            
+
             if (serverStack) {
                 console.log("Deleting Portainer stack:", serverStack.Name);
                 await portainer.deleteStack(serverStack.Id);
@@ -184,7 +184,7 @@ export async function DELETE(request: NextRequest) {
         await Server.deleteOne({ uniqueId: serverId });
         console.log("Server deleted successfully from database");
 
-        return NextResponse.json({ 
+        return NextResponse.json({
             message: 'Server deleted successfully.',
             details: {
                 dnsRecordDeleted: !!server.dnsRecord,

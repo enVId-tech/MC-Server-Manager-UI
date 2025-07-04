@@ -1,4 +1,4 @@
-import {NextResponse} from 'next/server';
+import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/dbConnect';
 import User from '@/lib/objects/User';
 import bcrypt from 'bcryptjs';

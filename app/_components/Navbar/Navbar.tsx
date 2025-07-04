@@ -115,15 +115,15 @@ export default function Navbar() {
                         MC Server Manager
                     </Link>
                 </div>
-                
-                <button 
+
+                <button
                     className={styles.mobileToggle}
                     onClick={toggleMobileMenu}
                     aria-label="Toggle mobile menu"
                 >
                     {isMobileMenuOpen ? <HiX /> : <HiMenu />}
                 </button>
-                
+
                 <nav className={`${styles.links} ${isMobileMenuOpen ? styles.mobileOpen : ''}`}>
                     {isLoading ? (
                         <span className={styles.link}>Loading...</span>

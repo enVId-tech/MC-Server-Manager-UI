@@ -28,21 +28,21 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({
-                                       children,
-                                   }: {
+    children,
+}: {
     children: React.ReactNode;
 }) {
     const fontClasses = `${poppins.variable} ${pressStart2P.variable}`;
 
     return (
         <html lang="en">
-        <body className={fontClasses}>
-        <NotificationProvider>
-            <Navbar />
-            {children}
-            <NotificationSystem />
-        </NotificationProvider>
-        </body>
+            <body className={fontClasses}>
+                <NotificationProvider>
+                    <Navbar />
+                    {children}
+                    <NotificationSystem />
+                </NotificationProvider>
+            </body>
         </html>
     );
 }

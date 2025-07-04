@@ -13,12 +13,12 @@
   padding-top: 8rem;
   background-position: center;
   background-size: cover;
-  
+
   @media (min-width: $mobile) {
     padding: 1.5rem 0.75rem;
     padding-top: 8.5rem;
   }
-  
+
   @media (min-width: $tablet) {
     padding: 2rem 1rem;
     padding-top: 9rem;
@@ -35,11 +35,11 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   border: 1px solid $border-color;
   border-radius: 12px;
-  
+
   @media (min-width: $mobile) {
     padding: 1.25rem;
   }
-  
+
   @media (min-width: $tablet) {
     padding: 1.5rem 1.5rem 0 1.5rem;
   }
@@ -50,11 +50,11 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
-  
+
   @media (min-width: $mobile) {
     margin-bottom: 2rem;
   }
-  
+
   @media (min-width: $tablet) {
     margin-bottom: 2.5rem;
   }
@@ -72,11 +72,11 @@
   color: $text-primary;
   font-family: var(--font-press-start);
   line-height: 1.2;
-  
+
   @media (min-width: $mobile) {
     font-size: 1.8rem;
   }
-  
+
   @media (min-width: $tablet) {
     font-size: 2.2rem;
   }
@@ -88,12 +88,12 @@
   color: $text-primary;
   font-family: var(--font-press-start);
   line-height: 1.2;
-  
+
   @media (min-width: $mobile) {
     font-size: 1.2rem;
     margin-bottom: 1.25rem;
   }
-  
+
   @media (min-width: $tablet) {
     font-size: 1.4rem;
     margin-bottom: 1.5rem;
@@ -107,11 +107,11 @@
   background-color: $dark-card;
   border-radius: 8px;
   color: $text-secondary;
-  
+
   @media (min-width: $mobile) {
     padding: 2.5rem 1.5rem;
   }
-  
+
   @media (min-width: $tablet) {
     padding: 3rem;
     margin-bottom: 2rem;
@@ -123,12 +123,12 @@
   grid-template-columns: 1fr;
   gap: 1rem;
   margin-bottom: 1.5rem;
-  
+
   @media (min-width: $mobile) {
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1.25rem;
   }
-  
+
   @media (min-width: $tablet) {
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 1.5rem;
@@ -144,7 +144,7 @@
   transition: all 0.3s ease;
   cursor: pointer;
   position: relative;
-  
+
   @media (min-width: $mobile) {
     padding: 1.5rem;
   }
@@ -153,16 +153,16 @@
     transform: translateY(-5px);
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
     border-color: $accent-blue;
-    
+
     .serverName {
       color: $accent-blue;
     }
-    
+
     &::before {
       opacity: 0.05;
     }
   }
-  
+
   &::before {
     content: '';
     position: absolute;
@@ -184,7 +184,7 @@
   margin: 0.5rem 0 1rem;
   color: $text-primary;
   transition: color 0.2s ease;
-  
+
   @media (min-width: $mobile) {
     font-size: 1.25rem;
   }
@@ -194,7 +194,7 @@
   color: $text-secondary;
   font-size: 0.85rem;
   margin-bottom: 1.25rem;
-  
+
   @media (min-width: $mobile) {
     font-size: 0.95rem;
     margin-bottom: 1.5rem;
@@ -223,6 +223,7 @@
     background-color: rgba($accent-green, 0.15);
     color: color.scale($accent-green, $lightness: 20%);
   }
+
   &.offline {
     background-color: rgba($accent-red, 0.15);
     color: color.scale($accent-red, $lightness: 20%);
@@ -301,7 +302,8 @@
     color: $text-primary;
   }
 
-  input, select {
+  input,
+  select {
     width: 100%;
     padding: 0.75rem 1rem;
     border-radius: 6px;
@@ -457,7 +459,7 @@
   .button {
     flex: 1;
     padding: 0.875rem 1.5rem;
-    
+
     @media (max-width: $mobile) {
       width: 100%;
     }
@@ -465,7 +467,7 @@
     &:disabled {
       opacity: 0.5;
       cursor: not-allowed;
-      
+
       &:hover {
         transform: none;
         box-shadow: none;
@@ -477,7 +479,7 @@
 // Server Deletion Loading/Success States
 .deletingIcon {
   margin-bottom: 2rem;
-  
+
   .spinner {
     width: 60px;
     height: 60px;
@@ -504,7 +506,7 @@
   border-radius: 4px;
   transition: width 0.5s ease;
   position: relative;
-  
+
   &::after {
     content: '';
     position: absolute;
@@ -512,12 +514,10 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.3),
-      transparent
-    );
+    background: linear-gradient(90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent);
     animation: shimmer 2s infinite;
   }
 }
@@ -540,7 +540,7 @@
   font-size: 0.95rem;
   opacity: 0.5;
   transition: all 0.3s ease;
-  
+
   &.completed {
     color: $accent-green;
     opacity: 1;
@@ -550,7 +550,7 @@
 
 .successIcon {
   margin-bottom: 2rem;
-  
+
   .checkmark {
     width: 80px;
     height: 80px;
@@ -602,7 +602,7 @@
   gap: 0.75rem;
   cursor: pointer;
   margin-bottom: 1rem;
-  
+
   input[type="checkbox"] {
     width: 18px;
     height: 18px;
@@ -623,13 +623,13 @@
   color: white;
   border: 2px solid $accent-blue;
   margin-top: 0.5rem;
-  
+
   &:hover:not(:disabled) {
     background: linear-gradient(135deg, color.adjust($accent-blue, $lightness: 10%), color.adjust($accent-blue, $lightness: 25%));
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba($accent-blue, 0.3);
   }
-  
+
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -640,8 +640,13 @@
 
 // Animations
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes checkmarkPop {
@@ -649,9 +654,11 @@
     transform: scale(0);
     opacity: 0;
   }
+
   50% {
     transform: scale(1.2);
   }
+
   100% {
     transform: scale(1);
     opacity: 1;
@@ -662,6 +669,7 @@
   0% {
     transform: translateX(-100%);
   }
+
   100% {
     transform: translateX(100%);
   }
@@ -681,7 +689,7 @@
   transform: translateY(-5px);
   transition: all 0.3s ease;
   pointer-events: none;
-  
+
   .serverCard:hover & {
     opacity: 1;
     transform: translateY(0);

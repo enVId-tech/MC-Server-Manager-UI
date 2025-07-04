@@ -83,7 +83,7 @@ async function testDnsOperations() {
 
     } catch (error) {
         console.error('\n❌ DNS test failed:', error);
-        
+
         if (error instanceof Error && error.message.includes('API Key')) {
             console.log('\n🔧 Setup Required:');
             console.log('   1. Sign up for a Porkbun account: https://porkbun.com/');

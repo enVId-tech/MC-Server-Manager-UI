@@ -403,7 +403,7 @@ export default function AccountPage() {
                                                 <p>Permanently delete your account and all associated data</p>
                                             </div>
                                             {fullyLoaded && (
-                                                <button 
+                                                <button
                                                     className={styles.dangerButton}
                                                     onClick={() => setShowDeleteModal(true)}
                                                 >
@@ -425,8 +425,8 @@ export default function AccountPage() {
                         <div className={styles.deleteModal} onClick={(e) => e.stopPropagation()}>
                             <div className={styles.modalHeader}>
                                 <h2>⚠️ Delete Account</h2>
-                                <button 
-                                    className={styles.closeButton} 
+                                <button
+                                    className={styles.closeButton}
                                     onClick={closeDeleteModal}
                                     aria-label="Close modal"
                                 >
@@ -464,9 +464,9 @@ export default function AccountPage() {
                                                 type="email"
                                                 id="confirmEmail"
                                                 value={deleteConfirmation.email}
-                                                onChange={(e) => setDeleteConfirmation(prev => ({ 
-                                                    ...prev, 
-                                                    email: e.target.value 
+                                                onChange={(e) => setDeleteConfirmation(prev => ({
+                                                    ...prev,
+                                                    email: e.target.value
                                                 }))}
                                                 placeholder="Enter your email address"
                                                 className={styles.confirmInput}
@@ -481,9 +481,9 @@ export default function AccountPage() {
                                                 type="password"
                                                 id="confirmPassword"
                                                 value={deleteConfirmation.password}
-                                                onChange={(e) => setDeleteConfirmation(prev => ({ 
-                                                    ...prev, 
-                                                    password: e.target.value 
+                                                onChange={(e) => setDeleteConfirmation(prev => ({
+                                                    ...prev,
+                                                    password: e.target.value
                                                 }))}
                                                 placeholder="Enter your password"
                                                 className={styles.confirmInput}
@@ -498,9 +498,9 @@ export default function AccountPage() {
                                                 type="text"
                                                 id="confirmText"
                                                 value={deleteConfirmation.confirmText}
-                                                onChange={(e) => setDeleteConfirmation(prev => ({ 
-                                                    ...prev, 
-                                                    confirmText: e.target.value 
+                                                onChange={(e) => setDeleteConfirmation(prev => ({
+                                                    ...prev,
+                                                    confirmText: e.target.value
                                                 }))}
                                                 placeholder="Type: DELETE MY ACCOUNT"
                                                 className={styles.confirmInput}
@@ -515,23 +515,23 @@ export default function AccountPage() {
                                         </p>
                                         <p className={styles.confirmationNote}>
                                             You also understand that if you wish to create a new account in the future, you will need to wait for site approval and verification before proceeding.
-                                                </p>
+                                        </p>
                                     </div>
                                 </div>
 
                                 <div className={styles.modalActions}>
-                                    <button 
-                                        className={styles.cancelButton} 
+                                    <button
+                                        className={styles.cancelButton}
                                         onClick={closeDeleteModal}
                                         disabled={isDeleting}
                                     >
                                         Cancel
                                     </button>
-                                    <button 
+                                    <button
                                         className={`${styles.confirmDeleteButton} ${isDeleting ? styles.loading : ''}`}
                                         onClick={handleDeleteAccount}
                                         disabled={
-                                            isDeleting || 
+                                            isDeleting ||
                                             deleteConfirmation.email !== userProfile.email ||
                                             deleteConfirmation.confirmText !== 'DELETE MY ACCOUNT' ||
                                             !deleteConfirmation.password

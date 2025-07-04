@@ -9,7 +9,7 @@ import portainer from "@/lib/server/portainer";
 export async function GET(request: NextRequest) {
     try {
         await dbConnect();
-        
+
         const token = request.cookies.get('sessionToken')?.value;
         if (!token) {
             return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
@@ -37,13 +37,13 @@ export async function GET(request: NextRequest) {
         );
 
         if (!portAllocation.success) {
-            return NextResponse.json({ 
+            return NextResponse.json({
                 error: portAllocation.error,
                 available: false
             }, { status: 400 });
         }
 
-        return NextResponse.json({ 
+        return NextResponse.json({
             available: true,
             port: portAllocation.port,
             rconPort: portAllocation.rconPort,
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         await dbConnect();
-        
+
         const token = request.cookies.get('sessionToken')?.value;
         if (!token) {
             return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
@@ -84,15 +84,15 @@ export async function POST(request: NextRequest) {
         const { subdomain } = await request.json();
 
         if (!subdomain || typeof subdomain !== 'string') {
-            return NextResponse.json({ 
-                error: "Subdomain is required and must be a string." 
+            return NextResponse.json({
+                error: "Subdomain is required and must be a string."
             }, { status: 400 });
         }
 
         // Validate subdomain
         const validation = await MinecraftServerManager.validateSubdomain(subdomain, user.email);
 
-        return NextResponse.json({ 
+        return NextResponse.json({
             isValid: validation.isValid,
             isReserved: validation.isReserved,
             error: validation.error,

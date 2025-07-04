@@ -5,7 +5,7 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const serverSlug = searchParams.get('server');
         const path = searchParams.get('path') || '/';
-        
+
         // Return mock data for testing
         const mockFiles = [
             { name: 'server.properties', type: 'file', path: '/server.properties', size: 1024 },
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
         console.log('Test API called with:', { serverSlug, path });
 
-        return NextResponse.json({ 
+        return NextResponse.json({
             files: mockFiles,
             currentPath: path,
             serverSlug,
@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
 
     } catch (error) {
         console.error('Test API error:', error);
-        return NextResponse.json({ 
+        return NextResponse.json({
             message: 'Test API error',
-            error: (error as Error).message 
+            error: (error as Error).message
         }, { status: 500 });
     }
 }

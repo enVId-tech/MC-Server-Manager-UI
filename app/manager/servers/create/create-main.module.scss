@@ -11,7 +11,7 @@
   background-position: center;
   background-blend-mode: overlay;
   position: relative;
-  
+
   // Enable smooth scrolling and improve touch performance
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
@@ -20,7 +20,7 @@
   @media (max-width: 380px) {
     padding: 1rem 0.5rem;
     padding-top: 8rem;
-    
+
     // Prevent horizontal scrolling issues
     overflow-x: hidden;
     width: 100%;
@@ -98,7 +98,7 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   position: relative;
   overflow: hidden;
-  
+
   // CSS Custom Properties for dynamic theming
   --select-bg: #{rgba($dark-bg, 0.8)};
   --select-border: #{$border-color};
@@ -106,7 +106,7 @@
   --select-text: #{$text-primary};
   --select-hover-bg: #{rgba($dark-bg, 0.85)};
   --select-focus-bg: #{rgba($dark-bg, 0.95)};
-  
+
   &::before {
     content: '';
     position: absolute;
@@ -114,7 +114,7 @@
     left: 0;
     width: 100%;
     height: 4px;
-    background: linear-gradient(90deg, $accent-blue, color.scale($accent-blue, $lightness:-20%));
+    background: linear-gradient(90deg, $accent-blue, color.scale($accent-blue, $lightness: -20%));
   }
 
   // Mobile optimizations
@@ -176,7 +176,7 @@
       font-size: 0.9rem;
       margin-bottom: 0.4rem;
     }
-    
+
     // Add a subtle accent for required fields
     &[for$="name"]::after {
       content: ' *';
@@ -185,7 +185,8 @@
     }
   }
 
-  input, textarea {
+  input,
+  textarea {
     width: 100%;
     padding: 0.75rem 1rem;
     border-radius: 6px;
@@ -210,7 +211,7 @@
       outline: none;
       box-shadow: 0 0 0 2px rgba($accent-blue, 0.3);
     }
-    
+
     &:hover:not(:focus) {
       border-color: color.scale($border-color, $lightness: 10%);
     }
@@ -224,13 +225,13 @@
     border-radius: 6px;
     border: 1px solid $border-color;
     background-color: rgba($dark-bg, 0.8);
-    background-image: 
+    background-image:
       linear-gradient(45deg, transparent 50%, $accent-blue 50%),
       linear-gradient(135deg, $accent-blue 50%, transparent 50%);
-    background-position: 
+    background-position:
       calc(100% - 15px) calc(1em + 2px),
       calc(100% - 10px) calc(1em + 2px);
-    background-size: 
+    background-size:
       5px 5px,
       5px 5px;
     background-repeat: no-repeat;
@@ -244,29 +245,29 @@
     -moz-appearance: none;
     min-height: 44px;
     box-sizing: border-box;
-    
+
     &:focus {
       border-color: $accent-blue;
       outline: none;
-      box-shadow: 
+      box-shadow:
         0 0 0 2px rgba($accent-blue, 0.3),
         inset 0 1px 3px rgba(0, 0, 0, 0.2);
       background-color: rgba($dark-bg, 0.95);
-      
-      background-image: 
-        linear-gradient(45deg, transparent 50%, color.scale($accent-blue, $lightness:15%) 50%),
-        linear-gradient(135deg, color.scale($accent-blue, $lightness:15%) 50%, transparent 50%);
+
+      background-image:
+        linear-gradient(45deg, transparent 50%, color.scale($accent-blue, $lightness: 15%) 50%),
+        linear-gradient(135deg, color.scale($accent-blue, $lightness: 15%) 50%, transparent 50%);
     }
-    
+
     &:hover:not(:focus) {
-      border-color: color.scale($border-color, $lightness:15%);
+      border-color: color.scale($border-color, $lightness: 15%);
       background-color: rgba($dark-bg, 0.85);
       transform: translateY(-1px);
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      
-      background-image: 
-        linear-gradient(45deg, transparent 50%, color.scale($accent-blue, $lightness:10%) 50%),
-        linear-gradient(135deg, color.scale($accent-blue, $lightness:10%) 50%, transparent 50%);
+
+      background-image:
+        linear-gradient(45deg, transparent 50%, color.scale($accent-blue, $lightness: 10%) 50%),
+        linear-gradient(135deg, color.scale($accent-blue, $lightness: 10%) 50%, transparent 50%);
     }
 
     // Mobile-specific dropdown enhancements
@@ -274,9 +275,9 @@
       padding: 0.85rem 1rem;
       padding-right: 2.5rem;
       font-size: 16px; // Prevent iOS zoom
-      
+
       &:focus {
-        box-shadow: 
+        box-shadow:
           0 0 0 3px rgba($accent-blue, 0.4),
           0 4px 12px rgba(0, 0, 0, 0.15);
         transform: translateY(-2px);
@@ -290,14 +291,14 @@
       font-size: 16px; // Prevent iOS zoom
       border-radius: 6px;
       min-height: 48px;
-      
+
       &:focus {
-        box-shadow: 
+        box-shadow:
           0 0 0 2px rgba($accent-blue, 0.4),
           0 2px 8px rgba(0, 0, 0, 0.1);
         transform: none;
       }
-      
+
       &:hover {
         transform: none;
       }
@@ -342,15 +343,15 @@
       padding: 0.65rem 0.85rem;
       font-size: 1rem; // Prevent iOS zoom
     }
-    
+
     &:focus {
       border-color: $accent-blue;
       outline: none;
       box-shadow: 0 0 0 2px rgba($accent-blue, 0.3);
     }
-    
+
     &:hover:not(:focus) {
-      border-color: color.scale($border-color, $lightness:10%);
+      border-color: color.scale($border-color, $lightness: 10%);
     }
   }
 }
@@ -380,7 +381,7 @@
   position: relative;
   overflow-x: auto;
   padding-bottom: 2px;
-  
+
   // Ultra-narrow screens: enable horizontal scrolling with better spacing
   @media (max-width: 380px) {
     gap: 0.25rem;
@@ -388,14 +389,14 @@
     padding: 0 0.5rem 2px 0.5rem;
     margin-left: -0.5rem;
     margin-right: -0.5rem;
-    
+
     // Hide scrollbar but keep functionality
     &::-webkit-scrollbar {
       height: 0px;
       background: transparent;
     }
   }
-  
+
   &::after {
     content: '';
     position: absolute;
@@ -412,10 +413,10 @@
   justify-content: flex-end;
   gap: 1rem;
   margin-top: 1rem;
-  
+
   @media (max-width: 640px) {
     flex-direction: column;
-    
+
     .button {
       width: 100%;
       text-align: center;
@@ -454,7 +455,7 @@
     min-height: 48px;
     width: 100%;
   }
-  
+
   &::before {
     content: '';
     position: absolute;
@@ -462,11 +463,11 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: linear-gradient(rgba(255,255,255,0.1), rgba(255,255,255,0));
+    background: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
     opacity: 0;
     transition: opacity 0.3s ease;
   }
-  
+
   &:hover::before {
     opacity: 1;
   }
@@ -477,7 +478,7 @@
     box-shadow: 0 4px 10px rgba($accent-blue, 0.3);
 
     &:hover {
-      background-color: color.scale($accent-blue, $lightness:-5%);
+      background-color: color.scale($accent-blue, $lightness: -5%);
       box-shadow: 0 6px 14px rgba($accent-blue, 0.5);
       transform: translateY(-2px);
 
@@ -487,7 +488,7 @@
         box-shadow: 0 4px 12px rgba($accent-blue, 0.4);
       }
     }
-    
+
     &:active {
       transform: translateY(0);
       box-shadow: 0 2px 6px rgba($accent-blue, 0.3);
@@ -509,7 +510,7 @@
         background-color: rgba($border-color, 0.4);
       }
     }
-    
+
     &:active {
       transform: translateY(0);
     }
@@ -536,7 +537,7 @@
     margin-top: 1.5rem;
     border-radius: 8px;
   }
-  
+
   &::before {
     content: '';
     position: absolute;
@@ -552,7 +553,7 @@
       border-radius: 8px;
     }
   }
-  
+
   .sectionTitle {
     position: relative;
     z-index: 1;
@@ -584,19 +585,19 @@
   padding: 2rem;
   margin-top: 2rem;
   text-align: center;
-  
+
   h3 {
     color: $accent-red;
     margin: 0 0 1rem 0;
     font-size: 1.2rem;
   }
-  
+
   p {
     color: $text-secondary;
     margin: 0 0 1.5rem 0;
     font-size: 0.95rem;
   }
-  
+
   button {
     min-width: 160px;
   }
@@ -604,9 +605,12 @@
 
 // Pulse animation for running steps
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 0.3;
   }
+
   50% {
     opacity: 1;
   }
@@ -630,16 +634,16 @@
     flex-direction: column !important;
     align-items: stretch !important;
   }
-  
+
   .mobile-full-width {
     width: 100% !important;
   }
-  
+
   .mobile-compact {
     padding: 0.5rem !important;
     margin: 0.25rem 0 !important;
   }
-  
+
   .mobile-text-small {
     font-size: 0.85rem !important;
   }
@@ -648,11 +652,15 @@
 // Mobile-friendly touch targets and focus styles
 .mobileOptimized {
   @media (max-width: 380px) {
+
     // Ensure tap targets are at least 44px (Apple's recommendation)
-    button, input, select, textarea {
+    button,
+    input,
+    select,
+    textarea {
       min-height: 44px;
     }
-    
+
     // Exception for range inputs which are handled differently
     input[type="range"] {
       min-height: auto;
@@ -694,7 +702,7 @@
 
 .loadingIcon {
   margin-bottom: 2rem;
-  
+
   .spinner {
     width: 60px;
     height: 60px;
@@ -708,7 +716,7 @@
 
 .successIcon {
   margin-bottom: 2rem;
-  
+
   .checkmark {
     width: 80px;
     height: 80px;
@@ -729,7 +737,7 @@
   color: $text-primary;
   margin: 0 0 1rem 0;
   font-family: var(--font-press-start);
-  
+
   @media (max-width: 640px) {
     font-size: 1.4rem;
   }
@@ -757,7 +765,7 @@
   border-radius: 4px;
   transition: width 0.5s ease;
   position: relative;
-  
+
   &::after {
     content: '';
     position: absolute;
@@ -765,12 +773,10 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.3),
-      transparent
-    );
+    background: linear-gradient(90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent);
     animation: shimmer 2s infinite;
   }
 }
@@ -804,18 +810,18 @@
   align-items: center;
   gap: 0.5rem;
   position: relative;
-  
+
   &.completed {
     color: $accent-green;
     opacity: 1;
     transform: translateX(5px);
   }
-  
+
   &.running {
     color: $accent-blue;
     opacity: 1;
     transform: translateX(5px);
-    
+
     // Add a subtle glow effect for running steps
     &::before {
       content: '';
@@ -828,7 +834,7 @@
       animation: pulse 2s infinite;
     }
   }
-  
+
   &.failed {
     color: $accent-red;
     opacity: 1;
@@ -867,19 +873,19 @@
   border-radius: 8px;
   padding: 1.5rem;
   margin: 2rem 0;
-  
+
   p {
     margin: 0.5rem 0;
     color: $text-primary;
-    
+
     &:first-child {
       margin-top: 0;
     }
-    
+
     &:last-child {
       margin-bottom: 0;
     }
-    
+
     strong {
       color: $accent-blue;
     }
@@ -895,8 +901,13 @@
 
 // Animations
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes checkmarkPop {
@@ -904,9 +915,11 @@
     transform: scale(0);
     opacity: 0;
   }
+
   50% {
     transform: scale(1.2);
   }
+
   100% {
     transform: scale(1);
     opacity: 1;
@@ -917,6 +930,7 @@
   0% {
     transform: translateX(-100%);
   }
+
   100% {
     transform: translateX(100%);
   }
