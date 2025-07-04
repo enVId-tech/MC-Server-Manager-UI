@@ -1,0 +1,13 @@
+# Sample Docker Compose file for Minecraft Server Creator
+version: '3.8'
+services:
+  mc-server-creator:
+    ports:
+      - 3000:3000
+    container_name: mc-server-creator
+    image: envidtech/mc-server-creator:latest
+    volumes:
+      - ./mc-server-creator:/data
+    env_file:
+      - stack.env
+networks: {}
