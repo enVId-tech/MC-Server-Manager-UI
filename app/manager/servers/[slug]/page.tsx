@@ -1,13 +1,13 @@
 'use client';
 import React, { useState, useEffect, use, useCallback } from 'react';
-import { 
-  FaFolder, 
-  FaFile, 
-  FaPlay, 
-  FaPause, 
-  FaStop, 
-  FaDownload, 
-  FaTrash, 
+import {
+  FaFolder,
+  FaFile,
+  FaPlay,
+  FaPause,
+  FaStop,
+  FaDownload,
+  FaTrash,
   FaArrowLeft,
   FaSave,
   FaEdit,
@@ -42,7 +42,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   const resolvedParams = use(params);
   const router = useRouter();
   const { showNotification, showConfirmDialog } = useNotifications();
-  
+
   const [currentPath, setCurrentPath] = useState('/');
   const [files, setFiles] = useState<FileItem[]>([]);
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
@@ -53,6 +53,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   const [fileLoading, setFileLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [serverStats, setServerStats] = useState<ServerStats>({
     isOnline: true,
     playersOnline: 3,
@@ -66,16 +67,16 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   const fetchFiles = useCallback(async (path: string) => {
     setLoading(true);
     setError(null);
-    
+
     try {
       // Temporarily use test endpoint to debug
       const response = await fetch(`/api/server/files/test?server=${encodeURIComponent(resolvedParams.slug)}&path=${encodeURIComponent(path)}`);
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to fetch files');
       }
-      
+
       const data = await response.json();
       console.log('API Response:', data);
       setFiles(data.files || []);
@@ -90,15 +91,15 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   // Fetch file content from WebDAV
   const fetchFileContent = async (filePath: string) => {
     setFileLoading(true);
-    
+
     try {
       const response = await fetch(`/api/server/file?server=${encodeURIComponent(resolvedParams.slug)}&file=${encodeURIComponent(filePath)}`);
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to fetch file content');
       }
-      
+
       const data = await response.json();
       setFileContent(data.content || 'No content available');
     } catch (err) {
@@ -112,13 +113,13 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   // Save file content to WebDAV
   const saveFileContent = async () => {
     if (!selectedFile) return;
-    
+
     setIsSaving(true);
     showNotification({
       type: 'info',
       message: 'Saving file...'
     });
-    
+
     try {
       const response = await fetch('/api/server/file', {
         method: 'POST',
@@ -131,12 +132,12 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
           content: fileContent
         })
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to save file');
       }
-      
+
       setHasUnsavedChanges(false);
       setIsEditing(false);
       showNotification({
@@ -189,6 +190,42 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const checkAuth = () => {
+      const res = fetch('/api/auth/check', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      res.then(response => {
+        if (!response.ok) {
+          router.push('/auth/login'); // Redirect to login if already logged in
+        } else {
+          setIsLoaded(true);
+        }
+      }).catch(error => {
+        console.error('Error checking authentication:', error);
+      });
+    }
+
+    const interval = setInterval(() => {
+      checkAuth();
+    }, 60 * 1000); // Check every minute
+
+    // Initial check on component mount
+    checkAuth();
+
+    // Add event listener for cookies change
+    window.addEventListener('cookies', checkAuth);
+
+    return () => {
+      window.removeEventListener('cookies', checkAuth);
+      clearInterval(interval); // Clear the interval on component unmount
+    };
+  }, [router]);
+
   const handleFileClick = (file: FileItem) => {
     if (file.type === 'folder') {
       setCurrentPath(file.path);
@@ -235,12 +272,12 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   const getPathBreadcrumbs = () => {
     const parts = currentPath.split('/').filter(Boolean);
     const breadcrumbs = [{ name: 'root', path: '/' }];
-    
+
     parts.forEach((part, index) => {
       const path = '/' + parts.slice(0, index + 1).join('/');
       breadcrumbs.push({ name: part, path });
     });
-    
+
     return breadcrumbs;
   };
 
@@ -249,38 +286,42 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
       <div className={styles.container}>
         <div className={styles.header}>
           <div className={styles.headerLeft}>
-            <button 
+            <button
               className={styles.backButton}
               onClick={handleBackToDashboard}
               title="Back to Dashboard"
             >
               <FaArrowLeft /> Back to Dashboard
             </button>
-            <h1 className={styles.serverTitle}>Server: {resolvedParams.slug}</h1>
+            {isLoaded && (
+              <h1 className={styles.serverTitle}>Server: {resolvedParams.slug}</h1>
+            )}
           </div>
         </div>
-        
+
         <div className={styles.content}>
           {/* Left Panel - File Explorer */}
           <div className={styles.leftPanel}>
             <div className={styles.fileExplorer}>
-              <div className={styles.explorerHeader}>
-                <h3>Server Files</h3>
-                <div className={styles.breadcrumbs}>
-                  {getPathBreadcrumbs().map((crumb, index) => (
-                    <span key={crumb.path}>
-                      {index > 0 && <span className={styles.separator}>/</span>}
-                      <button
-                        className={styles.breadcrumbButton}
-                        onClick={() => setCurrentPath(crumb.path)}
-                      >
-                        {crumb.name}
-                      </button>
-                    </span>
-                  ))}
+              {isLoaded && (
+                <div className={styles.explorerHeader}>
+                  <h3>Server Files</h3>
+                  <div className={styles.breadcrumbs}>
+                    {getPathBreadcrumbs().map((crumb, index) => (
+                      <span key={crumb.path}>
+                        {index > 0 && <span className={styles.separator}>/</span>}
+                        <button
+                          className={styles.breadcrumbButton}
+                          onClick={() => setCurrentPath(crumb.path)}
+                        >
+                          {crumb.name}
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              
+              )}
+
               <div className={styles.fileList}>
                 {loading ? (
                   <div className={styles.loadingState}>
@@ -299,7 +340,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                         <span className={styles.fileName}>Back</span>
                       </div>
                     )}
-                    
+
                     {files.map((file, index) => (
                       <div
                         key={index}
@@ -311,12 +352,14 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                         ) : (
                           <FaFile className={styles.fileIcon} />
                         )}
-                        <div className={styles.fileInfo}>
-                          <span className={styles.fileName}>{file.name}</span>
-                          {file.size && (
-                            <span className={styles.fileSize}>{formatFileSize(file.size)}</span>
-                          )}
-                        </div>
+                        {isLoaded && (
+                          <div className={styles.fileInfo}>
+                            <span className={styles.fileName}>{file.name}</span>
+                            {file.size && (
+                              <span className={styles.fileSize}>{formatFileSize(file.size)}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </>
@@ -329,52 +372,57 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
           <div className={styles.rightPanel}>
             {/* Top Right - Server Controls */}
             <div className={styles.serverControls}>
-              <div className={styles.serverStatus}>
-                <div className={styles.statusIndicator}>
-                  <FaCircle className={`${styles.statusIcon} ${serverStats.isOnline ? styles.online : styles.offline}`} />
-                  <span className={styles.statusText}>
-                    {serverStats.isOnline ? 'Online' : 'Offline'}
-                  </span>
-                </div>
-                
-                <div className={styles.serverStats}>
-                  <div className={styles.statItem}>
-                    <FaUsers className={styles.statIcon} />
-                    <span>{serverStats.playersOnline}/{serverStats.maxPlayers} players</span>
+              {isLoaded && (
+                <div className={styles.serverStatus}>
+                  <div className={styles.statusIndicator}>
+                    <FaCircle className={`${styles.statusIcon} ${serverStats.isOnline ? styles.online : styles.offline}`} />
+                    <span className={styles.statusText}>
+                      {serverStats.isOnline ? 'Online' : 'Offline'}
+                    </span>
                   </div>
-                  <div className={styles.statItem}>
-                    <FaMemory className={styles.statIcon} />
-                    <span>{serverStats.ramUsage}MB / {serverStats.maxRam}MB RAM</span>
-                    <div className={styles.ramBar}>
-                      <div 
-                        className={styles.ramFill}
-                        style={{ width: `${(serverStats.ramUsage / serverStats.maxRam) * 100}%` }}
-                      />
+
+                  <div className={styles.serverStats}>
+                    <div className={styles.statItem}>
+                      <FaUsers className={styles.statIcon} />
+                      <span>{serverStats.playersOnline}/{serverStats.maxPlayers} players</span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <FaMemory className={styles.statIcon} />
+                      <span>{serverStats.ramUsage}MB / {serverStats.maxRam}MB RAM</span>
+                      <div className={styles.ramBar}>
+                        <div
+                          className={styles.ramFill}
+                          style={{ width: `${(serverStats.ramUsage / serverStats.maxRam) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span>CPU: {serverStats.cpuUsage}%</span>
                     </div>
                   </div>
-                  <div className={styles.statItem}>
-                    <span>CPU: {serverStats.cpuUsage}%</span>
-                  </div>
                 </div>
-              </div>
-              
-              <div className={styles.controlButtons}>
-                <button className={`${styles.controlButton} ${styles.start}`}>
-                  <FaPlay /> Start
-                </button>
-                <button className={`${styles.controlButton} ${styles.restart}`}>
-                  <FaPause /> Restart
-                </button>
-                <button className={`${styles.controlButton} ${styles.stop}`}>
-                  <FaStop /> Stop
-                </button>
-                <button className={`${styles.controlButton} ${styles.download}`}>
-                  <FaDownload /> Download
-                </button>
-                <button className={`${styles.controlButton} ${styles.delete}`}>
-                  <FaTrash /> Delete
-                </button>
-              </div>
+              )}
+
+              {/* Server Control Buttons */}
+              {isLoaded && (
+                <div className={styles.controlButtons}>
+                  <button className={`${styles.controlButton} ${styles.start}`}>
+                    <FaPlay /> Start
+                  </button>
+                  <button className={`${styles.controlButton} ${styles.restart}`}>
+                    <FaPause /> Restart
+                  </button>
+                  <button className={`${styles.controlButton} ${styles.stop}`}>
+                    <FaStop /> Stop
+                  </button>
+                  <button className={`${styles.controlButton} ${styles.download}`}>
+                    <FaDownload /> Download
+                  </button>
+                  <button className={`${styles.controlButton} ${styles.delete}`}>
+                    <FaTrash /> Delete
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Bottom Right - File Editor */}
@@ -403,7 +451,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                       )}
                     </div>
                   </div>
-                  
+
                   <div className={styles.editorContent}>
                     {fileLoading ? (
                       <div className={styles.loadingState}>

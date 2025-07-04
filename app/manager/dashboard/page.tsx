@@ -133,9 +133,9 @@ export default function Dashboard() {
 
     const handleDownloadServer = async () => {
         if (!serverToDelete) return;
-        
+
         setIsDownloading(true);
-        
+
         try {
             // TODO: Create API endpoint for server download
             // const response = await fetch(`/api/server/download/${serverToDelete.id}`, {
@@ -144,11 +144,11 @@ export default function Dashboard() {
             //         'Content-Type': 'application/json',
             //     },
             // });
-            
+
             // if (!response.ok) {
             //     throw new Error('Failed to download server');
             // }
-            
+
             // const blob = await response.blob();
             // const url = window.URL.createObjectURL(blob);
             // const a = document.createElement('a');
@@ -158,7 +158,7 @@ export default function Dashboard() {
             // a.click();
             // window.URL.revokeObjectURL(url);
             // document.body.removeChild(a);
-            
+
             // Simulate download process for now
             await new Promise(resolve => setTimeout(resolve, 2000));
             showNotification({
@@ -166,7 +166,7 @@ export default function Dashboard() {
                 title: 'Download Notice',
                 message: 'Server download would start here. TODO: Implement server download API endpoint.'
             });
-            
+
         } catch (error) {
             console.error('Error downloading server:', error);
             showNotification({
@@ -185,7 +185,7 @@ export default function Dashboard() {
             if (wantsDownload && !isDownloading) {
                 await handleDownloadServer();
             }
-            
+
             setIsDeleting(true);
             setDeletionProgress(10);
 
@@ -227,7 +227,7 @@ export default function Dashboard() {
                 setDeletionProgress(100);
                 setTimeout(() => {
                     setDeletionSuccess(true);
-                    
+
                     // Refresh page after 5 seconds
                     setTimeout(() => {
                         window.location.reload();
@@ -286,12 +286,12 @@ export default function Dashboard() {
                 ) : (
                     <div className={styles.serverGrid}>
                         {servers.map(server => (
-                            <div 
-                                key={server.id} 
+                            <div
+                                key={server.id}
                                 className={styles.serverCard}
                                 onClick={() => {
-                                    const serverSlug = server.subdomainName && server.subdomainName !== 'N/A' 
-                                        ? server.subdomainName 
+                                    const serverSlug = server.subdomainName && server.subdomainName !== 'N/A'
+                                        ? server.subdomainName
                                         : server.id;
                                     console.log('Navigating to server:', serverSlug, 'Full server object:', server);
                                     router.push(`/manager/servers/${serverSlug}`);
@@ -343,8 +343,8 @@ export default function Dashboard() {
                                         className={`${styles.button} ${styles.secondary}`}
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            const serverSlug = server.subdomainName && server.subdomainName !== 'N/A' 
-                                                ? server.subdomainName 
+                                            const serverSlug = server.subdomainName && server.subdomainName !== 'N/A'
+                                                ? server.subdomainName
                                                 : server.id;
                                             router.push(`/manager/servers/${serverSlug}`);
                                         }}
@@ -389,7 +389,7 @@ export default function Dashboard() {
                                         All server data, world files, and configurations will be lost forever.
                                     </p>
                                 </div>
-                                
+
                                 <div className={styles.modalConfirmation}>
                                     <p className={styles.modalPrompt}>
                                         To confirm deletion, please type the server IP address:
@@ -399,11 +399,10 @@ export default function Dashboard() {
                                     </p>
                                     <input
                                         type="text"
-                                        className={`${styles.modalInput} ${
-                                            deleteConfirmationInput && deleteConfirmationInput !== serverToDelete.subdomainName 
-                                                ? styles.inputError 
-                                                : ''
-                                        }`}
+                                        className={`${styles.modalInput} ${deleteConfirmationInput && deleteConfirmationInput !== serverToDelete.subdomainName
+                                            ? styles.inputError
+                                            : ''
+                                            }`}
                                         value={deleteConfirmationInput}
                                         onChange={(e) => setDeleteConfirmationInput(e.target.value)}
                                         placeholder="Enter server IP address"
@@ -418,7 +417,7 @@ export default function Dashboard() {
                                 <div className={styles.downloadOption}>
                                     <h3 className={styles.downloadTitle}>📦 Backup Your Server</h3>
                                     <p className={styles.downloadDescription}>
-                                        Before deleting your server, you can download a backup containing all your world files, 
+                                        Before deleting your server, you can download a backup containing all your world files,
                                         configurations, and plugins/mods.
                                     </p>
                                     <label className={styles.downloadCheckbox}>
@@ -442,7 +441,7 @@ export default function Dashboard() {
                                         </button>
                                     )}
                                 </div>
-                                
+
                                 <div className={styles.modalActions}>
                                     <button
                                         className={`${styles.button} ${styles.secondary}`}
@@ -470,7 +469,7 @@ export default function Dashboard() {
                                     Please wait while we permanently delete &quot;{serverToDelete.name}&quot;...
                                 </p>
                                 <div className={styles.progressBar}>
-                                    <div 
+                                    <div
                                         className={styles.progressFill}
                                         style={{ width: `${deletionProgress}%` }}
                                     ></div>
