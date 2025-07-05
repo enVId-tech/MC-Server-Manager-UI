@@ -13,7 +13,9 @@ import {
   FaEdit,
   FaMemory,
   FaUsers,
-  FaCircle
+  FaCircle,
+  FaPlus,
+  FaSearch
 } from 'react-icons/fa';
 import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
@@ -26,6 +28,9 @@ interface FileItem {
   path: string;
   size?: number;
   lastModified?: Date;
+  isReadable?: boolean;
+  isEditable?: boolean;
+  mimeType?: string;
 }
 
 interface ServerStats {
@@ -54,6 +59,75 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createType, setCreateType] = useState<'file' | 'folder'>('file');
+  const [newItemName, setNewItemName] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'size' | 'modified'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  
+  // Utility function to format file size
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Utility function to get file extension
+  const getFileExtension = (filename: string): string => {
+    return filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
+  };
+
+  // Utility function to get file icon based on type
+  const getFileIcon = (file: FileItem) => {
+    if (file.type === 'folder') return <FaFolder className={styles.fileIcon} />;
+    
+    const ext = getFileExtension(file.name);
+    switch (ext) {
+      case 'properties':
+      case 'yml':
+      case 'yaml':
+      case 'json':
+      case 'conf':
+      case 'cfg':
+        return <FaFile className={styles.fileIcon} style={{ color: '#4CAF50' }} />;
+      case 'log':
+        return <FaFile className={styles.fileIcon} style={{ color: '#FF9800' }} />;
+      case 'jar':
+        return <FaFile className={styles.fileIcon} style={{ color: '#2196F3' }} />;
+      case 'txt':
+      case 'md':
+        return <FaFile className={styles.fileIcon} style={{ color: '#9C27B0' }} />;
+      default:
+        return <FaFile className={styles.fileIcon} />;
+    }
+  };
+
+  // Filter and sort files
+  const filteredAndSortedFiles = files
+    .filter(file => file.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => {
+      // Always put folders first
+      if (a.type === 'folder' && b.type === 'file') return -1;
+      if (a.type === 'file' && b.type === 'folder') return 1;
+      
+      let comparison = 0;
+      switch (sortBy) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'size':
+          comparison = (a.size || 0) - (b.size || 0);
+          break;
+        case 'modified':
+          comparison = (a.lastModified?.getTime() || 0) - (b.lastModified?.getTime() || 0);
+          break;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
   const [serverStats, setServerStats] = useState<ServerStats>({
     isOnline: true,
     playersOnline: 3,
@@ -69,8 +143,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     setError(null);
 
     try {
-      // Temporarily use test endpoint to debug
-      const response = await fetch(`/api/server/files/test?server=${encodeURIComponent(resolvedParams.slug)}&path=${encodeURIComponent(path)}`);
+      const response = await fetch(`/api/server/files?server=${encodeURIComponent(resolvedParams.slug)}&path=${encodeURIComponent(path)}`);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -78,15 +151,21 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
       }
 
       const data = await response.json();
-      console.log('API Response:', data);
+      console.log('Files fetched:', data);
       setFiles(data.files || []);
+      setIsLoaded(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch files');
       console.error('Error fetching files:', err);
+      showNotification({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to fetch server files: ' + (err instanceof Error ? err.message : 'Unknown error')
+      });
     } finally {
       setLoading(false);
     }
-  }, [resolvedParams.slug]);
+  }, [resolvedParams.slug, showNotification]);
 
   // Fetch file content from WebDAV
   const fetchFileContent = async (filePath: string) => {
@@ -155,6 +234,107 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Create new file or folder
+  const handleCreateItem = async () => {
+    if (!newItemName.trim()) {
+      showNotification({
+        type: 'warning',
+        message: 'Please enter a name for the new item'
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/server/file-manager', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          serverSlug: resolvedParams.slug,
+          path: currentPath,
+          name: newItemName.trim(),
+          type: createType,
+          content: createType === 'file' ? '' : undefined
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create item');
+      }
+
+      showNotification({
+        type: 'success',
+        title: 'Success',
+        message: `${createType === 'file' ? 'File' : 'Folder'} created successfully`
+      });
+
+      setShowCreateModal(false);
+      setNewItemName('');
+      fetchFiles(currentPath);
+    } catch (err) {
+      showNotification({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to create item: ' + (err instanceof Error ? err.message : 'Unknown error')
+      });
+    }
+  };
+
+  // Delete file or folder
+  const handleDeleteItem = async (file: FileItem) => {
+    showConfirmDialog({
+      title: 'Delete Item',
+      message: `Are you sure you want to delete "${file.name}"? This action cannot be undone.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const response = await fetch('/api/server/file-manager', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              serverSlug: resolvedParams.slug,
+              path: file.path,
+              type: file.type
+            })
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to delete item');
+          }
+
+          showNotification({
+            type: 'success',
+            title: 'Success',
+            message: `${file.type === 'file' ? 'File' : 'Folder'} deleted successfully`
+          });
+
+          // Clear selection if the deleted item was selected
+          if (selectedFile?.path === file.path) {
+            setSelectedFile(null);
+            setFileContent('');
+            setIsEditing(false);
+            setHasUnsavedChanges(false);
+          }
+
+          fetchFiles(currentPath);
+        } catch (err) {
+          showNotification({
+            type: 'error',
+            title: 'Error',
+            message: 'Failed to delete item: ' + (err instanceof Error ? err.message : 'Unknown error')
+          });
+        }
+      }
+    });
   };
 
   // Handle back to dashboard
@@ -261,14 +441,6 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     saveFileContent();
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
   const getPathBreadcrumbs = () => {
     const parts = currentPath.split('/').filter(Boolean);
     const breadcrumbs = [{ name: 'root', path: '/' }];
@@ -306,6 +478,39 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
               {isLoaded && (
                 <div className={styles.explorerHeader}>
                   <h3>Server Files</h3>
+                  <div className={styles.fileControls}>
+                    <div className={styles.searchBar}>
+                      <input
+                        type="text"
+                        placeholder="Search files..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className={styles.searchInput}
+                      />
+                    </div>
+                    <div className={styles.actionButtons}>
+                      <button
+                        className={styles.createButton}
+                        onClick={() => {
+                          setCreateType('file');
+                          setShowCreateModal(true);
+                        }}
+                        title="Create New File"
+                      >
+                        <FaFile /> New File
+                      </button>
+                      <button
+                        className={styles.createButton}
+                        onClick={() => {
+                          setCreateType('folder');
+                          setShowCreateModal(true);
+                        }}
+                        title="Create New Folder"
+                      >
+                        <FaFolder /> New Folder
+                      </button>
+                    </div>
+                  </div>
                   <div className={styles.breadcrumbs}>
                     {getPathBreadcrumbs().map((crumb, index) => (
                       <span key={crumb.path}>
@@ -325,6 +530,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
               <div className={styles.fileList}>
                 {loading ? (
                   <div className={styles.loadingState}>
+                    <FaCircle className={styles.loadingSpinner} />
                     <p>Loading files...</p>
                   </div>
                 ) : error ? (
@@ -336,32 +542,59 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                   <>
                     {currentPath !== '/' && (
                       <div className={styles.fileItem} onClick={handleBackClick}>
-                        <FaArrowLeft className={styles.fileIcon} />
-                        <span className={styles.fileName}>Back</span>
+                        <div className={styles.fileContent}>
+                          <FaArrowLeft className={styles.fileIcon} />
+                          <span className={styles.fileName}>Back</span>
+                        </div>
                       </div>
                     )}
 
-                    {files.map((file, index) => (
-                      <div
-                        key={index}
-                        className={`${styles.fileItem} ${selectedFile?.path === file.path ? styles.selected : ''}`}
-                        onClick={() => handleFileClick(file)}
-                      >
-                        {file.type === 'folder' ? (
-                          <FaFolder className={styles.fileIcon} />
-                        ) : (
-                          <FaFile className={styles.fileIcon} />
-                        )}
-                        {isLoaded && (
-                          <div className={styles.fileInfo}>
-                            <span className={styles.fileName}>{file.name}</span>
-                            {file.size && (
-                              <span className={styles.fileSize}>{formatFileSize(file.size)}</span>
-                            )}
-                          </div>
+                    {filteredAndSortedFiles.length === 0 ? (
+                      <div className={styles.emptyState}>
+                        <FaFolder className={styles.emptyIcon} />
+                        <p>No files found</p>
+                        {searchTerm && (
+                          <p className={styles.emptySubtext}>Try clearing your search</p>
                         )}
                       </div>
-                    ))}
+                    ) : (
+                      filteredAndSortedFiles.map((file, index) => (
+                        <div
+                          key={index}
+                          className={`${styles.fileItem} ${selectedFile?.path === file.path ? styles.selected : ''}`}
+                        >
+                          <div 
+                            className={styles.fileContent}
+                            onClick={() => handleFileClick(file)}
+                          >
+                            {getFileIcon(file)}
+                            {isLoaded && (
+                              <div className={styles.fileInfo}>
+                                <span className={styles.fileName}>{file.name}</span>
+                                {file.size !== undefined && file.size > 0 && (
+                                  <span className={styles.fileSize}>{formatFileSize(file.size)}</span>
+                                )}
+                                {file.isEditable && (
+                                  <span className={styles.fileTag}>Editable</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <div className={styles.fileActions}>
+                            <button
+                              className={styles.deleteButton}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteItem(file);
+                              }}
+                              title="Delete"
+                            >
+                              <FaTrash />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </>
                 )}
               </div>
@@ -461,7 +694,10 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                       <textarea
                         className={styles.editor}
                         value={fileContent}
-                        onChange={(e) => handleContentChange(e.target.value)}
+                        onChange={(e) => {
+                          setFileContent(e.target.value);
+                          setHasUnsavedChanges(true);
+                        }}
                         placeholder="File content..."
                       />
                     ) : (
@@ -478,6 +714,59 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
             </div>
           </div>
         </div>
+
+        {/* Create Item Modal */}
+        {showCreateModal && (
+          <div className={styles.modalOverlay}>
+            <div className={styles.modal}>
+              <div className={styles.modalHeader}>
+                <h3>Create New {createType === 'file' ? 'File' : 'Folder'}</h3>
+                <button 
+                  className={styles.modalClose}
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setNewItemName('');
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              <div className={styles.modalContent}>
+                <input
+                  type="text"
+                  placeholder={`Enter ${createType} name...`}
+                  value={newItemName}
+                  onChange={(e) => setNewItemName(e.target.value)}
+                  className={styles.modalInput}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleCreateItem();
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+              <div className={styles.modalActions}>
+                <button 
+                  className={styles.modalButton}
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setNewItemName('');
+                  }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className={`${styles.modalButton} ${styles.primary}`}
+                  onClick={handleCreateItem}
+                  disabled={!newItemName.trim()}
+                >
+                  Create {createType === 'file' ? 'File' : 'Folder'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
