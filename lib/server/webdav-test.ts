@@ -135,9 +135,11 @@ export async function runAllWebDAVTests(userEmail?: string, serverId?: string) {
     return true;
 }
 
-export default {
+const webdavTests = {
     testWebDAVConnection,
     testServerFileOperations,
     checkWebDAVConfig,
     runAllWebDAVTests
 };
+
+export default webdavTests;

@@ -13,9 +13,7 @@ import {
   FaEdit,
   FaMemory,
   FaUsers,
-  FaCircle,
-  FaPlus,
-  FaSearch
+  FaCircle
 } from 'react-icons/fa';
 import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
@@ -63,8 +61,6 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   const [createType, setCreateType] = useState<'file' | 'folder'>('file');
   const [newItemName, setNewItemName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'name' | 'size' | 'modified'>('name');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   
   // Utility function to format file size
   const formatFileSize = (bytes: number): string => {
@@ -113,20 +109,8 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
       if (a.type === 'folder' && b.type === 'file') return -1;
       if (a.type === 'file' && b.type === 'folder') return 1;
       
-      let comparison = 0;
-      switch (sortBy) {
-        case 'name':
-          comparison = a.name.localeCompare(b.name);
-          break;
-        case 'size':
-          comparison = (a.size || 0) - (b.size || 0);
-          break;
-        case 'modified':
-          comparison = (a.lastModified?.getTime() || 0) - (b.lastModified?.getTime() || 0);
-          break;
-      }
-      
-      return sortOrder === 'asc' ? comparison : -comparison;
+      // Sort by name alphabetically
+      return a.name.localeCompare(b.name);
     });
   const [serverStats, setServerStats] = useState<ServerStats>({
     isOnline: true,
@@ -430,11 +414,6 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     if (isEditing) {
       setHasUnsavedChanges(false);
     }
-  };
-
-  const handleContentChange = (value: string) => {
-    setFileContent(value);
-    setHasUnsavedChanges(true);
   };
 
   const handleSave = () => {
