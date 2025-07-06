@@ -6,7 +6,6 @@ import {
   FaPlay,
   FaPause,
   FaStop,
-  FaDownload,
   FaTrash,
   FaArrowLeft,
   FaSave,
