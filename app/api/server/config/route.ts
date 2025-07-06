@@ -8,6 +8,7 @@ import { ServerConfigData } from "@/lib/objects/ServerConfig";
 import BodyParser from "@/lib/db/bodyParser";
 import portainer from "@/lib/server/portainer";
 import MinecraftServerManager from "@/lib/server/serverManager";
+import { v4 as uuidv4 } from 'uuid';
 // import porkbun from "@/lib/server/porkbun";
 
 // Configure body parsing for this API route
@@ -170,8 +171,9 @@ export async function POST(request: NextRequest) {
         const allocatedRconPort = portAllocation.rconPort;
 
         // === EXTERNAL RESOURCE CREATION PHASE ===
-        // Generate unique ID for the server
-        const uniqueId = new mongoose.Types.ObjectId().toString();
+        // Generate unique ID for the server - use UUID for security
+        // This ensures complete uniqueness and prevents predictable IDs
+        const uniqueId = uuidv4();
 
         // Create server folder structure in WebDAV with JAR download
         const folderCreation = await MinecraftServerManager.createServerFolder(
@@ -293,7 +295,8 @@ export async function POST(request: NextRequest) {
                 version: serverConfigData.version,
                 subdomain: config.subdomain,
                 port: allocatedPort,
-                rconPort: allocatedRconPort
+                rconPort: allocatedRconPort,
+                uniqueId: uniqueId
             }
         }, { status: 201 });
 
