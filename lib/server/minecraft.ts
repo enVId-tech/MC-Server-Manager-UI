@@ -395,7 +395,7 @@ export class MinecraftServer {
         const userEmail = this.getUserEmail();
 
         // Create the folder structure: env/email/uniqueId
-        const serverBasePath = `${minecraftPath}/${userEmail}/${this.uniqueId}`;
+        const serverBasePath = `${minecraftPath}/${userEmail}`;
 
         const composeConfig = {
             version: '3.8',
@@ -422,13 +422,15 @@ export class MinecraftServer {
                         `${this.config.SERVER_PORT || 25565}:25565`,
                         ...(this.config.ENABLE_RCON ? [`${this.config.RCON_PORT || 25575}:25575`] : [])
                     ],
+                    // The left side of the volume is the host path, the right side is the container path
                     volumes: [
-                        `${serverBasePath}:/data`,
-                        `${serverBasePath}/data:/data`,
-                        `${serverBasePath}/plugins:/data/plugins`,
-                        `${serverBasePath}/mods:/data/mods`,
-                        `${serverBasePath}/world:/data/world`,
-                        `${serverBasePath}/backups:/backups`,
+                        `${serverBasePath}/${this.uniqueId}:/data`,
+                        // Only add plugins volume if server type supports it
+                        ...(serverTypeConfig.type === 'SPIGOT' || serverTypeConfig.type === 'PAPER' || serverTypeConfig.type === 'BUKKIT' || serverTypeConfig.type === 'PURPUR' ? [`${serverBasePath}/${this.uniqueId}/plugins:/plugins`] : []),
+                        // Only add mods volume if server type supports it
+                        ...(serverTypeConfig.type === 'FORGE' || serverTypeConfig.type === 'FABRIC' ? [`${serverBasePath}/${this.uniqueId}/mods:/mods`] : []),
+                        `${serverBasePath}/${this.uniqueId}/world:/world`,
+                        `${serverBasePath}/${this.uniqueId}/backups:/backups`,
                         ...serverTypeConfig.additionalVolumes
                     ],
                     restart: 'unless-stopped',

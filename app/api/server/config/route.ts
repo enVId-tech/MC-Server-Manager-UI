@@ -177,8 +177,7 @@ export async function POST(request: NextRequest) {
         const folderCreation = await MinecraftServerManager.createServerFolder(
             uniqueId,
             email,
-            config.serverType,
-            config.version
+            config.serverType
         );
         if (!folderCreation.success) {
             return NextResponse.json({ error: folderCreation.error }, { status: 500 });

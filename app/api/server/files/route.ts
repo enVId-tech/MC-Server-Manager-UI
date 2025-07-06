@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
                 files,
                 currentPath: path,
                 serverSlug,
-                serverPath: serverPath,
+                uniqueId: server.uniqueId,
                 totalFiles: files.length,
                 totalFolders: files.filter(f => f.type === 'folder').length
             });

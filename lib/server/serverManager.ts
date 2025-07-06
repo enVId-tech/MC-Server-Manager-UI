@@ -200,8 +200,7 @@ export class MinecraftServerManager {
     static async createServerFolder(
         uniqueId: string,
         userEmail: string,
-        serverType?: string,
-        version?: string
+        serverType?: string
     ): Promise<{ success: boolean; rollbackAction?: () => Promise<void>; error?: string }> {
         try {
             // Get base server path from environment variable
@@ -277,29 +276,12 @@ export class MinecraftServerManager {
             // Create initial server files
             const initialFiles: Record<string, string> = {
                 'server.properties': '# Minecraft server properties\n# This file will be automatically generated\n',
-                'eula.txt': 'eula=false\n',
+                'eula.txt': 'eula=true\n',
                 'whitelist.json': '[]',
                 'ops.json': '[]',
                 'banned-players.json': '[]',
                 'banned-ips.json': '[]'
             };
-
-            // Download and upload server JAR if server type and version are provided
-            if (serverType && version) {
-                try {
-                    console.log(`Downloading ${serverType} ${version} server JAR...`);
-                    const { default: MinecraftServerJarService } = await import('./serverJarDownloader');
-                    const jarData = await MinecraftServerJarService.downloadServerJar(serverType, version);
-
-                    const jarPath = `${serverPath}/${jarData.fileName}`;
-                    await webdavService.uploadFile(jarPath, jarData.data);
-                    uploadedFiles.push(jarPath);
-                    console.log(`✓ Uploaded server JAR: ${jarData.fileName}`);
-                } catch (jarError) {
-                    console.warn(`Could not download server JAR: ${jarError instanceof Error ? jarError.message : 'Unknown error'}`);
-                    // Don't fail the entire process for JAR download issues
-                }
-            }
 
             // Upload initial configuration files
             for (const [fileName, content] of Object.entries(initialFiles)) {

@@ -305,8 +305,7 @@ async function deployServer(serverId: string, server: Record<string, unknown>, u
             const folderResult = await MinecraftServerManager.createServerFolder(
                 serverData.uniqueId,
                 user.email,
-                serverData.serverConfig?.serverType,
-                serverData.serverConfig?.version
+                serverData.serverConfig?.serverType
             );
 
             if (!folderResult.success) {

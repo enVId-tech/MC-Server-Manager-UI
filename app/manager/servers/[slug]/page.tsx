@@ -32,7 +32,7 @@ interface FileItem {
 }
 
 interface ServerStats {
-  isOnline: boolean;
+  status: 'online' | 'offline' | 'starting' | 'crashed' | 'paused' | 'unhealthy';
   playersOnline: number;
   maxPlayers: number;
   ramUsage: number;
@@ -61,6 +61,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   const [createType, setCreateType] = useState<'file' | 'folder'>('file');
   const [newItemName, setNewItemName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [uniqueId, setUniqueId] = useState<string>('');
   
   // Utility function to format file size
   const formatFileSize = (bytes: number): string => {
@@ -113,13 +114,15 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
       return a.name.localeCompare(b.name);
     });
   const [serverStats, setServerStats] = useState<ServerStats>({
-    isOnline: true,
+    status: 'offline',
     playersOnline: 3,
     maxPlayers: 20,
     ramUsage: 2048,
     maxRam: 4096,
     cpuUsage: 45
   });
+  
+  const [activeTab, setActiveTab] = useState<'files' | 'info' | 'notes'>('files');
 
   // Fetch files from WebDAV
   const fetchFiles = useCallback(async (path: string) => {
@@ -137,6 +140,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
       const data = await response.json();
       console.log('Files fetched:', data);
       setFiles(data.files || []);
+      setUniqueId(data.uniqueId);
       setIsLoaded(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch files');
@@ -336,6 +340,329 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
       router.push('/manager/dashboard');
     }
   };
+
+  // Fetch server status from Portainer
+  const fetchServerStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/server/status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uniqueId: resolvedParams.slug
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Failed to fetch server status:', response.status);
+        return;
+      }
+      
+      const data = await response.json();
+      setServerStats(prev => ({
+        ...prev,
+        status: data.status || 'offline'
+      }));
+    } catch (error) {
+      console.error('Error fetching server status:', error);
+      setServerStats(prev => ({
+        ...prev,
+        status: 'offline'
+      }));
+    }
+  }, [resolvedParams.slug]);
+
+  const startServer = async () => {
+    try {
+      showNotification({
+        type: 'info',
+        title: 'Starting Server',
+        message: 'Server is starting...'
+      });
+
+      const response = await fetch('/api/server/manage/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uniqueId: uniqueId
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to start server');
+      }
+
+      // Refresh server status after operation
+      setTimeout(() => {
+        fetchServerStatus();
+      }, 1000);
+
+      showNotification({
+        type: 'success',
+        title: 'Server Started',
+        message: data.message || 'Your server is starting up!'
+      });
+    } catch (error) {
+      showNotification({
+        type: 'error',
+        title: 'Start Failed',
+        message: error instanceof Error ? error.message : 'Failed to start server'
+      });
+      console.error('Error starting server:', error);
+    }
+  };
+
+  const stopServer = async () => {
+    try {
+      showNotification({
+        type: 'info',
+        title: 'Stopping Server',
+        message: 'Server is stopping...'
+      });
+
+      const response = await fetch('/api/server/manage/stop', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uniqueId: uniqueId,
+          timeout: 10
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to stop server');
+      }
+
+      // Refresh server status after operation
+      setTimeout(() => {
+        fetchServerStatus();
+      }, 1000);
+
+      showNotification({
+        type: 'success',
+        title: 'Server Stopped',
+        message: data.message || 'Your server is now offline!'
+      });
+    } catch (error) {
+      showNotification({
+        type: 'error',
+        title: 'Stop Failed',
+        message: error instanceof Error ? error.message : 'Failed to stop server'
+      });
+      console.error('Error stopping server:', error);
+    }
+  };
+
+  const restartServer = async () => {
+    try {
+      showNotification({
+        type: 'info',
+        title: 'Restarting Server',
+        message: 'Server is restarting...'
+      });
+
+      const response = await fetch('/api/server/manage/restart', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          serverSlug: resolvedParams.slug,
+          timeout: 10
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to restart server');
+      }
+
+      // Refresh server status after operation
+      setTimeout(() => {
+        fetchServerStatus();
+      }, 1000);
+
+      showNotification({
+        type: 'success',
+        title: 'Server Restarted',
+        message: data.message || 'Your server is restarting!'
+      });
+    } catch (error) {
+      showNotification({
+        type: 'error',
+        title: 'Restart Failed',
+        message: error instanceof Error ? error.message : 'Failed to restart server'
+      });
+      console.error('Error restarting server:', error);
+    }
+  };
+
+  const killServer = async () => {
+    try {
+      showNotification({
+        type: 'info',
+        title: 'Killing Server',
+        message: 'Server is being killed...'
+      });
+
+      const response = await fetch('/api/server/manage/kill', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          serverSlug: resolvedParams.slug,
+          signal: 'SIGKILL'
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to kill server');
+      }
+
+      // Refresh server status after operation
+      setTimeout(() => {
+        fetchServerStatus();
+      }, 1000);
+
+      showNotification({
+        type: 'success',
+        title: 'Server Killed',
+        message: data.message || 'Your server has been killed!'
+      });
+    } catch (error) {
+      showNotification({
+        type: 'error',
+        title: 'Kill Failed',
+        message: error instanceof Error ? error.message : 'Failed to kill server'
+      });
+      console.error('Error killing server:', error);
+    }
+  };
+
+  const downloadServer = async () => {
+    try {
+      showNotification({
+        type: 'info',
+        title: 'Preparing Download',
+        message: 'Server backup is being prepared...'
+      });
+
+      const response = await fetch('/api/server/manage/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          serverSlug: resolvedParams.slug
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to prepare download');
+      }
+
+      showNotification({
+        type: 'success',
+        title: 'Download Prepared',
+        message: data.message || 'Your server backup is ready!'
+      });
+    } catch (error) {
+      showNotification({
+        type: 'error',
+        title: 'Download Failed',
+        message: error instanceof Error ? error.message : 'Failed to prepare download'
+      });
+      console.error('Error downloading server:', error);
+    }
+  };
+
+  const deleteServer = async () => {
+    showConfirmDialog({
+      title: 'Delete Server',
+      message: `Are you sure you want to delete the server "${resolvedParams.slug}"? This action cannot be undone and will remove the container and all associated data.`,
+      confirmText: 'Delete Forever',
+      cancelText: 'Cancel',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          showNotification({
+            type: 'info',
+            title: 'Deleting Server',
+            message: 'Server is being deleted...'
+          });
+
+          const response = await fetch('/api/server/manage/delete', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              serverSlug: resolvedParams.slug,
+              force: true,
+              removeVolumes: true
+            })
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.message || 'Failed to delete server');
+          }
+
+          showNotification({
+            type: 'success',
+            title: 'Server Deleted',
+            message: data.message || 'Your server has been deleted!'
+          });
+
+          // Redirect to dashboard after successful deletion
+          setTimeout(() => {
+            router.push('/manager/dashboard');
+          }, 1000);
+
+        } catch (error) {
+          showNotification({
+            type: 'error',
+            title: 'Delete Failed',
+            message: error instanceof Error ? error.message : 'Failed to delete server'
+          });
+          console.error('Error deleting server:', error);
+        }
+      }
+    });
+  };
+
+  // Add useEffect hooks for status polling
+  useEffect(() => {
+    // Initial fetch of server status
+    if (isLoaded) {
+      fetchServerStatus();
+    }
+
+    // Update server status every 15 seconds
+    const statusInterval = setInterval(() => {
+      if (isLoaded) {
+        fetchServerStatus();
+      }
+    }, 15000);
+
+    return () => clearInterval(statusInterval);
+  }, [isLoaded, fetchServerStatus]);
 
   useEffect(() => {
     fetchFiles(currentPath);
@@ -587,9 +914,22 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
               {isLoaded && (
                 <div className={styles.serverStatus}>
                   <div className={styles.statusIndicator}>
-                    <FaCircle className={`${styles.statusIcon} ${serverStats.isOnline ? styles.online : styles.offline}`} />
+                    <FaCircle className={`${styles.statusIcon} ${
+                      serverStats.status === 'online' ? styles.online :
+                      serverStats.status === 'starting' ? styles.starting :
+                      serverStats.status === 'crashed' ? styles.crashed :
+                      serverStats.status === 'paused' ? styles.paused :
+                      serverStats.status === 'unhealthy' ? styles.unhealthy :
+                      styles.offline
+                    }`} />
                     <span className={styles.statusText}>
-                      {serverStats.isOnline ? 'Online' : 'Offline'}
+                      {serverStats.status === 'online' ? 'Online' :
+                       serverStats.status === 'starting' ? 'Starting' :
+                       serverStats.status === 'crashed' ? 'Crashed' :
+                       serverStats.status === 'paused' ? 'Paused' :
+                       serverStats.status === 'unhealthy' ? 'Unhealthy' :
+                       serverStats.status === 'offline' ? 'Offline' :
+                       'Loading...'}
                     </span>
                   </div>
 
@@ -618,76 +958,236 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
               {/* Server Control Buttons */}
               {isLoaded && (
                 <div className={styles.controlButtons}>
-                  <button className={`${styles.controlButton} ${styles.start}`}>
+                  <button 
+                    className={`${styles.controlButton} ${styles.start}`} 
+                    onClick={startServer}
+                    disabled={serverStats.status === 'online' || serverStats.status === 'starting' || serverStats.status === 'unhealthy'}
+                  >
                     <FaPlay /> Start
                   </button>
-                  <button className={`${styles.controlButton} ${styles.restart}`}>
+                  <button 
+                    className={`${styles.controlButton} ${styles.restart}`} 
+                    onClick={restartServer}
+                    disabled={serverStats.status === 'offline' || serverStats.status === 'starting' || serverStats.status === 'paused'}
+                  >
                     <FaPause /> Restart
                   </button>
-                  <button className={`${styles.controlButton} ${styles.stop}`}>
+                  <button 
+                    className={`${styles.controlButton} ${styles.stop}`} 
+                    onClick={stopServer}
+                    disabled={serverStats.status === 'offline' || serverStats.status === 'starting' || serverStats.status === 'paused'}
+                  >
                     <FaStop /> Stop
                   </button>
-                  <button className={`${styles.controlButton} ${styles.download}`}>
+                  <button 
+                    className={`${styles.controlButton} ${styles.kill}`} 
+                    onClick={killServer}
+                    disabled={serverStats.status === 'offline'}
+                  >
+                    <FaStop /> Kill
+                  </button>
+                  <button 
+                    className={`${styles.controlButton} ${styles.download}`} 
+                    onClick={downloadServer}
+                  >
                     <FaDownload /> Download
                   </button>
-                  <button className={`${styles.controlButton} ${styles.delete}`}>
+                  <button 
+                    className={`${styles.controlButton} ${styles.delete}`} 
+                    onClick={deleteServer}
+                  >
                     <FaTrash /> Delete
                   </button>
                 </div>
               )}
             </div>
 
-            {/* Bottom Right - File Editor */}
-            <div className={styles.fileEditor}>
-              {selectedFile ? (
-                <>
-                  <div className={styles.editorHeader}>
-                    <h4>{selectedFile.name}</h4>
-                    <div className={styles.editorControls}>
-                      {selectedFile && fileContent && fileContent !== 'Binary file - content not displayable' && (
-                        <button
-                          className={`${styles.editorButton} ${isEditing ? styles.active : ''}`}
-                          onClick={handleEditToggle}
-                        >
-                          <FaEdit /> {isEditing ? 'View' : 'Edit'}
-                        </button>
-                      )}
-                      {isEditing && hasUnsavedChanges && (
-                        <button
-                          className={`${styles.editorButton} ${styles.save}`}
-                          onClick={handleSave}
-                          disabled={isSaving}
-                        >
-                          <FaSave /> {isSaving ? 'Saving...' : 'Save'}
-                        </button>
-                      )}
+            {/* Tab Navigation */}
+            <div className={styles.tabNavigation}>
+              <button
+                className={`${styles.tabButton} ${activeTab === 'files' ? styles.active : ''}`}
+                onClick={() => setActiveTab('files')}
+              >
+                <FaFolder /> Files
+              </button>
+              <button
+                className={`${styles.tabButton} ${activeTab === 'info' ? styles.active : ''}`}
+                onClick={() => setActiveTab('info')}
+              >
+                <FaCircle /> Server Info
+              </button>
+              <button
+                className={`${styles.tabButton} ${activeTab === 'notes' ? styles.active : ''}`}
+                onClick={() => setActiveTab('notes')}
+              >
+                <FaEdit /> Important Notes
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            <div className={styles.tabContent}>
+              {activeTab === 'files' && (
+                <div className={styles.fileEditor}>
+                  {selectedFile ? (
+                    <>
+                      <div className={styles.editorHeader}>
+                        <h4>{selectedFile.name}</h4>
+                        <div className={styles.editorControls}>
+                          {selectedFile && fileContent && fileContent !== 'Binary file - content not displayable' && (
+                            <button
+                              className={`${styles.editorButton} ${isEditing ? styles.active : ''}`}
+                              onClick={handleEditToggle}
+                            >
+                              <FaEdit /> {isEditing ? 'View' : 'Edit'}
+                            </button>
+                          )}
+                          {isEditing && hasUnsavedChanges && (
+                            <button
+                              className={`${styles.editorButton} ${styles.save}`}
+                              onClick={handleSave}
+                              disabled={isSaving}
+                            >
+                              <FaSave /> {isSaving ? 'Saving...' : 'Save'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className={styles.editorContent}>
+                        {fileLoading ? (
+                          <div className={styles.loadingState}>
+                            <p>Loading file content...</p>
+                          </div>
+                        ) : isEditing ? (
+                          <textarea
+                            className={styles.editor}
+                            value={fileContent}
+                            onChange={(e) => {
+                              setFileContent(e.target.value);
+                              setHasUnsavedChanges(true);
+                            }}
+                            placeholder="File content..."
+                          />
+                        ) : (
+                          <pre className={styles.viewer}>{fileContent}</pre>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className={styles.editorPlaceholder}>
+                      <FaFile className={styles.placeholderIcon} />
+                      <p>Select a file to view or edit</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'info' && (
+                <div className={styles.serverInfo}>
+                  <h3>Server Information</h3>
+                  <div className={styles.infoGrid}>
+                    <div className={styles.infoItem}>
+                      <strong>Server Name:</strong>
+                      <span>{resolvedParams.slug}</span>
+                    </div>
+                    <div className={styles.infoItem}>
+                      <strong>Status:</strong>
+                      <span className={`${styles.statusBadge} ${styles[serverStats.status]}`}>
+                        {serverStats.status.charAt(0).toUpperCase() + serverStats.status.slice(1)}
+                      </span>
+                    </div>
+                    <div className={styles.infoItem}>
+                      <strong>Players Online:</strong>
+                      <span>{serverStats.playersOnline}/{serverStats.maxPlayers}</span>
+                    </div>
+                    <div className={styles.infoItem}>
+                      <strong>RAM Usage:</strong>
+                      <span>{serverStats.ramUsage}MB / {serverStats.maxRam}MB</span>
+                    </div>
+                    <div className={styles.infoItem}>
+                      <strong>CPU Usage:</strong>
+                      <span>{serverStats.cpuUsage}%</span>
+                    </div>
+                    <div className={styles.infoItem}>
+                      <strong>Server Type:</strong>
+                      <span>Minecraft Java Edition</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'notes' && (
+                <div className={styles.importantNotes}>
+                  <h3>Important Notes</h3>
+                  
+                  <div className={styles.notesSection}>
+                    <h4>🚀 Getting Started</h4>
+                    <div className={styles.notesList}>
+                      <div className={styles.note}>
+                        <strong>First Time Setup:</strong> Your server is automatically configured with default settings. You can modify server.properties to customize your experience.
+                      </div>
+                      <div className={styles.note}>
+                        <strong>Server Status:</strong> Use the control buttons above to start, stop, or restart your server. The status indicator shows real-time server state.
+                      </div>
+                      <div className={styles.note}>
+                        <strong>File Management:</strong> Edit configuration files directly in the browser. Changes are saved automatically to your server.
+                      </div>
                     </div>
                   </div>
 
-                  <div className={styles.editorContent}>
-                    {fileLoading ? (
-                      <div className={styles.loadingState}>
-                        <p>Loading file content...</p>
+                  <div className={styles.notesSection}>
+                    <h4>⚙️ Configuration Tips</h4>
+                    <div className={styles.notesList}>
+                      <div className={styles.note}>
+                        <strong>server.properties:</strong> Main configuration file. Edit this to change game mode, difficulty, world settings, and more.
                       </div>
-                    ) : isEditing ? (
-                      <textarea
-                        className={styles.editor}
-                        value={fileContent}
-                        onChange={(e) => {
-                          setFileContent(e.target.value);
-                          setHasUnsavedChanges(true);
-                        }}
-                        placeholder="File content..."
-                      />
-                    ) : (
-                      <pre className={styles.viewer}>{fileContent}</pre>
-                    )}
+                      <div className={styles.note}>
+                        <strong>whitelist.json:</strong> Add player UUIDs here to restrict server access to specific players.
+                      </div>
+                      <div className={styles.note}>
+                        <strong>ops.json:</strong> Grant operator privileges to trusted players for admin commands.
+                      </div>
+                      <div className={styles.note}>
+                        <strong>Memory Settings:</strong> Your server has {serverStats.maxRam}MB RAM allocated. Monitor usage to ensure optimal performance.
+                      </div>
+                    </div>
                   </div>
-                </>
-              ) : (
-                <div className={styles.editorPlaceholder}>
-                  <FaFile className={styles.placeholderIcon} />
-                  <p>Select a file to view or edit</p>
+
+                  <div className={styles.notesSection}>
+                    <h4>🔧 Troubleshooting</h4>
+                    <div className={styles.notesList}>
+                      <div className={styles.note}>
+                        <strong>Server Won&apos;t Start:</strong> Check the latest.log file for error messages. Common issues include insufficient RAM or invalid configuration.
+                      </div>
+                      <div className={styles.note}>
+                        <strong>Players Can&apos;t Connect:</strong> Verify your server is running and check firewall settings. Default port is 25565.
+                      </div>
+                      <div className={styles.note}>
+                        <strong>Performance Issues:</strong> Monitor RAM and CPU usage. Consider reducing view distance or player count if resources are limited.
+                      </div>
+                      <div className={styles.note}>
+                        <strong>Crashed Status:</strong> If your server shows as &apos;Crashed&apos;, check the logs for error details. Use the &apos;Kill&apos; button to force stop if needed.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.notesSection}>
+                    <h4>📋 Quick Commands</h4>
+                    <div className={styles.notesList}>
+                      <div className={styles.note}>
+                        <strong>Start Server:</strong> Click the green Start button when server is offline.
+                      </div>
+                      <div className={styles.note}>
+                        <strong>Graceful Stop:</strong> Use the Stop button to safely shut down the server.
+                      </div>
+                      <div className={styles.note}>
+                        <strong>Force Kill:</strong> Use Kill button only if server is unresponsive.
+                      </div>
+                      <div className={styles.note}>
+                        <strong>Download Backup:</strong> Create a backup of your server files for safekeeping.
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
