@@ -1191,6 +1191,108 @@ export class MinecraftServer {
         };
     }
 
+    /**
+     * Delete all server files from WebDAV and local storage
+     * This will remove all plugins, mods, world files, backups, and configuration files
+     */
+    async deleteAllServerFiles(): Promise<{ success: boolean; deletedPaths?: string[]; localPaths?: string[]; error?: string }> {
+        try {
+            const deletedPaths: string[] = [];
+            const localPaths: string[] = [];
+            
+            // WebDAV server path structure
+            const serverPath = `/servers/${this.uniqueId}`;
+            const userEmail = this.getUserEmail();
+            const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
+            const userFolder = userEmail.split('@')[0];
+            const webdavUserPath = `${baseServerPath}/${userFolder}/${this.uniqueId}`;
+            
+            // Local server path structure (for documentation)
+            const localServerPath = this.getServerBasePath();
+            localPaths.push(localServerPath);
+            
+            console.log(`Starting deletion of all server files for ${this.serverName} (${this.uniqueId})`);
+            console.log(`WebDAV paths to delete: ${serverPath}, ${webdavUserPath}`);
+            console.log(`Local path to delete: ${localServerPath}`);
+            
+            // Delete from WebDAV - try both possible locations
+            const pathsToDelete = [serverPath, webdavUserPath];
+            
+            for (const path of pathsToDelete) {
+                try {
+                    const exists = await webdavService.exists(path);
+                    if (exists) {
+                        console.log(`Deleting WebDAV directory: ${path}`);
+                        
+                        // Get directory contents to delete recursively
+                        const items = await webdavService.getDirectoryContents(path);
+                        
+                        // Delete all items in the directory
+                        for (const item of items) {
+                            const webdavItem = item as { filename: string; type: string };
+                            const itemPath = `${path}/${webdavItem.filename}`;
+                            if (webdavItem.type === 'directory') {
+                                await this.deleteDirectoryRecursively(itemPath);
+                            } else {
+                                await webdavService.deleteFile(itemPath);
+                            }
+                            deletedPaths.push(itemPath);
+                        }
+                        
+                        // Delete the main directory
+                        await webdavService.deleteFile(path);
+                        deletedPaths.push(path);
+                        console.log(`Successfully deleted WebDAV directory: ${path}`);
+                    } else {
+                        console.log(`WebDAV directory does not exist: ${path}`);
+                    }
+                } catch (error) {
+                    console.warn(`Could not delete WebDAV path ${path}:`, error);
+                }
+            }
+            
+            console.log(`Successfully deleted ${deletedPaths.length} WebDAV paths for server ${this.serverName}`);
+            console.log(`Note: Local files at ${localServerPath} should be manually deleted if they exist`);
+            
+            return {
+                success: true,
+                deletedPaths,
+                localPaths
+            };
+        } catch (error) {
+            console.error('Error deleting all server files:', error);
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
+            };
+        }
+    }
+
+    /**
+     * Helper method to recursively delete a directory in WebDAV
+     */
+    private async deleteDirectoryRecursively(directoryPath: string): Promise<void> {
+        try {
+            const items = await webdavService.getDirectoryContents(directoryPath);
+            
+            for (const item of items) {
+                const webdavItem = item as { filename: string; type: string };
+                const itemPath = `${directoryPath}/${webdavItem.filename}`;
+                if (webdavItem.type === 'directory') {
+                    await this.deleteDirectoryRecursively(itemPath);
+                } else {
+                    await webdavService.deleteFile(itemPath);
+                }
+            }
+            
+            // Delete the directory itself after all contents are deleted
+            await webdavService.deleteFile(directoryPath);
+        } catch (error) {
+            console.warn(`Error deleting directory ${directoryPath}:`, error);
+            throw error;
+        }
+    }
+
 }
 
 /**

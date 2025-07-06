@@ -4,6 +4,9 @@ import jwt from "jsonwebtoken";
 import User from "@/lib/objects/User";
 import Server from "@/lib/objects/Server";
 import portainer from "@/lib/server/portainer";
+import porkbun from "@/lib/server/porkbun";
+import webdavService from "@/lib/server/webdav";
+import { MinecraftServer } from "@/lib/server/minecraft";
 
 export async function DELETE(request: NextRequest) {
     await dbConnect();
@@ -27,9 +30,9 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Get server identifier from request body
-        const { serverSlug, force = true, removeVolumes = false } = await request.json();
-        if (!serverSlug) {
-            return NextResponse.json({ message: 'Server slug is required.' }, { status: 400 });
+        const { uniqueId, force = true, removeVolumes = false } = await request.json();
+        if (!uniqueId) {
+            return NextResponse.json({ message: 'Server identifier (uniqueId) is required.' }, { status: 400 });
         }
 
         // Find the server by slug (uniqueId, subdomain, or serverName)
@@ -38,9 +41,9 @@ export async function DELETE(request: NextRequest) {
                 { email: user.email }, // Ensure user owns the server
                 {
                     $or: [
-                        { uniqueId: serverSlug },
-                        { subdomainName: serverSlug },
-                        { serverName: serverSlug }
+                        { uniqueId: uniqueId },
+                        { subdomainName: uniqueId },
+                        { serverName: uniqueId }
                     ]
                 }
             ]
@@ -51,7 +54,7 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Get container by server MongoDB _id (containers are named mc-{_id})
-        const containerIdentifier = `mc-${server._id}`;
+        const containerIdentifier = `mc-${server.uniqueId}`;
         const container = await portainer.getContainerByIdentifier(containerIdentifier);
         
         if (container) {
@@ -72,12 +75,75 @@ export async function DELETE(request: NextRequest) {
         // Remove server from database
         await Server.findByIdAndDelete(server._id);
 
+        // Remove the associated DNS record if it exists
+        if (server.subdomainName) {
+            try {
+                await porkbun.deleteDnsRecord(server.subdomainName, server.email);
+            } catch (error) {
+                console.error('Error deleting DNS record:', error);
+            }
+        }
+
+        // Delete all server files using MinecraftServer class
+        let filesDeleted = false;
+        let deletedPaths: string[] = [];
+        let localPaths: string[] = [];
+        
+        if (removeVolumes) {
+            try {
+                const environmentId = await portainer.getFirstEnvironmentId();
+
+                // Ensure environment ID is valid
+                if (!environmentId) {
+                    throw new Error('No valid environment ID found for file deletion');
+                }
+
+                // Create a MinecraftServer instance to handle file deletion
+                const minecraftServer = new MinecraftServer(
+                    { 
+                        EULA: true, 
+                        userEmail: server.email,
+                        SERVER_NAME: server.serverName 
+                    },
+                    server.serverName,
+                    server.uniqueId,
+                    environmentId || 1 // Default to environment ID 1 if not set
+                );
+
+                // Delete all server files
+                const deleteResult = await minecraftServer.deleteAllServerFiles();
+                
+                if (deleteResult.success) {
+                    filesDeleted = true;
+                    deletedPaths = deleteResult.deletedPaths || [];
+                    localPaths = deleteResult.localPaths || [];
+                    console.log(`Successfully deleted ${deletedPaths.length} server files for ${server.serverName}`);
+                } else {
+                    console.error('Failed to delete server files:', deleteResult.error);
+                }
+            } catch (error) {
+                console.error('Error deleting server files:', error);
+                
+                // Fallback to basic WebDAV deletion
+                try {
+                    await webdavService.deleteDirectory(`/servers/${server.uniqueId}`);
+                    filesDeleted = true;
+                    console.log('Fallback: Basic WebDAV deletion completed');
+                } catch (fallbackError) {
+                    console.error('Fallback deletion also failed:', fallbackError);
+                }
+            }
+        }
+
         return NextResponse.json({ 
             message: 'Server deleted successfully.',
             serverId: server.uniqueId,
             serverName: server.serverName,
             containerRemoved: !!container,
-            volumesRemoved: removeVolumes
+            volumesRemoved: removeVolumes,
+            filesDeleted,
+            deletedPathsCount: deletedPaths.length,
+            localPathsForCleanup: localPaths
         }, { status: 200 });
 
     } catch (error) {

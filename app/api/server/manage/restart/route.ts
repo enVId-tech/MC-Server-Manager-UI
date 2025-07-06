@@ -27,8 +27,8 @@ export async function POST(request: NextRequest) {
         }
 
         // Get server identifier from request body (handle both serverSlug and uniqueId for compatibility)
-        const { serverSlug, uniqueId, timeout = 10 } = await request.json();
-        const serverIdentifier = serverSlug || uniqueId;
+        const { uniqueId, timeout = 10 } = await request.json();
+        const serverIdentifier = uniqueId;
         
         if (!serverIdentifier) {
             return NextResponse.json({ message: 'Server identifier (serverSlug or uniqueId) is required.' }, { status: 400 });
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get container by server MongoDB _id (containers are named mc-{_id})
-        const containerIdentifier = `mc-${server._id}`;
+        const containerIdentifier = `mc-${server.uniqueId}`;
         const container = await portainer.getContainerByIdentifier(containerIdentifier);
         
         if (!container) {

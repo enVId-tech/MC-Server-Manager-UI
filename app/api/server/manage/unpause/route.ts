@@ -29,8 +29,9 @@ export async function POST(request: NextRequest) {
         // Get server identifier from request body
         const { uniqueId } = await request.json();
         const serverIdentifier = uniqueId;
+
         if (!serverIdentifier) {
-            return NextResponse.json({ message: 'Server identifier is required.' }, { status: 400 });
+            return NextResponse.json({ message: 'Server identifier (uniqueId) is required.' }, { status: 400 });
         }
 
         // Find the server by slug (uniqueId, subdomain, or serverName)
@@ -59,41 +60,30 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ message: `Container '${containerIdentifier}' not found for this server.` }, { status: 404 });
         }
 
-        // Generate download information
-        const downloadInfo = {
-            serverId: server.uniqueId,
-            serverName: server.serverName,
-            containerId: container.Id,
-            containerName: container.Names?.[0]?.replace(/^\//, '') || 'Unknown',
-            exportDate: new Date().toISOString(),
-            serverConfig: server.serverConfig,
-            // Note: Actual file download would require additional implementation
-            // This could include creating a tar archive of the container volumes
-            downloadUrl: `/api/server/export/${server.uniqueId}`, // Future implementation
-            instructions: [
-                'This endpoint prepares server data for download.',
-                'Container volumes and configuration will be packaged.',
-                'Download will be available via the provided URL.',
-                'Please ensure the server is stopped before downloading for data consistency.'
-            ]
-        };
+        // Check if container is paused (you can only unpause paused containers)
+        if (container.State !== 'paused') {
+            return NextResponse.json({ 
+                message: `Container '${containerIdentifier}' is not paused and cannot be unpaused. Current state: ${container.State}` 
+            }, { status: 400 });
+        }
 
-        // TODO: Implement actual container export/backup logic here
-        // This could involve:
-        // 1. Creating a tar archive of container volumes
-        // 2. Exporting container image
-        // 3. Packaging configuration files
-        // 4. Generating download links
+        // Unpause the container
+        await portainer.unpauseContainer(container.Id);
+        
+        // Update server status in database if needed
+        // server.isOnline = true; // Should already be true since it was paused, not stopped
 
         return NextResponse.json({ 
-            message: 'Server download prepared successfully.',
-            downloadInfo
+            message: 'Server unpaused successfully.',
+            containerId: container.Id,
+            containerName: container.Names?.[0]?.replace(/^\//, '') || 'Unknown',
+            previousState: container.State
         }, { status: 200 });
 
     } catch (error) {
-        console.error('Error preparing server download:', error);
+        console.error('Error unpausing server:', error);
         return NextResponse.json({ 
-            message: 'Failed to prepare server download.',
+            message: 'Failed to unpause server.',
             error: error instanceof Error ? error.message : 'Unknown error'
         }, { status: 500 });
     }

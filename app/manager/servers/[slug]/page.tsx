@@ -13,12 +13,16 @@ import {
   FaEdit,
   FaMemory,
   FaUsers,
-  FaCircle
+  FaCircle,
+  FaSlash
 } from 'react-icons/fa';
 import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
 import styles from './server.module.scss';
 import serverManager from '@/public/server-manager-bg.png';
+import { VscDebugRestart } from 'react-icons/vsc';
+import { HiDownload } from 'react-icons/hi';
+import { FiCpu } from 'react-icons/fi';
 
 interface FileItem {
   name: string;
@@ -62,7 +66,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   const [newItemName, setNewItemName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [uniqueId, setUniqueId] = useState<string>('');
-  
+
   // Utility function to format file size
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
@@ -80,7 +84,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   // Utility function to get file icon based on type
   const getFileIcon = (file: FileItem) => {
     if (file.type === 'folder') return <FaFolder className={styles.fileIcon} />;
-    
+
     const ext = getFileExtension(file.name);
     switch (ext) {
       case 'properties':
@@ -109,7 +113,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
       // Always put folders first
       if (a.type === 'folder' && b.type === 'file') return -1;
       if (a.type === 'file' && b.type === 'folder') return 1;
-      
+
       // Sort by name alphabetically
       return a.name.localeCompare(b.name);
     });
@@ -121,7 +125,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     maxRam: 4096,
     cpuUsage: 45
   });
-  
+
   const [activeTab, setActiveTab] = useState<'files' | 'info' | 'notes'>('files');
 
   // Fetch files from WebDAV
@@ -358,7 +362,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
         console.error('Failed to fetch server status:', response.status);
         return;
       }
-      
+
       const data = await response.json();
       setServerStats(prev => ({
         ...prev,
@@ -414,6 +418,95 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
         message: error instanceof Error ? error.message : 'Failed to start server'
       });
       console.error('Error starting server:', error);
+    }
+  };
+
+  const pauseServer = async () => {
+    try {
+      showNotification({
+        type: 'info',
+        title: 'Pausing Server',
+        message: 'Server is pausing...'
+      });
+
+      const response = await fetch('/api/server/manage/pause', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uniqueId: uniqueId,
+          timeout: 10
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to pause server');
+      }
+
+      // Refresh server status after operation
+      setTimeout(() => {
+        fetchServerStatus();
+      }, 1000);
+
+      showNotification({
+        type: 'success',
+        title: 'Server Paused',
+        message: data.message || 'Your server is now paused!'
+      });
+    } catch (error) {
+      showNotification({
+        type: 'error',
+        title: 'Pause Failed',
+        message: error instanceof Error ? error.message : 'Failed to pause server'
+      });
+      console.error('Error pausing server:', error);
+    }
+  };
+
+  const unpauseServer = async () => {
+    try {
+      showNotification({
+        type: 'info',
+        title: 'Resuming Server',
+        message: 'Server is resuming...'
+      });
+
+      const response = await fetch('/api/server/manage/unpause', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uniqueId: uniqueId
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to resume server');
+      }
+
+      // Refresh server status after operation
+      setTimeout(() => {
+        fetchServerStatus();
+      }, 1000);
+
+      showNotification({
+        type: 'success',
+        title: 'Server Resumed',
+        message: data.message || 'Your server has been resumed!'
+      });
+    } catch (error) {
+      showNotification({
+        type: 'error',
+        title: 'Resume Failed',
+        message: error instanceof Error ? error.message : 'Failed to resume server'
+      });
+      console.error('Error resuming server:', error);
     }
   };
 
@@ -476,7 +569,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          serverSlug: resolvedParams.slug,
+          uniqueId: uniqueId,
           timeout: 10
         })
       });
@@ -521,8 +614,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          serverSlug: resolvedParams.slug,
-          signal: 'SIGKILL'
+          uniqueId: uniqueId,
         })
       });
 
@@ -566,7 +658,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          serverSlug: resolvedParams.slug
+          uniqueId: uniqueId,
         })
       });
 
@@ -612,7 +704,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              serverSlug: resolvedParams.slug,
+              uniqueId: uniqueId,
               force: true,
               removeVolumes: true
             })
@@ -869,7 +961,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                           key={index}
                           className={`${styles.fileItem} ${selectedFile?.path === file.path ? styles.selected : ''}`}
                         >
-                          <div 
+                          <div
                             className={styles.fileContent}
                             onClick={() => handleFileClick(file)}
                           >
@@ -914,22 +1006,21 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
               {isLoaded && (
                 <div className={styles.serverStatus}>
                   <div className={styles.statusIndicator}>
-                    <FaCircle className={`${styles.statusIcon} ${
-                      serverStats.status === 'online' ? styles.online :
+                    <FaCircle className={`${styles.statusIcon} ${serverStats.status === 'online' ? styles.online :
                       serverStats.status === 'starting' ? styles.starting :
-                      serverStats.status === 'crashed' ? styles.crashed :
-                      serverStats.status === 'paused' ? styles.paused :
-                      serverStats.status === 'unhealthy' ? styles.unhealthy :
-                      styles.offline
-                    }`} />
+                        serverStats.status === 'crashed' ? styles.crashed :
+                          serverStats.status === 'paused' ? styles.paused :
+                            serverStats.status === 'unhealthy' ? styles.unhealthy :
+                              styles.offline
+                      }`} />
                     <span className={styles.statusText}>
                       {serverStats.status === 'online' ? 'Online' :
-                       serverStats.status === 'starting' ? 'Starting' :
-                       serverStats.status === 'crashed' ? 'Crashed' :
-                       serverStats.status === 'paused' ? 'Paused' :
-                       serverStats.status === 'unhealthy' ? 'Unhealthy' :
-                       serverStats.status === 'offline' ? 'Offline' :
-                       'Loading...'}
+                        serverStats.status === 'starting' ? 'Starting' :
+                          serverStats.status === 'crashed' ? 'Crashed' :
+                            serverStats.status === 'paused' ? 'Paused' :
+                              serverStats.status === 'unhealthy' ? 'Unhealthy' :
+                                serverStats.status === 'offline' ? 'Offline' :
+                                  'Loading...'}
                     </span>
                   </div>
 
@@ -938,18 +1029,24 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                       <FaUsers className={styles.statIcon} />
                       <span>{serverStats.playersOnline}/{serverStats.maxPlayers} players</span>
                     </div>
+
+                    <div className={styles.statItem}>
+                      <FiCpu className={styles.statIcon} />
+                      <span>Allocated CPU Thread Usage: {serverStats.cpuUsage}%</span>
+                      <div className={styles.playerBar}>
+                      </div>
+                    </div>
+
                     <div className={styles.statItem}>
                       <FaMemory className={styles.statIcon} />
                       <span>{serverStats.ramUsage}MB / {serverStats.maxRam}MB RAM</span>
+
                       <div className={styles.ramBar}>
                         <div
                           className={styles.ramFill}
                           style={{ width: `${(serverStats.ramUsage / serverStats.maxRam) * 100}%` }}
                         />
                       </div>
-                    </div>
-                    <div className={styles.statItem}>
-                      <span>CPU: {serverStats.cpuUsage}%</span>
                     </div>
                   </div>
                 </div>
@@ -958,42 +1055,57 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
               {/* Server Control Buttons */}
               {isLoaded && (
                 <div className={styles.controlButtons}>
-                  <button 
-                    className={`${styles.controlButton} ${styles.start}`} 
+                  <button
+                    className={`${styles.controlButton} ${styles.start}`}
                     onClick={startServer}
-                    disabled={serverStats.status === 'online' || serverStats.status === 'starting' || serverStats.status === 'unhealthy'}
+                    disabled={serverStats.status === 'online' || serverStats.status === 'starting' || serverStats.status === 'unhealthy' || serverStats.status === 'paused'}
                   >
                     <FaPlay /> Start
                   </button>
-                  <button 
-                    className={`${styles.controlButton} ${styles.restart}`} 
-                    onClick={restartServer}
-                    disabled={serverStats.status === 'offline' || serverStats.status === 'starting' || serverStats.status === 'paused'}
+                  <button
+                    className={`${styles.controlButton} ${serverStats.status === 'paused' ? styles.resume : styles.pause}`}
+                    onClick={serverStats.status === 'paused' ? unpauseServer : pauseServer}
+                    disabled={serverStats.status === 'offline' || serverStats.status === 'starting'}
                   >
-                    <FaPause /> Restart
+                    {serverStats.status === 'paused' ? (
+                      <>
+                        <FaPlay /> Resume
+                      </>
+                    ) : (
+                      <>
+                        <FaPause /> Pause
+                      </>
+                    )}
                   </button>
-                  <button 
-                    className={`${styles.controlButton} ${styles.stop}`} 
+                  <button
+                    className={`${styles.controlButton} ${styles.restart}`}
+                    onClick={restartServer}
+                    disabled={serverStats.status === 'offline' || serverStats.status === 'starting'}
+                  >
+                    <VscDebugRestart /> Restart
+                  </button>
+                  <button
+                    className={`${styles.controlButton} ${styles.stop}`}
                     onClick={stopServer}
-                    disabled={serverStats.status === 'offline' || serverStats.status === 'starting' || serverStats.status === 'paused'}
+                    disabled={serverStats.status === 'offline' || serverStats.status === 'starting'}
                   >
                     <FaStop /> Stop
                   </button>
-                  <button 
-                    className={`${styles.controlButton} ${styles.kill}`} 
+                  <button
+                    className={`${styles.controlButton} ${styles.kill}`}
                     onClick={killServer}
                     disabled={serverStats.status === 'offline'}
                   >
-                    <FaStop /> Kill
+                    <FaSlash /> Kill
                   </button>
-                  <button 
-                    className={`${styles.controlButton} ${styles.download}`} 
+                  <button
+                    className={`${styles.controlButton} ${styles.download}`}
                     onClick={downloadServer}
                   >
-                    <FaDownload /> Download
+                    <HiDownload /> Download
                   </button>
-                  <button 
-                    className={`${styles.controlButton} ${styles.delete}`} 
+                  <button
+                    className={`${styles.controlButton} ${styles.delete}`}
                     onClick={deleteServer}
                   >
                     <FaTrash /> Delete
@@ -1119,7 +1231,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
               {activeTab === 'notes' && (
                 <div className={styles.importantNotes}>
                   <h3>Important Notes</h3>
-                  
+
                   <div className={styles.notesSection}>
                     <h4>🚀 Getting Started</h4>
                     <div className={styles.notesList}>
@@ -1200,7 +1312,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
             <div className={styles.modal}>
               <div className={styles.modalHeader}>
                 <h3>Create New {createType === 'file' ? 'File' : 'Folder'}</h3>
-                <button 
+                <button
                   className={styles.modalClose}
                   onClick={() => {
                     setShowCreateModal(false);
@@ -1226,7 +1338,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                 />
               </div>
               <div className={styles.modalActions}>
-                <button 
+                <button
                   className={styles.modalButton}
                   onClick={() => {
                     setShowCreateModal(false);
@@ -1235,7 +1347,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   className={`${styles.modalButton} ${styles.primary}`}
                   onClick={handleCreateItem}
                   disabled={!newItemName.trim()}

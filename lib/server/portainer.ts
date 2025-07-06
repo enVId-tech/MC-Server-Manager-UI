@@ -1369,6 +1369,50 @@ export class PortainerApiClient {
     }
 
     /**
+     * Pause a container in Portainer
+     * @param containerId - The ID of the container to pause
+     * @param environmentId - The ID of the Portainer environment
+     * @returns Promise resolving to the pause operation result
+     */
+    async pauseContainer(containerId: string, environmentId?: number | null): Promise<Record<string, unknown>> {
+        if (!containerId) {
+            throw new Error('Container ID is required to pause container.');
+        }
+        try {
+            const envId = await this.ensureEnvironmentId(environmentId);
+            console.log(`⏸️ Pausing container ${containerId}...`);
+            const response = await this.axiosInstance.post(`/api/endpoints/${envId}/docker/containers/${containerId}/pause`);
+            console.log('✅ Container paused successfully');
+            return response.data;
+        } catch (error) {
+            console.error(`❌ Failed to pause container ${containerId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Unpause a container in Portainer
+     * @param containerId - The ID of the container to unpause
+     * @param environmentId - The ID of the Portainer environment
+     * @returns Promise resolving to the unpause operation result
+     */
+    async unpauseContainer(containerId: string, environmentId?: number | null): Promise<Record<string, unknown>> {
+        if (!containerId) {
+            throw new Error('Container ID is required to unpause container.');
+        }
+        try {
+            const envId = await this.ensureEnvironmentId(environmentId);
+            console.log(`▶️ Unpausing container ${containerId}...`);
+            const response = await this.axiosInstance.post(`/api/endpoints/${envId}/docker/containers/${containerId}/unpause`);
+            console.log('✅ Container unpaused successfully');
+            return response.data;
+        } catch (error) {
+            console.error(`❌ Failed to unpause container ${containerId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
      * Get container by name or ID
      * @param identifier - Container name or ID
      * @param environmentId - The ID of the Portainer environment

@@ -26,7 +26,7 @@
 }
 
 .container {
-    max-width: 1400px;
+    max-width: 1800px;
     margin: 0 auto;
     background-color: rgba($dark-bg, 0.9);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
@@ -111,7 +111,6 @@
 
 // Left Panel - File Explorer
 .leftPanel {
-    flex: 0 0 400px;
     border-right: 1px solid $border-color;
     background-color: rgba($dark-card, 0.6);
     display: flex;
@@ -262,7 +261,6 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 1rem;
 
     .statusIcon {
         font-size: 0.75rem;
@@ -374,15 +372,27 @@
     &.start {
         border-color: $success-green;
         color: $success-green;
+        background-color: rgba($success-green, 0.1);
 
         &:hover:not(.disabled) {
-            background-color: rgba($success-green, 0.1);
+            background-color: rgba($success-green, 0.2);
+        }
+    }
+    
+    &.pause {
+        border-color: $warning-yellow;
+        color: $warning-yellow;
+        background-color: rgba($warning-yellow, 0.1);
+
+        &:hover:not(.disabled) {
+            background-color: rgba($warning-yellow, 0.1);
         }
     }
 
     &.restart {
         border-color: $accent-blue;
         color: $accent-blue;
+        background-color: rgba($accent-blue, 0.1);
 
         &:hover:not(.disabled) {
             background-color: rgba($accent-blue, 0.1);
@@ -392,24 +402,27 @@
     &.stop {
         border-color: $error-red;
         color: $error-red;
+        background-color: rgba($error-red, 0.1);
 
         &:hover:not(.disabled) {
-            background-color: rgba($error-red, 0.1);
+            background-color: rgba($error-red, 0.2);
         }
     }
 
     &.kill {
         border-color: $error-red;
         color: $error-red;
+        background-color: rgba($error-red, 0.1);
 
         &:hover:not(.disabled) {
-            background-color: rgba($error-red, 0.1);
+            background-color: rgba($error-red, 0.2);
         }
     }
 
     &.download {
         border-color: $accent-green;
         color: $accent-green;
+        background-color: rgba($accent-green, 0.1);
 
         &:hover:not(.disabled) {
             background-color: rgba($accent-green, 0.1);
@@ -419,6 +432,7 @@
     &.delete {
         border-color: $accent-red;
         color: $accent-red;
+        background-color: rgba($accent-red, 0.1);
 
         &:hover:not(.disabled) {
             background-color: rgba($accent-red, 0.1);
@@ -619,8 +633,6 @@
 .serverStatus {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
 }
 
 .statusIndicator {
@@ -667,7 +679,7 @@
 
 .serverStats {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 0.75rem;
 }
 
@@ -677,6 +689,7 @@
     gap: 0.5rem;
     font-size: 0.9rem;
     color: $text-secondary;
+    margin: 0 20px;
 }
 
 .statIcon {
@@ -704,6 +717,8 @@
     flex-wrap: wrap;
     gap: 0.75rem;
     margin-top: 1rem;
+    border-radius: 8px;
+    border: none;
 }
 
 .controlButton {
@@ -726,6 +741,30 @@
     }
 
     &.start {
+        background-color: rgba($success-green, 0.1);
+        color: $success-green;
+        border-color: $success-green;
+
+        &:hover {
+            background-color: $success-green;
+            color: white;
+            box-shadow: 0 4px 12px rgba($success-green, 0.3);
+        }
+    }
+
+    &.pause {
+        background-color: rgba($warning-yellow, 0.1);
+        color: $warning-yellow;
+        border-color: $warning-yellow;
+
+        &:hover {
+            background-color: $warning-yellow;
+            color: white;
+            box-shadow: 0 4px 12px rgba($warning-yellow, 0.3);
+        }
+    }
+
+    &.resume {
         background-color: rgba($success-green, 0.1);
         color: $success-green;
         border-color: $success-green;
