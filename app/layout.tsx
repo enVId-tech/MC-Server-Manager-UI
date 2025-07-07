@@ -4,7 +4,10 @@ import "./globals.scss";
 import Navbar from "@/app/_components/Navbar/Navbar";
 import { NotificationProvider } from "@/lib/contexts/NotificationContext";
 import NotificationSystem from "@/app/_components/NotificationSystem/NotificationSystem";
-import MinecraftServer from "@/public/minecraft-server.svg"
+import MinecraftServer from "@/public/minecraft-server.svg";
+
+// Initialize enhanced console logging globally
+import '@/lib/global-console';
 
 export const metadata: Metadata = {
     title: "Minecraft Server Automation",
