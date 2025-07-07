@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db/dbConnect";
 import Server from "@/lib/objects/Server";
-import jwt from "jsonwebtoken";
-import User from "@/lib/objects/User";
+import { IUser } from "@/lib/objects/User";
 import BodyParser from "@/lib/db/bodyParser";
 import portainer from "@/lib/server/portainer";
 import MinecraftServerManager from "@/lib/server/serverManager";
 import { createMinecraftServer, convertClientConfigToServerConfig, ClientServerConfig } from "@/lib/server/minecraft";
+import verificationService from "@/lib/server/verify";
 
 export interface DeploymentStep {
     id: string;
@@ -31,29 +31,16 @@ const deploymentStatuses = new Map<string, DeploymentStatus>();
 
 // Deploy server with step-by-step tracking
 export async function POST(request: NextRequest) {
+    await dbConnect();
     try {
         const { serverId } = await BodyParser.parseAuto(request);
 
         if (!serverId) {
             return NextResponse.json({ error: "Server ID is required." }, { status: 400 });
         }
+        
+        const user: IUser | null = await verificationService.getUserFromToken(request);
 
-        // Connect to the database
-        await dbConnect();
-        const token = request.cookies.get('sessionToken')?.value;
-
-        if (!token) {
-            return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
-        }
-
-        // Verify the token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default');
-        if (!decoded) {
-            return NextResponse.json({ message: 'Invalid session token.' }, { status: 401 });
-        }
-
-        // Find the user by ID from the decoded token
-        const user = await User.findById((decoded as { id: string }).id);
         if (!user) {
             return NextResponse.json({ message: 'User not found.' }, { status: 404 });
         }

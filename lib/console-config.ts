@@ -3,7 +3,7 @@
  * Import this file to apply file-specific logging rules
  */
 
-import { importFileArrays, setFileControlMode } from '@/lib/utils/console';
+import { importFileArrays } from '@/lib/utils/console';
 
 // Files that should NEVER log (blacklist mode)
 export const SILENT_FILES = [

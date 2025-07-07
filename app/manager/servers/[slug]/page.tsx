@@ -35,7 +35,7 @@ interface FileItem {
 }
 
 interface ServerStats {
-  status: 'online' | 'offline' | 'starting' | 'crashed' | 'paused' | 'unhealthy';
+  status: 'online' | 'offline' | 'starting' | 'crashed' | 'paused' | 'unhealthy' | 'loading';
   playersOnline: number;
   maxPlayers: number;
   ramUsage: number;
@@ -117,7 +117,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
       return a.name.localeCompare(b.name);
     });
   const [serverStats, setServerStats] = useState<ServerStats>({
-    status: 'offline',
+    status: 'loading',
     playersOnline: 3,
     maxPlayers: 20,
     ramUsage: 2048,
@@ -133,7 +133,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     setError(null);
 
     try {
-      const response = await fetch(`/api/server/files?server=${encodeURIComponent(resolvedParams.slug)}&path=${encodeURIComponent(path)}`);
+      const response = await fetch(`/api/server/files?domainName=${encodeURIComponent(resolvedParams.slug)}&path=${encodeURIComponent(path)}`);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -197,7 +197,6 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          serverSlug: resolvedParams.slug,
           filePath: selectedFile.path,
           content: fileContent
         })
@@ -291,7 +290,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              serverSlug: resolvedParams.slug,
+              uniqueId: uniqueId,
               path: file.path,
               type: file.type
             })
@@ -347,15 +346,13 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   // Fetch server status from Portainer
   const fetchServerStatus = useCallback(async () => {
     try {
-      const response = await fetch('/api/server/status', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          uniqueId: resolvedParams.slug
-        })
-      });
+      if (!uniqueId) {
+        console.log('No uniqueId available, skipping status fetch');
+        return;
+      }
+
+      console.log('Fetching server status for uniqueId:', uniqueId);
+      const response = await fetch(`/api/server/status?uniqueId=${encodeURIComponent(uniqueId)}`);
 
       if (!response.ok) {
         console.error('Failed to fetch server status:', response.status);
@@ -363,6 +360,9 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
       }
 
       const data = await response.json();
+
+      console.log('Server status fetched:', data);
+
       setServerStats(prev => ({
         ...prev,
         status: data.status || 'offline'
@@ -374,10 +374,13 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
         status: 'offline'
       }));
     }
-  }, [resolvedParams.slug]);
+  }, [uniqueId]);
 
   const startServer = async () => {
     try {
+      // Set server status to loading/starting while operation is in progress
+      setServerStats(prev => ({ ...prev, status: 'loading' }));
+
       showNotification({
         type: 'info',
         title: 'Starting Server',
@@ -397,7 +400,16 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to start server');
+        // More specific error handling
+        let errorMessage = data.message || 'Failed to start server';
+        
+        if (data.errors && data.errors.rconPort) {
+          errorMessage = 'Server configuration error: RCON port must be at least 25565';
+        } else if (data._message && data._message.includes('validation failed')) {
+          errorMessage = 'Server configuration validation failed. Please check server settings.';
+        }
+        
+        throw new Error(errorMessage);
       }
 
       // Refresh server status after operation
@@ -411,6 +423,9 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
         message: data.message || 'Your server is starting up!'
       });
     } catch (error) {
+      // Reset server status on error
+      setServerStats(prev => ({ ...prev, status: 'offline' }));
+      
       showNotification({
         type: 'error',
         title: 'Start Failed',
@@ -738,22 +753,35 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     });
   };
 
-  // Add useEffect hooks for status polling
+  // Fetch status when uniqueId changes (initial load)
   useEffect(() => {
-    // Initial fetch of server status
-    if (isLoaded) {
+    console.log('useEffect triggered - uniqueId changed:', uniqueId);
+    if (uniqueId) {
+      console.log('Calling fetchServerStatus for uniqueId:', uniqueId);
       fetchServerStatus();
+    }
+  }, [uniqueId, fetchServerStatus]);
+
+  // Add useEffect hooks for status polling (repeated calls)
+  useEffect(() => {
+    console.log('Setting up status polling interval, isLoaded:', isLoaded, 'uniqueId:', uniqueId);
+    
+    if (!isLoaded || !uniqueId) {
+      console.log('Not setting up interval - isLoaded:', isLoaded, 'uniqueId:', uniqueId);
+      return;
     }
 
     // Update server status every 15 seconds
     const statusInterval = setInterval(() => {
-      if (isLoaded) {
-        fetchServerStatus();
-      }
+      console.log('Interval triggered - fetching server status');
+      fetchServerStatus();
     }, 15000);
 
-    return () => clearInterval(statusInterval);
-  }, [isLoaded, fetchServerStatus]);
+    return () => {
+      console.log('Cleaning up status interval');
+      clearInterval(statusInterval);
+    };
+  }, [isLoaded, uniqueId, fetchServerStatus]);
 
   useEffect(() => {
     fetchFiles(currentPath);
@@ -773,38 +801,36 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   }, []);
 
   useEffect(() => {
-    const checkAuth = () => {
-      const res = fetch('/api/auth/check', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/check', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
 
-      res.then(response => {
         if (!response.ok) {
-          router.push('/auth/login'); // Redirect to login if already logged in
+          console.log('Authentication check failed, redirecting to login');
+          router.push('/auth/login');
         } else {
-          setIsLoaded(true);
+          console.log('Authentication check passed');
+          // Don't set isLoaded here since it's handled by fetchFiles
         }
-      }).catch(error => {
+      } catch (error) {
         console.error('Error checking authentication:', error);
-      });
-    }
-
-    const interval = setInterval(() => {
-      checkAuth();
-    }, 60 * 1000); // Check every minute
+        router.push('/auth/login');
+      }
+    };
 
     // Initial check on component mount
     checkAuth();
 
-    // Add event listener for cookies change
-    window.addEventListener('cookies', checkAuth);
+    // Set up interval to check every minute
+    const interval = setInterval(checkAuth, 60 * 1000);
 
     return () => {
-      window.removeEventListener('cookies', checkAuth);
-      clearInterval(interval); // Clear the interval on component unmount
+      clearInterval(interval);
     };
   }, [router]);
 
@@ -1057,14 +1083,14 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                   <button
                     className={`${styles.controlButton} ${styles.start}`}
                     onClick={startServer}
-                    disabled={serverStats.status === 'online' || serverStats.status === 'starting' || serverStats.status === 'unhealthy' || serverStats.status === 'paused'}
+                    disabled={serverStats.status === 'loading' || serverStats.status === 'online' || serverStats.status === 'starting' || serverStats.status === 'unhealthy' || serverStats.status === 'paused'}
                   >
                     <FaPlay /> Start
                   </button>
                   <button
                     className={`${styles.controlButton} ${serverStats.status === 'paused' ? styles.resume : styles.pause}`}
                     onClick={serverStats.status === 'paused' ? unpauseServer : pauseServer}
-                    disabled={serverStats.status === 'offline' || serverStats.status === 'starting'}
+                    disabled={serverStats.status === 'crashed' || serverStats.status === 'loading' || serverStats.status === 'offline' || serverStats.status === 'starting'}
                   >
                     {serverStats.status === 'paused' ? (
                       <>
@@ -1079,33 +1105,35 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                   <button
                     className={`${styles.controlButton} ${styles.restart}`}
                     onClick={restartServer}
-                    disabled={serverStats.status === 'offline' || serverStats.status === 'starting'}
+                    disabled={serverStats.status === 'loading' || serverStats.status === 'crashed' || serverStats.status === 'offline' || serverStats.status === 'starting'}
                   >
                     <VscDebugRestart /> Restart
                   </button>
                   <button
                     className={`${styles.controlButton} ${styles.stop}`}
                     onClick={stopServer}
-                    disabled={serverStats.status === 'offline' || serverStats.status === 'starting'}
+                    disabled={serverStats.status === 'loading' || serverStats.status === 'crashed' || serverStats.status === 'offline' || serverStats.status === 'starting'}
                   >
                     <FaStop /> Stop
                   </button>
                   <button
                     className={`${styles.controlButton} ${styles.kill}`}
                     onClick={killServer}
-                    disabled={serverStats.status === 'offline'}
+                    disabled={serverStats.status === 'crashed' || serverStats.status === 'offline' || serverStats.status === 'starting'}
                   >
                     <FaSlash /> Kill
                   </button>
                   <button
                     className={`${styles.controlButton} ${styles.download}`}
                     onClick={downloadServer}
+                    disabled={serverStats.status === 'loading' || serverStats.status === 'online' || serverStats.status === 'starting' || serverStats.status === 'paused'}
                   >
                     <HiDownload /> Download
                   </button>
                   <button
                     className={`${styles.controlButton} ${styles.delete}`}
                     onClick={deleteServer}
+                    disabled={serverStats.status === 'loading' || serverStats.status === 'online' || serverStats.status === 'starting' || serverStats.status === 'paused'}
                   >
                     <FaTrash /> Delete
                   </button>

@@ -1,27 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db/dbConnect";
-import User from "@/lib/objects/User";
+import User, { IUser } from "@/lib/objects/User";
 import jwt from "jsonwebtoken";
 import BodyParser from "@/lib/db/bodyParser";
 import MinecraftServerManager from "@/lib/server/serverManager";
+import verificationService from "@/lib/server/verify";
 
 // Reserve ports for a user (admin only)
 export async function POST(request: NextRequest) {
+    // Connect to the database
+    await dbConnect();
+
     try {
-        await dbConnect();
+        const adminUser: IUser | null = await verificationService.getUserFromToken(request);
 
-        const token = request.cookies.get('sessionToken')?.value;
-        if (!token) {
-            return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
-        }
-
-        // Verify the token and get admin user
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default');
-        if (!decoded) {
-            return NextResponse.json({ message: 'Invalid session token.' }, { status: 401 });
-        }
-
-        const adminUser = await User.findById((decoded as { id: string }).id);
         if (!adminUser || !adminUser.isAdmin) {
             return NextResponse.json({ message: 'Administrative privileges required.' }, { status: 403 });
         }

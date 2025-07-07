@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db/dbConnect";
 import mongoose from "mongoose";
 import Server from "@/lib/objects/Server";
-import jwt from "jsonwebtoken";
-import User from "@/lib/objects/User";
+import { IUser } from "@/lib/objects/User";
 import { ServerConfigData } from "@/lib/objects/ServerConfig";
 import BodyParser from "@/lib/db/bodyParser";
 import portainer from "@/lib/server/portainer";
 import MinecraftServerManager from "@/lib/server/serverManager";
 import { v4 as uuidv4 } from 'uuid';
+import verificationService from "@/lib/server/verify";
 // import porkbun from "@/lib/server/porkbun";
 
 // Configure body parsing for this API route
@@ -66,26 +66,14 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     const rollbackActions: (() => Promise<void>)[] = [];
 
+    // Connect to the database
+    await dbConnect();
+
     try {
         // Apply body parsing to get the configuration object
         const config = await BodyParser.parseAuto(request);
+        const user: IUser | null = await verificationService.getUserFromToken(request);
 
-        // Connect to the database
-        await dbConnect();
-        const token = request.cookies.get('sessionToken')?.value;
-
-        if (!token) {
-            return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
-        }
-
-        // Verify the token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default');
-        if (!decoded) {
-            return NextResponse.json({ message: 'Invalid session token.' }, { status: 401 });
-        }
-
-        // Find the user by ID from the decoded token
-        const user = await User.findById((decoded as { id: string }).id);
         if (!user) {
             return NextResponse.json({ message: 'User not found.' }, { status: 404 });
         }

@@ -1,29 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db/dbConnect";
-import User from "@/lib/objects/User";
-import jwt from "jsonwebtoken";
+import { IUser } from "@/lib/objects/User";
 import MinecraftServerManager from "@/lib/server/serverManager";
 import portainer from "@/lib/server/portainer";
+import verificationService from "@/lib/server/verify";
 
 // Get available ports for a user
 export async function GET(request: NextRequest) {
+    await dbConnect();
     try {
-        await dbConnect();
 
-        const token = request.cookies.get('sessionToken')?.value;
-        if (!token) {
-            return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
-        }
-
-        // Verify the token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default');
-        if (!decoded) {
-            return NextResponse.json({ message: 'Invalid session token.' }, { status: 401 });
-        }
-
-        const user = await User.findById((decoded as { id: string }).id);
+        const user: IUser | null = await verificationService.getUserFromToken(request);
         if (!user) {
-            return NextResponse.json({ message: 'User not found.' }, { status: 404 });
+            return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
         }
 
         const url = new URL(request.url);
@@ -62,21 +51,10 @@ export async function GET(request: NextRequest) {
 
 // Check if a specific subdomain is valid
 export async function POST(request: NextRequest) {
+    await dbConnect();
     try {
-        await dbConnect();
+        const user: IUser | null = await verificationService.getUserFromToken(request);
 
-        const token = request.cookies.get('sessionToken')?.value;
-        if (!token) {
-            return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
-        }
-
-        // Verify the token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default');
-        if (!decoded) {
-            return NextResponse.json({ message: 'Invalid session token.' }, { status: 401 });
-        }
-
-        const user = await User.findById((decoded as { id: string }).id);
         if (!user) {
             return NextResponse.json({ message: 'User not found.' }, { status: 404 });
         }

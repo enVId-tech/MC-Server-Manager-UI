@@ -222,8 +222,8 @@ function isLoggingAllowedForFile(): boolean {
 /**
  * Create enhanced console method with timestamp and conditional logging
  */
-function createConsoleMethod(originalMethod: (...args: any[]) => void, level: string) {
-    return (...args: any[]) => {
+function createConsoleMethod(originalMethod: (...args: unknown[]) => void, level: string) {
+    return (...args: unknown[]) => {
         if (!isLoggingAllowedForFile()) return;
         
         const timestamp = getTimestamp();

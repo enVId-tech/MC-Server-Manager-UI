@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/dbConnect';
 import jwt from 'jsonwebtoken';
-import User from '@/lib/objects/User';
+import User, { IUser } from '@/lib/objects/User';
 import Server from '@/lib/objects/Server';
 import bcrypt from 'bcryptjs';
+import verificationService from '@/lib/server/verify';
 
 // PUT request to update user information based on provided email and password
 // Email or password may not be provided at the same time, but at least one must be provided.
@@ -24,24 +25,8 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ message: 'Email or current password and new password are required.' }, { status: 400 });
         }
 
-        // Get the user from the request cookies
-        const token = request.cookies.get('sessionToken')?.value;
-
-        if (!token) {
-            return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
-        }
-
-        // Verify the token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default');
-
-        if (!decoded) {
-            return NextResponse.json({ message: 'Invalid session token.' }, { status: 401 });
-        }
-
-        // Find the user by ID from the decoded token
-        const userId = (decoded as { id: string }).id;
-        const existingUser = await User.findById(userId);
-
+        const existingUser: IUser | null = await verificationService.getUserFromToken(request);
+        
         if (!existingUser) {
             return NextResponse.json({ message: 'User not found.' }, { status: 404 });
         }
@@ -53,8 +38,7 @@ export async function PUT(request: NextRequest) {
 
         // Check if the email is already in use by another user
         const emailExists = await User.findOne({ email });
-
-        if (emailExists && emailExists._id.toString() !== existingUser._id.toString()) {
+        if (emailExists && emailExists.email !== existingUser.email) {
             return NextResponse.json({ message: 'Email is already in use by another account.' }, { status: 409 });
         }
 
@@ -74,7 +58,12 @@ export async function PUT(request: NextRequest) {
         }
 
         // Save the updated user information
-        await existingUser.save();
+        await User.updateOne({ email: email }, {
+            $set: {
+                email: existingUser.email,
+                password: existingUser.password,
+            },
+        });
 
         return NextResponse.json({ message: 'User information updated successfully.' }, { status: 200 });
     } catch (error) {

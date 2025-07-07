@@ -1,75 +1,56 @@
 import { NextRequest, NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
-import User from "@/lib/objects/User";
 import Server from "@/lib/objects/Server";
 import dbConnect from "@/lib/db/dbConnect";
 import webdavService from "@/lib/server/webdav";
+import { IUser } from "@/lib/objects/User";
+import verificationService from "@/lib/server/verify";
 
 export async function GET(request: NextRequest) {
     await dbConnect();
-
     try {
-        // Check authentication
-        const token = request.cookies.get('sessionToken')?.value;
-        if (!token) {
-            return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
-        }
+        const user: IUser | null = await verificationService.getUserFromToken(request);
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default');
-        if (!decoded) {
-            return NextResponse.json({ message: 'Invalid session token.' }, { status: 401 });
-        }
-
-        const user = await User.findById((decoded as { id: string }).id);
         if (!user || !user.isActive) {
             return NextResponse.json({ message: 'User not found or inactive.' }, { status: 403 });
         }
 
-        // Get query parameters
-        const { searchParams } = new URL(request.url);
-        const serverSlug = searchParams.get('server');
-        const path = searchParams.get('path') || '/';
+        // Get request body based on URL parameters
+        const url = new URL(request.url);
 
-        if (!serverSlug) {
-            return NextResponse.json({ message: 'Server slug is required.' }, { status: 400 });
+        console.log(`Received request for server files with URL: ${url.href}`);
+
+        const domainName = url.searchParams.get('domainName') || '';
+        const path = url.searchParams.get('path') || '/';
+        
+
+        console.log(`Received request for server files with domainName: ${domainName} and path: ${path}`);
+
+        if (!domainName) {
+            return NextResponse.json({ message: 'Domain name is required.' }, { status: 400 });
         }
 
-        // Extract the unique ID from the server slug
-        // Handle both formats: just uniqueId or subdomain.domain format
-        let uniqueId = serverSlug;
-        if (serverSlug.includes('.')) {
-            // Extract the subdomain part (e.g., "main1" from "main1.etran.dev")
-            uniqueId = serverSlug.split('.')[0];
-        }
-
-        console.log(`Looking for server with uniqueId: ${uniqueId} (from slug: ${serverSlug})`);
+        console.log(`Looking for server with domainName of: ${domainName}`);
 
         // Find the server in the database using multiple possible matches
         const server = await Server.findOne({ 
             email: user.email,
             $or: [
-                { uniqueId: uniqueId },
-                { uniqueId: serverSlug },
-                { subdomainName: serverSlug },
-                { subdomainName: uniqueId },
-                { serverName: serverSlug },
-                { serverName: uniqueId }
+                { subdomainName: domainName },
+                { serverName: domainName }
             ]
         });
 
         if (!server) {
-            console.log(`Server not found for user ${user.email} with identifier: ${serverSlug}`);
+            console.log(`Server not found for user ${user.email} with identifier: ${domainName}`);
             return NextResponse.json({ 
                 message: 'Server not found.',
                 debug: {
                     userEmail: user.email,
-                    searchedSlug: serverSlug,
-                    extractedId: uniqueId
+                    domainName: domainName,
+                    uniqueId: server.uniqueId
                 }
             }, { status: 404 });
         }
-
-        console.log(`Found server: ${server.name} (${server.uniqueId})`);
 
         // Get the WebDAV server base path from environment
         const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
@@ -115,7 +96,6 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({
                 files,
                 currentPath: path,
-                serverSlug,
                 uniqueId: server.uniqueId,
                 totalFiles: files.length,
                 totalFolders: files.filter(f => f.type === 'folder').length

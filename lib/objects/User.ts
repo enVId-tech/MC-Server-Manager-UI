@@ -3,11 +3,13 @@ import bcrypt from 'bcrypt';
 
 export interface IUser extends Document {
     email: string;
-    password?: string;
+    password: string;
     isActive: boolean;
-    isAdmin: boolean;
-    reservedPorts: number[];
-    comparePassword(candidatePassword: string): Promise<boolean>;
+    maxServers: number; // Maximum number of servers a user can create
+    sessionToken?: string | null; // Optional session token for user sessions
+    isAdmin: boolean; // Flag to indicate if the user is an admin
+    reservedPorts: number[]; // Array of reserved ports for the user
+    comparePassword(candidatePassword: string): Promise<boolean>; // Method to compare passwords
 }
 
 const UserSchema: pkg.Schema = new pkg.Schema({
