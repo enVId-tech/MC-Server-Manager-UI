@@ -12,6 +12,36 @@ export interface FileAnalysis {
   version?: string;
   errors?: string[];
   warnings?: string[];
+  // Advanced world analysis fields
+  gameMode?: 'survival' | 'creative' | 'adventure' | 'spectator';
+  difficulty?: 'peaceful' | 'easy' | 'normal' | 'hard';
+  hardcore?: boolean;
+  cheatsEnabled?: boolean;
+  seed?: string;
+  spawnX?: number;
+  spawnY?: number;
+  spawnZ?: number;
+  timeOfDay?: number;
+  worldAge?: number;
+  playerCount?: number;
+  structures?: string[];
+  datapacks?: string[];
+  gamerules?: { [key: string]: string | number | boolean };
+  worldBorder?: {
+    centerX: number;
+    centerZ: number;
+    size: number;
+    damageAmount: number;
+    damageBuffer: number;
+    warningDistance: number;
+    warningTime: number;
+  };
+  biomesFound?: string[];
+  estimatedSize?: {
+    totalSizeMB: number;
+    regionFiles: number;
+    chunkCount: number;
+  };
 }
 
 export interface AnalyzedFile extends File {
@@ -39,7 +69,7 @@ export interface ClientServerConfig {
     difficulty: string;
     worldType: string;
     worldGeneration: string;
-    worldFile?: File | null;
+    worldFile?: AnalyzedFile | null;
 
     // Player settings
     maxPlayers: number;
@@ -90,7 +120,7 @@ export interface ClientServerConfig {
     plugins: AnalyzedFile[];
     mods: AnalyzedFile[];
     subdomain: string;
-    worldFiles?: File | null;
+    worldFiles?: AnalyzedFile | null;
     customOptions?: string;
     [key: string]: unknown;
 }
@@ -244,6 +274,10 @@ import portainer from './portainer';
 import { PortainerContainer } from './portainer';
 import webdavService from './webdav';
 import yaml from 'js-yaml';
+import extractZip from 'extract-zip';
+import * as path from 'path';
+import { promises as fs } from 'fs';
+import * as os from 'os';
 
 /**
  * Comprehensive Minecraft Server management class.
@@ -952,15 +986,21 @@ export class MinecraftServer {
     }
 
     /**
-     * Upload world files
+     * Upload world files with proper extraction and analysis
      */
-    async uploadWorldFile(worldFile: File): Promise<{ success: boolean; error?: string }> {
+    async uploadWorldFile(worldFile: File, analysis?: FileAnalysis): Promise<{ success: boolean; error?: string }> {
         try {
             const worldBuffer = Buffer.from(await worldFile.arrayBuffer());
-            const worldFiles: { [path: string]: Buffer } = {};
-            worldFiles[`world/${worldFile.name}`] = worldBuffer;
-
-            return await this.uploadServerFiles(worldFiles, 'world');
+            
+            // If it's a ZIP file with world analysis, extract it properly
+            if (worldFile.name.endsWith('.zip') && analysis?.type === 'world') {
+                return await this.uploadAndExtractWorldZip(worldBuffer, analysis);
+            } else {
+                // For other files, upload as-is (legacy support)
+                const worldFiles: { [path: string]: Buffer } = {};
+                worldFiles[`world/${worldFile.name}`] = worldBuffer;
+                return await this.uploadServerFiles(worldFiles, 'world');
+            }
         } catch (error) {
             console.error('Error uploading world file:', error);
             return {
@@ -968,6 +1008,81 @@ export class MinecraftServer {
                 error: error instanceof Error ? error.message : 'Unknown error occurred'
             };
         }
+    }
+
+    /**
+     * Upload and extract world ZIP file properly
+     */
+    async uploadAndExtractWorldZip(worldBuffer: Buffer, analysis: FileAnalysis): Promise<{ success: boolean; error?: string }> {
+        let tempDir: string;
+        
+        try {
+            // Create temporary directory for extraction
+            tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'minecraft-world-'));
+            
+            // Save ZIP file temporarily
+            const tempZipPath = path.join(tempDir, 'world.zip');
+            await fs.writeFile(tempZipPath, worldBuffer);
+            
+            // Extract ZIP contents
+            const extractDir = path.join(tempDir, 'extracted');
+            await extractZip(tempZipPath, { dir: extractDir });
+            
+            // Log world analysis for debugging
+            console.log('Uploading world with analysis:', {
+                worldName: analysis.worldName,
+                type: analysis.type,
+                gameMode: analysis.gameMode,
+                difficulty: analysis.difficulty
+            });
+            
+            // Read extracted contents and upload to world directory
+            const worldFiles = await this.readDirectoryRecursively(extractDir);
+            
+            return await this.uploadServerFiles(worldFiles, 'world');
+            
+        } catch (error) {
+            console.error('Error extracting and uploading world ZIP:', error);
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Failed to extract and upload world'
+            };
+        } finally {
+            // Cleanup temporary directory
+            if (tempDir!) {
+                try {
+                    await fs.rm(tempDir, { recursive: true, force: true });
+                } catch (cleanupError) {
+                    console.warn('Failed to cleanup temp directory:', cleanupError);
+                }
+            }
+        }
+    }
+
+    /**
+     * Recursively read directory and return file structure
+     */
+    async readDirectoryRecursively(dir: string, basePath: string = ''): Promise<{ [path: string]: Buffer }> {
+        const files: { [path: string]: Buffer } = {};
+        
+        const items = await fs.readdir(dir, { withFileTypes: true });
+        
+        for (const item of items) {
+            const fullPath = path.join(dir, item.name);
+            const relativePath = basePath ? path.join(basePath, item.name) : item.name;
+            
+            if (item.isDirectory()) {
+                // Recursively read subdirectory
+                const subFiles = await this.readDirectoryRecursively(fullPath, relativePath);
+                Object.assign(files, subFiles);
+            } else {
+                // Read file content
+                const content = await fs.readFile(fullPath);
+                files[relativePath] = content;
+            }
+        }
+        
+        return files;
     }
 
     /**

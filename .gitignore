@@ -44,3 +44,6 @@ next-env.d.ts
 
 .idea
 .idea/*
+
+test-files
+test-files/*

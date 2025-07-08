@@ -55,6 +55,52 @@ const FileUploadSection: React.FC<FileUploadSectionProps> = ({
     return `${name}${version}${mcVersion}`;
   };
 
+  const renderWorldDetails = (analysis: FileAnalysis) => {
+    if (analysis.type !== 'world') return null;
+
+    return (
+      <div className={styles.worldDetails}>
+        {analysis.gameMode && (
+          <div className={styles.worldStat}>
+            <strong>Game Mode:</strong> {analysis.gameMode}
+            {analysis.hardcore && <span className={styles.hardcoreTag}>Hardcore</span>}
+          </div>
+        )}
+        {analysis.difficulty && (
+          <div className={styles.worldStat}>
+            <strong>Difficulty:</strong> {analysis.difficulty}
+          </div>
+        )}
+        {analysis.seed && (
+          <div className={styles.worldStat}>
+            <strong>Seed:</strong> <code>{analysis.seed}</code>
+          </div>
+        )}
+        {analysis.playerCount !== undefined && (
+          <div className={styles.worldStat}>
+            <strong>Players:</strong> {analysis.playerCount} saved player(s)
+          </div>
+        )}
+        {analysis.estimatedSize && (
+          <div className={styles.worldStat}>
+            <strong>Size:</strong> {analysis.estimatedSize.totalSizeMB} MB 
+            ({analysis.estimatedSize.regionFiles} regions, ~{analysis.estimatedSize.chunkCount} chunks)
+          </div>
+        )}
+        {analysis.structures && analysis.structures.length > 0 && (
+          <div className={styles.worldStat}>
+            <strong>Features:</strong> {analysis.structures.join(', ')}
+          </div>
+        )}
+        {analysis.datapacks && analysis.datapacks.length > 0 && (
+          <div className={styles.worldStat}>
+            <strong>Datapacks:</strong> {analysis.datapacks.join(', ')}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className={styles.formGroup}>
       <label>{label}</label>
@@ -101,6 +147,7 @@ const FileUploadSection: React.FC<FileUploadSectionProps> = ({
                       ))}
                     </div>
                   )}
+                  {file.analysis?.type === 'world' && file.analysis && renderWorldDetails(file.analysis)}
                 </div>
                 <button
                   type="button"

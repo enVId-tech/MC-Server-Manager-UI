@@ -132,37 +132,21 @@ async function analyzeFile(filePath: string, fileName: string): Promise<FileAnal
 }
 
 async function analyzeExtractedContents(extractDir: string, fileName: string, result: FileAnalysisResult): Promise<FileAnalysisResult> {
-  // const contents = await fs.readdir(extractDir, { withFileTypes: true });
-  
   // Check for world files
   const hasLevelDat = await checkFileExists(extractDir, 'level.dat');
-  // const hasRegionFolder = await checkFileExists(extractDir, 'region');
   const hasPlayerDataFolder = await checkFileExists(extractDir, 'playerdata');
-  // const hasAdvancementsFolder = await checkFileExists(extractDir, 'advancements');
-  // const hasStatsFolder = await checkFileExists(extractDir, 'stats');
 
   if (hasLevelDat) {
     result.type = 'world';
     result.worldName = path.basename(fileName, '.zip');
     result.hasPlayerData = hasPlayerDataFolder;
 
-    // Analyze level.dat for more details
-    try {
-      // const levelDatPath = path.join(extractDir, 'level.dat');
-      // Note: In a real implementation, you'd use NBT parsing library
-      // For now, we'll do basic detection
-      result.worldType = 'overworld';
-      
-      // Check for dimension folders
-      const dimensions = [];
-      if (await checkFileExists(extractDir, 'DIM-1')) dimensions.push('nether');
-      if (await checkFileExists(extractDir, 'DIM1')) dimensions.push('end');
-      if (await checkFileExists(extractDir, 'region')) dimensions.push('overworld');
-      
-      result.dimensions = dimensions;
-    } catch {
-      result.warnings?.push('Could not parse level.dat file');
-    }
+    // Perform comprehensive world analysis
+    await analyzeWorldStructure(extractDir, result);
+    await analyzeLevelDat(extractDir, result);
+    await analyzePlayerData(extractDir, result);
+    await analyzeDatapacks(extractDir, result);
+    await estimateWorldSize(extractDir, result);
 
     return result;
   }
@@ -301,6 +285,291 @@ async function analyzeConfigFile(filePath: string, fileName: string, result: Fil
   } catch (error) {
     result.errors?.push(`Failed to parse config file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     return result;
+  }
+}
+
+// Advanced World Analysis Functions
+
+// Helper functions for world analysis
+
+async function getRegionFiles(regionPath: string): Promise<string[]> {
+  try {
+    const files = await fs.readdir(regionPath);
+    return files.filter(file => file.endsWith('.mca'));
+  } catch {
+    return [];
+  }
+}
+
+function getGameModeName(gameType: number): 'survival' | 'creative' | 'adventure' | 'spectator' {
+  switch (gameType) {
+    case 0: return 'survival';
+    case 1: return 'creative';
+    case 2: return 'adventure';
+    case 3: return 'spectator';
+    default: return 'survival';
+  }
+}
+
+function getDifficultyName(difficulty: number): 'peaceful' | 'easy' | 'normal' | 'hard' {
+  switch (difficulty) {
+    case 0: return 'peaceful';
+    case 1: return 'easy';
+    case 2: return 'normal';
+    case 3: return 'hard';
+    default: return 'normal';
+  }
+}
+
+function getVersionFromDataVersion(dataVersion: number): string {
+  // Minecraft data version to version mapping (simplified)
+  const versionMap: { [key: number]: string } = {
+    1631: '1.12.2',
+    1976: '1.13.2',
+    2230: '1.14.4',
+    2586: '1.15.2',
+    2724: '1.16.5',
+    2860: '1.17.1',
+    2975: '1.18.2',
+    3120: '1.19.4',
+    3465: '1.20.1',
+    3578: '1.20.2',
+    3698: '1.20.4',
+    3837: '1.20.6',
+    3953: '1.21'
+  };
+
+  // Find the closest version
+  const versions = Object.keys(versionMap).map(Number).sort((a, b) => a - b);
+  let bestMatch = versions[0];
+  
+  for (const version of versions) {
+    if (dataVersion >= version) {
+      bestMatch = version;
+    } else {
+      break;
+    }
+  }
+
+  return versionMap[bestMatch] || 'Unknown';
+}
+
+async function analyzeWorldStructure(extractDir: string, result: FileAnalysisResult): Promise<void> {
+  try {
+    const dimensions = [];
+    const structures = [];
+
+    // Check for dimension folders and their structure
+    if (await checkFileExists(extractDir, 'region')) {
+      dimensions.push('overworld');
+      const regionFiles = await getRegionFiles(path.join(extractDir, 'region'));
+      if (regionFiles.length > 0) {
+        structures.push(`${regionFiles.length} overworld region files`);
+      }
+    }
+    
+    if (await checkFileExists(extractDir, 'DIM-1/region')) {
+      dimensions.push('nether');
+      const netherRegionFiles = await getRegionFiles(path.join(extractDir, 'DIM-1/region'));
+      if (netherRegionFiles.length > 0) {
+        structures.push(`${netherRegionFiles.length} nether region files`);
+      }
+    }
+    
+    if (await checkFileExists(extractDir, 'DIM1/region')) {
+      dimensions.push('end');
+      const endRegionFiles = await getRegionFiles(path.join(extractDir, 'DIM1/region'));
+      if (endRegionFiles.length > 0) {
+        structures.push(`${endRegionFiles.length} end region files`);
+      }
+    }
+
+    // Check for modern dimension structure (1.16+)
+    const dimensionFolders = ['minecraft', 'dimensions'];
+    for (const dimFolder of dimensionFolders) {
+      if (await checkFileExists(extractDir, `dimensions/${dimFolder}`)) {
+        const dimContents = await fs.readdir(path.join(extractDir, 'dimensions', dimFolder));
+        for (const dim of dimContents) {
+          if (!dimensions.includes(dim)) {
+            dimensions.push(dim);
+          }
+        }
+      }
+    }
+
+    // Check for various world features
+    if (await checkFileExists(extractDir, 'advancements')) {
+      structures.push('player advancements');
+    }
+    if (await checkFileExists(extractDir, 'stats')) {
+      structures.push('player statistics');
+    }
+    if (await checkFileExists(extractDir, 'poi')) {
+      structures.push('points of interest');
+    }
+    if (await checkFileExists(extractDir, 'entities')) {
+      structures.push('entity data');
+    }
+    if (await checkFileExists(extractDir, 'generated')) {
+      structures.push('generated structures');
+    }
+
+    result.dimensions = dimensions;
+    result.structures = structures;
+  } catch {
+    result.warnings?.push('Could not analyze world structure completely');
+  }
+}
+
+async function analyzeLevelDat(extractDir: string, result: FileAnalysisResult): Promise<void> {
+  try {
+    const levelDatPath = path.join(extractDir, 'level.dat');
+    const levelData = await fs.readFile(levelDatPath);
+    
+    // Parse NBT data
+    const { parsed } = await nbt.parse(levelData);
+    const data = nbt.simplify(parsed);
+
+    if (data && data.Data) {
+      const levelInfo = data.Data;
+
+      // Basic world information
+      result.worldName = levelInfo.LevelName || result.worldName;
+      result.minecraftVersion = levelInfo.Version?.Name || getVersionFromDataVersion(levelInfo.DataVersion);
+      
+      // Game settings
+      result.gameMode = getGameModeName(levelInfo.GameType || 0);
+      result.difficulty = getDifficultyName(levelInfo.Difficulty || 1);
+      result.hardcore = Boolean(levelInfo.hardcore);
+      result.cheatsEnabled = Boolean(levelInfo.allowCommands);
+
+      // World generation info
+      if (levelInfo.generatorName) {
+        result.worldType = levelInfo.generatorName;
+      }
+      if (levelInfo.RandomSeed) {
+        result.seed = levelInfo.RandomSeed.toString();
+      }
+
+      // Spawn location
+      result.spawnX = levelInfo.SpawnX;
+      result.spawnY = levelInfo.SpawnY;
+      result.spawnZ = levelInfo.SpawnZ;
+
+      // Time information
+      result.timeOfDay = levelInfo.DayTime;
+      result.worldAge = levelInfo.Time;
+
+      // Gamerules
+      if (levelInfo.GameRules) {
+        result.gamerules = levelInfo.GameRules;
+      }
+
+      // World border
+      if (levelInfo.WorldBorder) {
+        result.worldBorder = {
+          centerX: levelInfo.WorldBorder.CenterX || 0,
+          centerZ: levelInfo.WorldBorder.CenterZ || 0,
+          size: levelInfo.WorldBorder.Size || 60000000,
+          damageAmount: levelInfo.WorldBorder.DamageAmount || 0.2,
+          damageBuffer: levelInfo.WorldBorder.DamageBuffer || 5,
+          warningDistance: levelInfo.WorldBorder.WarningDistance || 5,
+          warningTime: levelInfo.WorldBorder.WarningTime || 15
+        };
+      }
+
+      // Datapacks
+      if (levelInfo.DataPacks && levelInfo.DataPacks.Enabled) {
+        result.datapacks = levelInfo.DataPacks.Enabled;
+      }
+    }
+  } catch {
+    result.warnings?.push('Could not parse level.dat file - may be corrupted or in unsupported format');
+  }
+}
+
+async function analyzePlayerData(extractDir: string, result: FileAnalysisResult): Promise<void> {
+  try {
+    const playerDataPath = path.join(extractDir, 'playerdata');
+    if (await checkFileExists(extractDir, 'playerdata')) {
+      const playerFiles = await fs.readdir(playerDataPath);
+      result.playerCount = playerFiles.filter(file => file.endsWith('.dat')).length;
+    }
+
+    // Check for specific player files
+    if (await checkFileExists(extractDir, 'level.dat_old')) {
+      result.structures?.push('backup level data');
+    }
+
+    if (await checkFileExists(extractDir, 'session.lock')) {
+      result.warnings?.push('World may have been opened in single-player mode');
+    }
+  } catch {
+    result.warnings?.push('Could not analyze player data');
+  }
+}
+
+async function analyzeDatapacks(extractDir: string, result: FileAnalysisResult): Promise<void> {
+  try {
+    const datapacksPath = path.join(extractDir, 'datapacks');
+    if (await checkFileExists(extractDir, 'datapacks')) {
+      const datapacks = await fs.readdir(datapacksPath);
+      const datapackNames = [];
+      
+      for (const datapack of datapacks) {
+        if (datapack !== '.DS_Store') {
+          datapackNames.push(datapack);
+        }
+      }
+      
+      if (datapackNames.length > 0) {
+        result.datapacks = datapackNames;
+        result.structures?.push(`${datapackNames.length} datapacks installed`);
+      }
+    }
+  } catch {
+    result.warnings?.push('Could not analyze datapacks');
+  }
+}
+
+async function estimateWorldSize(extractDir: string, result: FileAnalysisResult): Promise<void> {
+  try {
+    let totalSize = 0;
+    let regionFiles = 0;
+    let chunkCount = 0;
+
+    // Calculate size recursively
+    const calculateSize = async (dirPath: string): Promise<void> => {
+      const items = await fs.readdir(dirPath, { withFileTypes: true });
+      
+      for (const item of items) {
+        const fullPath = path.join(dirPath, item.name);
+        
+        if (item.isDirectory()) {
+          await calculateSize(fullPath);
+        } else {
+          const stats = await fs.stat(fullPath);
+          totalSize += stats.size;
+          
+          if (item.name.endsWith('.mca')) {
+            regionFiles++;
+            // Estimate chunks per region file (each region can have up to 1024 chunks)
+            chunkCount += Math.min(1024, Math.floor(stats.size / 1024)); // Rough estimate
+          }
+        }
+      }
+    };
+
+    await calculateSize(extractDir);
+
+    result.estimatedSize = {
+      totalSizeMB: Math.round(totalSize / (1024 * 1024) * 100) / 100,
+      regionFiles,
+      chunkCount
+    };
+
+  } catch {
+    result.warnings?.push('Could not estimate world size');
   }
 }
 

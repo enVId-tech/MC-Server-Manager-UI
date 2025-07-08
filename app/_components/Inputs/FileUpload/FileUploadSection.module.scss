@@ -281,3 +281,41 @@
     color: #ef4444;
   }
 }
+
+.worldDetails {
+  margin-top: 8px;
+  padding: 12px;
+  background-color: rgba(var(--accent-color), 0.05);
+  border-radius: 6px;
+  border: 1px solid rgba(var(--accent-color), 0.1);
+}
+
+.worldStat {
+  margin-bottom: 6px;
+  font-size: 0.9em;
+  color: rgba(var(--text-color), 0.8);
+  
+  strong {
+    color: var(--text-color);
+    margin-right: 4px;
+  }
+  
+  code {
+    background-color: rgba(var(--text-color), 0.1);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.85em;
+  }
+}
+
+.hardcoreTag {
+  background-color: #e74c3c;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.75em;
+  font-weight: bold;
+  margin-left: 8px;
+  text-transform: uppercase;
+}

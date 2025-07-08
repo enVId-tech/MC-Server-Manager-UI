@@ -266,37 +266,73 @@ export default function ServerGenerator() {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
       
+      // Convert to AnalyzedFile and start analysis if it's a ZIP
+      const analyzedFile: AnalyzedFile = Object.assign(file, {
+        isAnalyzing: file.name.endsWith('.zip')
+      });
+      
       // Set the file first
       setServerConfig({
         ...serverConfig,
-        worldFiles: file
+        worldFiles: analyzedFile
       });
       
-      // Analyze the world file
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        const response = await fetch('/api/server/file/analyze', {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (response.ok) {
-          const analysis: FileAnalysis = await response.json();
-          console.log('World file analysis:', analysis);
+      // Analyze the world file if it's a ZIP
+      if (file.name.endsWith('.zip')) {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
           
-          // If it's a world file, potentially update world settings
-          if (analysis.type === 'world' && analysis.worldName) {
+          const response = await fetch('/api/server/file/analyze', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (response.ok) {
+            const { analysis }: { analysis: FileAnalysis } = await response.json();
+            console.log('World file analysis:', analysis);
+            
+            // Update the file with analysis results
             setServerConfig(prevConfig => ({
               ...prevConfig,
-              // Optionally update world-related settings based on analysis
-              // worldName: analysis.worldName, // if you have this field
+              worldFiles: Object.assign(prevConfig.worldFiles!, {
+                analysis,
+                isAnalyzing: false,
+                analysisError: undefined
+              })
+            }));
+            
+            // If it's a world file, potentially update world settings based on analysis
+            if (analysis.type === 'world') {
+              setServerConfig(prevConfig => ({
+                ...prevConfig,
+                // Update settings based on world analysis
+                gameMode: analysis.gameMode || prevConfig.gameMode,
+                difficulty: analysis.difficulty || prevConfig.difficulty,
+                seed: analysis.seed || prevConfig.seed,
+                // Note: Could also update spawn settings, gamerules, etc.
+              }));
+            }
+          } else {
+            // Handle analysis error
+            setServerConfig(prevConfig => ({
+              ...prevConfig,
+              worldFiles: Object.assign(prevConfig.worldFiles!, {
+                isAnalyzing: false,
+                analysisError: 'Analysis failed'
+              })
             }));
           }
+        } catch (error) {
+          console.error('Error analyzing world file:', error);
+          setServerConfig(prevConfig => ({
+            ...prevConfig,
+            worldFiles: Object.assign(prevConfig.worldFiles!, {
+              isAnalyzing: false,
+              analysisError: 'Analysis failed'
+            })
+          }));
         }
-      } catch (error) {
-        console.error('Error analyzing world file:', error);
       }
     }
   };
@@ -561,7 +597,14 @@ export default function ServerGenerator() {
         lastModified: file.lastModified,
         analysis: file.analysis
       })),
-      // Keep worldFiles as is for now - may need similar handling
+      // Include world file metadata if available
+      worldFiles: serverConfig.worldFiles ? {
+        name: serverConfig.worldFiles.name,
+        size: serverConfig.worldFiles.size,
+        type: serverConfig.worldFiles.type,
+        lastModified: serverConfig.worldFiles.lastModified,
+        analysis: serverConfig.worldFiles.analysis || null
+      } : null,
     };
 
     try {
@@ -690,6 +733,9 @@ export default function ServerGenerator() {
         setDeploymentSteps(status.steps || []);
 
         if (status.status === 'completed') {
+          // Step 4: Upload files after deployment completes
+          await uploadFilesToServer(serverId);
+          
           setCreationSuccess(true);
 
           // Redirect after 5 seconds
@@ -741,6 +787,105 @@ export default function ServerGenerator() {
 
     // Start polling
     setTimeout(poll, 2000); // Start after 2 seconds
+  };
+
+  // Upload files to server after deployment completes
+  const uploadFilesToServer = async (serverId: string) => {
+    try {
+      const filesToUpload = [];
+
+      // Collect all files to upload
+      if (serverConfig.worldFiles) {
+        filesToUpload.push({
+          file: serverConfig.worldFiles,
+          type: 'world',
+          name: 'World File'
+        });
+      }
+
+      // Add plugins
+      serverConfig.plugins.forEach((plugin, index) => {
+        filesToUpload.push({
+          file: plugin,
+          type: 'plugins',
+          name: `Plugin ${index + 1}`
+        });
+      });
+
+      // Add mods
+      serverConfig.mods.forEach((mod, index) => {
+        filesToUpload.push({
+          file: mod,
+          type: 'mods',
+          name: `Mod ${index + 1}`
+        });
+      });
+
+      if (filesToUpload.length === 0) {
+        return; // No files to upload
+      }
+
+      setCreationProgress(85);
+      setCurrentStep('Uploading files to server...');
+
+      // Upload files sequentially to avoid overwhelming the server
+      for (let i = 0; i < filesToUpload.length; i++) {
+        const { file, type, name } = filesToUpload[i];
+        
+        setCurrentStep(`Uploading ${name}...`);
+        setCreationProgress(85 + (i / filesToUpload.length) * 10);
+
+        const formData = new FormData();
+        formData.append('serverId', serverId);
+        formData.append('fileType', type);
+        formData.append('file', file);
+        
+        // Include analysis data if available
+        if (file.analysis) {
+          formData.append('analysis', JSON.stringify(file.analysis));
+        }
+
+        const uploadResponse = await fetch('/api/server/file/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!uploadResponse.ok) {
+          const uploadError = await uploadResponse.json();
+          console.error(`Failed to upload ${name}:`, uploadError);
+          
+          // For now, we'll continue with other files even if one fails
+          // In the future, we might want to show warnings to the user
+          setDeploymentSteps(prev => [...prev, {
+            id: `upload-${type}-${i}`,
+            name: `Upload ${name}`,
+            status: 'failed' as const,
+            message: `Failed to upload ${name}`,
+            error: uploadError.error || 'Unknown error'
+          }]);
+        } else {
+          setDeploymentSteps(prev => [...prev, {
+            id: `upload-${type}-${i}`,
+            name: `Upload ${name}`,
+            status: 'completed' as const,
+            message: `Successfully uploaded ${name}`
+          }]);
+        }
+      }
+
+      setCreationProgress(95);
+      setCurrentStep('Finalizing server setup...');
+
+    } catch (err: unknown) {
+      console.error('Error uploading files:', err);
+      setDeploymentSteps(prev => [...prev, {
+        id: 'upload-error',
+        name: 'File Upload Error',
+        status: 'failed' as const,
+        message: 'Some files failed to upload',
+        error: String(err)
+      }]);
+    }
   };
 
   // Retry deployment function
