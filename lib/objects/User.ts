@@ -32,7 +32,7 @@ const UserSchema: pkg.Schema = new pkg.Schema({
     },
     maxServers: {
         type: Number,
-        default: 5, // Default maximum number of servers a user can create
+        default: 3, // Default maximum number of servers a user can create
     },
     sessionToken: {
         type: String,

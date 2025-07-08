@@ -1,3 +1,25 @@
+// File analysis interfaces
+export interface FileAnalysis {
+  type: 'world' | 'plugin' | 'mod' | 'resource-pack' | 'datapack' | 'unknown';
+  serverType?: string;
+  minecraftVersion?: string;
+  worldName?: string;
+  pluginName?: string;
+  modName?: string;
+  modLoader?: string;
+  description?: string;
+  author?: string;
+  version?: string;
+  errors?: string[];
+  warnings?: string[];
+}
+
+export interface AnalyzedFile extends File {
+  analysis?: FileAnalysis;
+  isAnalyzing?: boolean;
+  analysisError?: string;
+}
+
 /**
  * A comprehensive interface for configuring a Minecraft server 
  * using the itzg/minecraft-server Docker image.
@@ -65,8 +87,8 @@ export interface ClientServerConfig {
     serverMemory: number;
 
     // Client-specific properties for form handling
-    plugins: File[];
-    mods: File[];
+    plugins: AnalyzedFile[];
+    mods: AnalyzedFile[];
     subdomain: string;
     worldFiles?: File | null;
     customOptions?: string;
@@ -882,13 +904,16 @@ export class MinecraftServer {
     /**
      * Upload plugins specifically
      */
-    async uploadPlugins(plugins: File[]): Promise<{ success: boolean; error?: string }> {
+    async uploadPlugins(plugins: AnalyzedFile[]): Promise<{ success: boolean; error?: string }> {
         try {
             const pluginFiles: { [path: string]: Buffer } = {};
 
             for (const plugin of plugins) {
-                const pluginBuffer = Buffer.from(await plugin.arrayBuffer());
-                pluginFiles[`plugins/${plugin.name}`] = pluginBuffer;
+                // Only upload plugins that have been successfully analyzed
+                if (plugin.analysis && plugin.analysis.type === 'plugin' && !plugin.analysis.errors?.length) {
+                    const pluginBuffer = Buffer.from(await plugin.arrayBuffer());
+                    pluginFiles[`plugins/${plugin.name}`] = pluginBuffer;
+                }
             }
 
             return await this.uploadServerFiles(pluginFiles, 'plugins');
@@ -904,13 +929,16 @@ export class MinecraftServer {
     /**
      * Upload mods specifically
      */
-    async uploadMods(mods: File[]): Promise<{ success: boolean; error?: string }> {
+    async uploadMods(mods: AnalyzedFile[]): Promise<{ success: boolean; error?: string }> {
         try {
             const modFiles: { [path: string]: Buffer } = {};
 
             for (const mod of mods) {
-                const modBuffer = Buffer.from(await mod.arrayBuffer());
-                modFiles[`mods/${mod.name}`] = modBuffer;
+                // Only upload mods that have been successfully analyzed
+                if (mod.analysis && mod.analysis.type === 'mod' && !mod.analysis.errors?.length) {
+                    const modBuffer = Buffer.from(await mod.arrayBuffer());
+                    modFiles[`mods/${mod.name}`] = modBuffer;
+                }
             }
 
             return await this.uploadServerFiles(modFiles, 'mods');

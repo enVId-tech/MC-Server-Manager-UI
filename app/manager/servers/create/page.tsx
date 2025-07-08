@@ -15,7 +15,7 @@ import {
   TabButton,
   PreviewDetail
 } from '.';
-import { ClientServerConfig } from '@/lib/server/minecraft';
+import { ClientServerConfig, FileAnalysis, AnalyzedFile } from '@/lib/server/minecraft';
 
 // Tab configuration
 const tabs = [
@@ -262,34 +262,228 @@ export default function ServerGenerator() {
   };
 
   // Handle world file upload
-  const handleWorldFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleWorldFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      
+      // Set the file first
       setServerConfig({
         ...serverConfig,
-        worldFiles: e.target.files[0]
+        worldFiles: file
       });
+      
+      // Analyze the world file
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch('/api/server/file/analyze', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (response.ok) {
+          const analysis: FileAnalysis = await response.json();
+          console.log('World file analysis:', analysis);
+          
+          // If it's a world file, potentially update world settings
+          if (analysis.type === 'world' && analysis.worldName) {
+            setServerConfig(prevConfig => ({
+              ...prevConfig,
+              // Optionally update world-related settings based on analysis
+              // worldName: analysis.worldName, // if you have this field
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Error analyzing world file:', error);
+      }
     }
   };
 
   // Handle plugins upload
-  const handlePluginsUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePluginsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const newPlugins = Array.from(e.target.files);
+      const newFiles = Array.from(e.target.files);
+      const analyzedFiles: AnalyzedFile[] = [];
+      
+      // Convert files to AnalyzedFile and start analysis
+      for (const file of newFiles) {
+        const analyzedFile: AnalyzedFile = Object.assign(file, {
+          isAnalyzing: true
+        });
+        analyzedFiles.push(analyzedFile);
+      }
+      
+      // Update state with analyzing files
       setServerConfig({
         ...serverConfig,
-        plugins: [...serverConfig.plugins, ...newPlugins]
+        plugins: [...serverConfig.plugins, ...analyzedFiles]
       });
+      
+      // Analyze each file
+      for (let i = 0; i < analyzedFiles.length; i++) {
+        const file = analyzedFiles[i];
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          const response = await fetch('/api/server/file/analyze', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (response.ok) {
+            const analysis: FileAnalysis = await response.json();
+            
+            // Update the file with analysis results
+            setServerConfig(prevConfig => {
+              const updatedPlugins = [...prevConfig.plugins];
+              const fileIndex = updatedPlugins.findIndex(f => 
+                f.name === file.name && f.size === file.size && f.lastModified === file.lastModified
+              );
+              
+              if (fileIndex !== -1) {
+                updatedPlugins[fileIndex] = Object.assign(updatedPlugins[fileIndex], {
+                  analysis,
+                  isAnalyzing: false,
+                  analysisError: undefined
+                });
+              }
+              
+              return { ...prevConfig, plugins: updatedPlugins };
+            });
+          } else {
+            // Handle analysis error
+            setServerConfig(prevConfig => {
+              const updatedPlugins = [...prevConfig.plugins];
+              const fileIndex = updatedPlugins.findIndex(f => 
+                f.name === file.name && f.size === file.size && f.lastModified === file.lastModified
+              );
+              
+              if (fileIndex !== -1) {
+                updatedPlugins[fileIndex] = Object.assign(updatedPlugins[fileIndex], {
+                  isAnalyzing: false,
+                  analysisError: 'Analysis failed'
+                });
+              }
+              
+              return { ...prevConfig, plugins: updatedPlugins };
+            });
+          }
+        } catch (error) {
+          console.error('Error analyzing file:', error);
+          // Update file with error state
+          setServerConfig(prevConfig => {
+            const updatedPlugins = [...prevConfig.plugins];
+            const fileIndex = updatedPlugins.findIndex(f => 
+              f.name === file.name && f.size === file.size && f.lastModified === file.lastModified
+            );
+            
+            if (fileIndex !== -1) {
+              updatedPlugins[fileIndex] = Object.assign(updatedPlugins[fileIndex], {
+                isAnalyzing: false,
+                analysisError: 'Analysis failed'
+              });
+            }
+            
+            return { ...prevConfig, plugins: updatedPlugins };
+          });
+        }
+      }
     }
   };
 
   // Handle mods upload
-  const handleModsUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleModsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const newMods = Array.from(e.target.files);
+      const newFiles = Array.from(e.target.files);
+      const analyzedFiles: AnalyzedFile[] = [];
+      
+      // Convert files to AnalyzedFile and start analysis
+      for (const file of newFiles) {
+        const analyzedFile: AnalyzedFile = Object.assign(file, {
+          isAnalyzing: true
+        });
+        analyzedFiles.push(analyzedFile);
+      }
+      
+      // Update state with analyzing files
       setServerConfig({
         ...serverConfig,
-        mods: [...serverConfig.mods, ...newMods]
+        mods: [...serverConfig.mods, ...analyzedFiles]
       });
+      
+      // Analyze each file
+      for (let i = 0; i < analyzedFiles.length; i++) {
+        const file = analyzedFiles[i];
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          const response = await fetch('/api/server/file/analyze', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (response.ok) {
+            const analysis: FileAnalysis = await response.json();
+            
+            // Update the file with analysis results
+            setServerConfig(prevConfig => {
+              const updatedMods = [...prevConfig.mods];
+              const fileIndex = updatedMods.findIndex(f => 
+                f.name === file.name && f.size === file.size && f.lastModified === file.lastModified
+              );
+              
+              if (fileIndex !== -1) {
+                updatedMods[fileIndex] = Object.assign(updatedMods[fileIndex], {
+                  analysis,
+                  isAnalyzing: false,
+                  analysisError: undefined
+                });
+              }
+              
+              return { ...prevConfig, mods: updatedMods };
+            });
+          } else {
+            // Handle analysis error
+            setServerConfig(prevConfig => {
+              const updatedMods = [...prevConfig.mods];
+              const fileIndex = updatedMods.findIndex(f => 
+                f.name === file.name && f.size === file.size && f.lastModified === file.lastModified
+              );
+              
+              if (fileIndex !== -1) {
+                updatedMods[fileIndex] = Object.assign(updatedMods[fileIndex], {
+                  isAnalyzing: false,
+                  analysisError: 'Analysis failed'
+                });
+              }
+              
+              return { ...prevConfig, mods: updatedMods };
+            });
+          }
+        } catch (error) {
+          console.error('Error analyzing file:', error);
+          // Update file with error state
+          setServerConfig(prevConfig => {
+            const updatedMods = [...prevConfig.mods];
+            const fileIndex = updatedMods.findIndex(f => 
+              f.name === file.name && f.size === file.size && f.lastModified === file.lastModified
+            );
+            
+            if (fileIndex !== -1) {
+              updatedMods[fileIndex] = Object.assign(updatedMods[fileIndex], {
+                isAnalyzing: false,
+                analysisError: 'Analysis failed'
+              });
+            }
+            
+            return { ...prevConfig, mods: updatedMods };
+          });
+        }
+      }
     }
   };
 
@@ -330,6 +524,46 @@ export default function ServerGenerator() {
 
     console.log('Submitting server configuration:', serverConfig);
 
+    // Validate analyzed files before submission
+    const invalidPlugins = serverConfig.plugins.filter(file => 
+      file.isAnalyzing || file.analysisError || (file.analysis?.errors?.length ?? 0) > 0
+    );
+    const invalidMods = serverConfig.mods.filter(file => 
+      file.isAnalyzing || file.analysisError || (file.analysis?.errors?.length ?? 0) > 0
+    );
+
+    if (invalidPlugins.length > 0 || invalidMods.length > 0) {
+      setIsCreating(false);
+      setError({
+        title: 'File Analysis Issues',
+        message: `Please wait for file analysis to complete or remove files with errors. ${invalidPlugins.length > 0 ? `${invalidPlugins.length} plugin(s)` : ''} ${invalidMods.length > 0 ? `${invalidMods.length} mod(s)` : ''} have issues.`,
+        type: 'warning'
+      });
+      return;
+    }
+
+    // Create a cleaned version of serverConfig for JSON serialization
+    // Note: We'll need to handle file uploads separately via FormData or file upload endpoints
+    const cleanedConfig = {
+      ...serverConfig,
+      // Remove File objects as they can't be JSON serialized
+      plugins: serverConfig.plugins.map(file => ({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified,
+        analysis: file.analysis
+      })),
+      mods: serverConfig.mods.map(file => ({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified,
+        analysis: file.analysis
+      })),
+      // Keep worldFiles as is for now - may need similar handling
+    };
+
     try {
       // Step 1: Create server in database
       setCreationProgress(5);
@@ -340,7 +574,7 @@ export default function ServerGenerator() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(serverConfig),
+        body: JSON.stringify(cleanedConfig),
       });
 
       if (response.status === 401) {
