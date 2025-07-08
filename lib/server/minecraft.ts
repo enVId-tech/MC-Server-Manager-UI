@@ -1171,7 +1171,7 @@ export class MinecraftServer {
      * Creates a DNS SRV record for the Minecraft server
      * @param domain The domain to create the record for (e.g., "example.com")
      * @param subdomain The subdomain for the server (e.g., "myserver")
-     * @param target The target hostname (usually the server's IP or hostname)
+     * @param target The target FQDN for the SRV record (usually subdomain.domain)
      * @param port The port the server is running on (defaults to 25565)
      * @returns Object with success status and record ID if successful
      */
@@ -1182,7 +1182,7 @@ export class MinecraftServer {
         port: number = 25565
     ): Promise<{ success: boolean; recordId?: string; recordType?: string; error?: string }> {
         try {
-            console.log(`Creating DNS record for ${subdomain}.${domain} -> ${target}:${port}`);
+            console.log(`Creating SRV DNS record for ${subdomain}.${domain} -> ${target}:${port}`);
 
             // Validate inputs
             if (!domain || !domain.includes('.')) {
@@ -1223,11 +1223,12 @@ export class MinecraftServer {
             // Lazy load porkbun to avoid build-time errors with missing environment variables
             const { default: porkbun } = await import('./porkbun');
 
-            console.log(`Attempting to create SRV DNS record with validated parameters:`);
+            console.log(`Creating SRV record with validated parameters:`);
             console.log(`- Domain: ${domain}`);
             console.log(`- Subdomain: ${cleanSubdomain}`);
             console.log(`- Target: ${target}`);
             console.log(`- Port: ${port}`);
+            console.log(`- Note: Assuming A record for ${target} already exists`);
 
             // Create SRV record only - strict mode with no fallback
             const recordId = await porkbun.createMinecraftSrvRecordStrict(domain, cleanSubdomain, port, target);
@@ -1270,14 +1271,19 @@ export class MinecraftServer {
 
             // Lazy load porkbun to avoid build-time errors with missing environment variables
             const { default: porkbun } = await import('./porkbun');
-            const success = await porkbun.deleteMinecraftSrvRecord(domain, subdomain);
+            
+            // Delete only SRV records (A records should remain as they're managed elsewhere)
+            const srvSuccess = await porkbun.deleteMinecraftSrvRecord(domain, subdomain);
 
-            if (success) {
+            console.log(`SRV record deletion: ${srvSuccess ? 'success' : 'failed'}`);
+            console.log(`Note: A records are preserved as they're managed independently`);
+
+            if (srvSuccess) {
                 return { success: true };
             } else {
                 return {
                     success: false,
-                    error: 'Failed to delete DNS record'
+                    error: 'Failed to delete SRV record'
                 };
             }
         } catch (error) {

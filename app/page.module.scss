@@ -108,6 +108,7 @@ $heading-font: var(--font-press-start);
     flex-direction: column;
     gap: 1rem;
     margin-top: 2rem;
+    align-items: center;
 
     @media (min-width: 640px) {
       flex-direction: row;
@@ -151,6 +152,17 @@ $heading-font: var(--font-press-start);
       background-color: $dark-card;
       border-color: $accent-blue;
       color: $white;
+    }
+  }
+
+  &--secondary {
+    border-color: $accent-green;
+    color: $white;
+
+    &:hover {
+      background-color: color.scale($accent-green, $lightness: 5%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba($accent-green, 0.3);
     }
   }
 }

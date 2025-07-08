@@ -89,34 +89,74 @@ export async function DELETE(request: NextRequest) {
             errors
         };
 
-        // Step 1: Remove Portainer container
-        console.log('Step 1: Removing Portainer container...');
+        // Step 1: Remove Portainer container and stack
+        console.log('Step 1: Removing Portainer container and associated stack...');
         try {
             const containerIdentifier = `mc-${server.uniqueId}`;
-            const container = await portainer.getContainerByIdentifier(containerIdentifier);
+            const stackName = `minecraft-${server.uniqueId}`;
+            
+            // First, try to remove the stack (which should also remove associated containers)
+            console.log(`Attempting to remove stack: ${stackName}`);
+            try {
+                const stackDeleteResult = await portainer.deleteStackByName(stackName);
+                if (stackDeleteResult) {
+                    console.log(`✅ Successfully removed stack: ${stackName}`);
+                    result.containerRemoved = true; // Stack removal includes container removal
+                } else {
+                    console.log(`⚠️ Stack '${stackName}' not found, attempting individual container removal...`);
+                    
+                    // If stack doesn't exist, try to remove container individually
+                    const container = await portainer.getContainerByIdentifier(containerIdentifier);
+                    if (container) {
+                        // If container is running, stop it first (unless force is true)
+                        if (container.State === 'running' && !force) {
+                            try {
+                                await portainer.stopContainer(container.Id);
+                                console.log(`Stopped container ${containerIdentifier}`);
+                            } catch (stopError) {
+                                warnings.push(`Failed to stop container before deletion: ${stopError instanceof Error ? stopError.message : String(stopError)}`);
+                                console.warn('Failed to stop container before deletion:', stopError);
+                            }
+                        }
 
-            if (container) {
-                // If container is running, stop it first (unless force is true)
-                if (container.State === 'running' && !force) {
-                    try {
-                        await portainer.stopContainer(container.Id);
-                        console.log(`Stopped container ${containerIdentifier}`);
-                    } catch (stopError) {
-                        warnings.push(`Failed to stop container before deletion: ${stopError instanceof Error ? stopError.message : String(stopError)}`);
-                        console.warn('Failed to stop container before deletion:', stopError);
+                        // Remove the container
+                        await portainer.removeContainer(container.Id, null, force, removeVolumes);
+                        result.containerRemoved = true;
+                        console.log(`Successfully removed container ${containerIdentifier}`);
+                    } else {
+                        warnings.push(`No container found with identifier ${containerIdentifier}`);
+                        console.log(`No container found with identifier ${containerIdentifier}`);
                     }
                 }
+            } catch (stackError) {
+                warnings.push(`Failed to remove stack '${stackName}': ${stackError instanceof Error ? stackError.message : String(stackError)}`);
+                console.warn(`Failed to remove stack, attempting container removal:`, stackError);
+                
+                // Fallback to individual container removal
+                const container = await portainer.getContainerByIdentifier(containerIdentifier);
+                if (container) {
+                    // If container is running, stop it first (unless force is true)
+                    if (container.State === 'running' && !force) {
+                        try {
+                            await portainer.stopContainer(container.Id);
+                            console.log(`Stopped container ${containerIdentifier}`);
+                        } catch (stopError) {
+                            warnings.push(`Failed to stop container before deletion: ${stopError instanceof Error ? stopError.message : String(stopError)}`);
+                            console.warn('Failed to stop container before deletion:', stopError);
+                        }
+                    }
 
-                // Remove the container
-                await portainer.removeContainer(container.Id, null, force, removeVolumes);
-                result.containerRemoved = true;
-                console.log(`Successfully removed container ${containerIdentifier}`);
-            } else {
-                warnings.push(`No container found with identifier ${containerIdentifier}`);
-                console.log(`No container found with identifier ${containerIdentifier}`);
+                    // Remove the container
+                    await portainer.removeContainer(container.Id, null, force, removeVolumes);
+                    result.containerRemoved = true;
+                    console.log(`Successfully removed container ${containerIdentifier}`);
+                } else {
+                    warnings.push(`No container found with identifier ${containerIdentifier}`);
+                    console.log(`No container found with identifier ${containerIdentifier}`);
+                }
             }
         } catch (error) {
-            const errorMsg = `Failed to remove Portainer container: ${error instanceof Error ? error.message : String(error)}`;
+            const errorMsg = `Failed to remove Portainer resources: ${error instanceof Error ? error.message : String(error)}`;
             errors.push(errorMsg);
             console.error(errorMsg);
         }
@@ -125,8 +165,8 @@ export async function DELETE(request: NextRequest) {
         console.log('Step 2: Cleaning up DNS records...');
         try {
             if (server.subdomainName) {
-                // Extract domain from environment or use default
-                const domain = process.env.DOMAIN || 'yourdomain.com'; // You should set this in your environment
+                // Use the same domain variable as used in deployment for consistency
+                const domain = process.env.MINECRAFT_DOMAIN || process.env.DOMAIN || 'yourdomain.com';
                 
                 const dnsCleanupDetails = await cleanupServerDnsRecords(domain, server.subdomainName);
                 result.dnsCleanupDetails = dnsCleanupDetails;
@@ -329,21 +369,17 @@ async function cleanupServerDnsRecords(domain: string, subdomain: string) {
         // Get all DNS records for the domain to find and delete related records
         const allRecords = await porkbun.getDnsRecords(domain);
         if (allRecords) {
-            // Look for additional records that might be associated with this subdomain
+            // Look for additional SRV and CNAME records (but preserve A records)
             const relatedRecords = allRecords.filter(record => {
                 const recordName = record.name.toLowerCase();
                 const targetSubdomain = subdomain.toLowerCase();
                 
-                // Check for exact matches and variations
-                return recordName === targetSubdomain || 
-                       recordName === `${targetSubdomain}.${domain}` ||
-                       recordName.startsWith(`${targetSubdomain}.`) ||
-                       recordName.includes(`_minecraft._tcp.${targetSubdomain}`) ||
-                       (record.type === 'CNAME' && recordName === targetSubdomain) ||
-                       (record.type === 'A' && recordName === targetSubdomain);
+                // Only target SRV records and CNAME records, preserve A records
+                return recordName.includes(`_minecraft._tcp.${targetSubdomain}`) ||
+                       (record.type === 'CNAME' && recordName === targetSubdomain);
             });
 
-            // Delete related records
+            // Delete related records (SRV and CNAME only)
             for (const record of relatedRecords) {
                 try {
                     const deleted = await porkbun.deleteDnsRecord(domain, record.id);
@@ -351,9 +387,6 @@ async function cleanupServerDnsRecords(domain: string, subdomain: string) {
                         switch (record.type) {
                             case 'CNAME':
                                 cleanupDetails.cnameRecordsDeleted++;
-                                break;
-                            case 'A':
-                                cleanupDetails.aRecordsDeleted++;
                                 break;
                             case 'SRV':
                                 // Don't double count SRV records
@@ -372,6 +405,7 @@ async function cleanupServerDnsRecords(domain: string, subdomain: string) {
         cleanupDetails.errors.push(`Failed to retrieve DNS records for cleanup: ${error instanceof Error ? error.message : String(error)}`);
     }
 
+    console.log(`DNS cleanup completed - SRV: ${cleanupDetails.srvRecordsDeleted}, CNAME: ${cleanupDetails.cnameRecordsDeleted}, A records preserved`);
     return cleanupDetails;
 }
 
@@ -381,10 +415,19 @@ async function cleanupServerDnsRecords(domain: string, subdomain: string) {
  * @returns Archive details including paths and method used
  */
 async function archiveServerFiles(serverUniqueId: string) {
-    const originalPath = `/servers/${serverUniqueId}`;
+    const webdavServerBasePath = process.env.WEBDAV_SERVER_BASE_PATH || '/servers';
+    // Get user attached to the server
+    const user = await Server.findOne({ uniqueId: serverUniqueId }, 'email').exec();
+    if (!user) {
+        throw new Error(`Server with uniqueId ${serverUniqueId} not found`);
+    }
+
+    // Complete the full path
+    const originalPath = `${webdavServerBasePath}/${user.email}/${serverUniqueId}`;
+
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0]; // YYYY-MM-DD format
-    const archivedPath = `/servers/${serverUniqueId}-deleted-${timestamp}`;
-    
+    const archivedPath = `${originalPath}-deleted-${timestamp}`;
+
     const archiveDetails = {
         originalPath,
         archivedPath,

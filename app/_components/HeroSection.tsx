@@ -36,9 +36,15 @@ export default function HeroSection() {
                 </p>
                 <div className={styles.hero__buttons}>
                     <Link href="/get-started" className={`${styles.button} ${styles['button--primary']}`}>
-                        Get Started
+                        Documentation
                     </Link>
-                    <Link href={"/auth/login"} className={`${styles.button} ${styles['button--primary']}`}>
+                    <Link href={"/auth/signup"} className={`${styles.button} ${styles['button--primary']}`}>
+                        Register
+                    </Link>
+                </div>
+                <div className={styles.hero__buttons}>
+                    Already have an account?
+                    <Link href="/auth/login" className={`${styles.button} ${styles['button--secondary']}`}>
                         Login
                     </Link>
                 </div>

@@ -336,20 +336,26 @@ export class PorkbunService {
         // So for "_minecraft._tcp.main1.etran.dev", we only send "_minecraft._tcp.main1"
         const srvName = `_minecraft._tcp.${cleanSubdomain}`;
 
-        console.log(`Creating SRV record for Minecraft server: ${srvName} -> ${target}:${port}`);
+        // Add trailing dot to make target FQDN absolute to prevent domain duplication
+        // This ensures Porkbun API treats it as absolute, not relative to the domain
+        const fqdnTarget = target.endsWith('.') ? target : `${target}.`;
+
+        console.log(`Creating SRV record for Minecraft server: ${srvName} -> ${fqdnTarget}:${port}`);
         console.log(`Record name (without domain): ${srvName}`);
         console.log(`Full FQDN will be: ${srvName}.${domain}`);
+        console.log(`Target: ${fqdnTarget} (with trailing dot to prevent domain duplication)`);
 
         // Try different SRV record formats according to RFC 2782
         // The content should be: priority weight port target
         // Where target is the actual server hostname (FQDN), not the subdomain
+        
         const srvFormats = [
             // Format 1: Standard RFC 2782 format (priority weight port target)
-            `0 ${port} ${target}`,
+            `0 ${port} ${fqdnTarget}`,
             // Format 2: Alternative priority/weight values  
-            `5 ${port} ${target}`,
+            `5 ${port} ${fqdnTarget}`,
             // Format 3: Different weight value
-            `10 ${port} ${target}`,
+            `10 ${port} ${fqdnTarget}`,
         ];
 
         for (let i = 0; i < srvFormats.length; i++) {
@@ -409,13 +415,20 @@ export class PorkbunService {
             }
 
             // Find SRV records for the Minecraft server
-            const srvName = `_minecraft._tcp.${cleanSubdomain}`;
+            // Note: When retrieving records, Porkbun returns the full name including domain
+            // But when creating, we only send the name without domain
+            const srvNameWithoutDomain = `_minecraft._tcp.${cleanSubdomain}`;
+            const srvNameWithDomain = `_minecraft._tcp.${cleanSubdomain}.${domain}`;
+            
             const srvRecords = records.filter(record =>
-                record.type === 'SRV' && record.name === srvName
+                record.type === 'SRV' && (
+                    record.name === srvNameWithoutDomain || 
+                    record.name === srvNameWithDomain
+                )
             );
 
             if (srvRecords.length === 0) {
-                console.log(`No SRV records found for ${srvName}.${domain}`);
+                console.log(`No SRV records found for ${srvNameWithDomain}`);
                 return false;
             }
 
@@ -429,10 +442,10 @@ export class PorkbunService {
             }
 
             if (deletedCount > 0) {
-                console.log(`Successfully deleted ${deletedCount} SRV record(s) for ${srvName}.${domain}`);
+                console.log(`Successfully deleted ${deletedCount} SRV record(s) for ${srvNameWithDomain}`);
                 return true;
             } else {
-                console.error(`Failed to delete SRV records for ${srvName}.${domain}`);
+                console.error(`Failed to delete SRV records for ${srvNameWithDomain}`);
                 return false;
             }
         } catch (error) {
@@ -734,6 +747,106 @@ export class PorkbunService {
         console.log(`   Players can connect to: ${cleanSubdomain}.${domain} (port automatically detected)`);
 
         return recordId;
+    }
+
+    /**
+     * Creates an A record for a subdomain pointing to an IP address.
+     * @param domain The fully qualified domain name (e.g., "example.com").
+     * @param subdomain The subdomain for the server (e.g., "myserver").
+     * @param ipAddress The IP address to point to.
+     * @param ttl TTL for the record (default: "300").
+     * @returns The record ID if successful, or null if an error occurs.
+     */
+    public async createARecord(
+        domain: string,
+        subdomain: string,
+        ipAddress: string,
+        ttl: string = '300'
+    ): Promise<string | null> {
+        this.validateCredentials();
+
+        // Clean up subdomain to ensure it doesn't already contain the domain
+        let cleanSubdomain = subdomain;
+        if (subdomain.endsWith(`.${domain}`)) {
+            cleanSubdomain = subdomain.replace(`.${domain}`, '');
+            console.log(`⚠️  Subdomain contained domain suffix. Cleaned: "${subdomain}" -> "${cleanSubdomain}"`);
+        }
+
+        console.log(`Creating A record for ${cleanSubdomain}.${domain} -> ${ipAddress}`);
+
+        const payload: CreateDnsRecordPayload = {
+            name: cleanSubdomain,
+            type: 'A',
+            content: ipAddress,
+            ttl: ttl
+        };
+
+        console.log(`A record payload:`, JSON.stringify(payload, null, 2));
+
+        const result = await this.createDnsRecord(domain, payload);
+
+        if (result) {
+            console.log(`Successfully created A record: ${cleanSubdomain}.${domain} -> ${ipAddress}`);
+            return result;
+        } else {
+            console.error(`Failed to create A record for ${cleanSubdomain}.${domain} -> ${ipAddress}`);
+            return null;
+        }
+    }
+
+    /**
+     * Finds and deletes A records for a subdomain.
+     * @param domain The fully qualified domain name (e.g., "example.com").
+     * @param subdomain The subdomain for the server (e.g., "myserver").
+     * @returns True if at least one record was deleted, false otherwise.
+     */
+    public async deleteARecord(domain: string, subdomain: string): Promise<boolean> {
+        this.validateCredentials();
+        try {
+            // Clean up subdomain to ensure it doesn't already contain the domain
+            let cleanSubdomain = subdomain;
+            if (subdomain.endsWith(`.${domain}`)) {
+                cleanSubdomain = subdomain.replace(`.${domain}`, '');
+                console.log(`⚠️  Subdomain contained domain suffix for deletion. Cleaned: "${subdomain}" -> "${cleanSubdomain}"`);
+            }
+
+            // First, get all DNS records for the domain
+            const records = await this.getDnsRecords(domain);
+            if (!records) {
+                console.error(`Failed to retrieve DNS records for ${domain}`);
+                return false;
+            }
+
+            // Find A records for the subdomain
+            const aRecords = records.filter(record =>
+                record.type === 'A' && record.name === cleanSubdomain
+            );
+
+            if (aRecords.length === 0) {
+                console.log(`No A records found for ${cleanSubdomain}.${domain}`);
+                return false;
+            }
+
+            // Delete all matching A records
+            let deletedCount = 0;
+            for (const record of aRecords) {
+                const success = await this.deleteDnsRecord(domain, record.id);
+                if (success) {
+                    deletedCount++;
+                }
+            }
+
+            if (deletedCount > 0) {
+                console.log(`Successfully deleted ${deletedCount} A record(s) for ${cleanSubdomain}.${domain}`);
+                return true;
+            } else {
+                console.error(`Failed to delete A records for ${cleanSubdomain}.${domain}`);
+                return false;
+            }
+        } catch (error) {
+            console.error(`Error deleting A record for ${subdomain}.${domain}:`, error);
+            return false;
+        }
     }
 }
 
