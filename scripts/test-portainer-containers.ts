@@ -1,4 +1,4 @@
-import portainer from './lib/server/portainer.js';
+import portainer from '../lib/server/portainer.js';
 
 async function testPortainerContainers() {
     try {

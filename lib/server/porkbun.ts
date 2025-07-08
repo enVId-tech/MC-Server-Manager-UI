@@ -342,14 +342,14 @@ export class PorkbunService {
 
         // Try different SRV record formats according to RFC 2782
         // The content should be: priority weight port target
-        // Where target is the actual server hostname, not the subdomain
+        // Where target is the actual server hostname (FQDN), not the subdomain
         const srvFormats = [
             // Format 1: Standard RFC 2782 format (priority weight port target)
-            `0 ${port} ${cleanSubdomain}`,
+            `0 ${port} ${target}`,
             // Format 2: Alternative priority/weight values  
-            `5 ${port} ${cleanSubdomain}`,
+            `5 ${port} ${target}`,
             // Format 3: Different weight value
-            `10 ${port} ${cleanSubdomain}`,
+            `10 ${port} ${target}`,
         ];
 
         for (let i = 0; i < srvFormats.length; i++) {

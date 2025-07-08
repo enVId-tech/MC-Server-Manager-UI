@@ -199,6 +199,26 @@ class WebDavService {
             return false;
         }
     }
+
+    /**
+     * Move/rename a file or directory on the WebDAV server.
+     * @param sourcePath - The current path of the file/directory.
+     * @param destPath - The new path for the file/directory.
+     */
+    public async moveFile(sourcePath: string, destPath: string): Promise<void> {
+        try {
+            // Try using the underlying client's moveFile method if available
+            if (typeof this.client.moveFile === 'function') {
+                await this.client.moveFile(sourcePath, destPath);
+                console.log(`Successfully moved ${sourcePath} to ${destPath}`);
+            } else {
+                throw new Error('moveFile method not available on WebDAV client');
+            }
+        } catch (error) {
+            console.error(`Error moving ${sourcePath} to ${destPath}:`, error);
+            throw error;
+        }
+    }
 }
 
 // Singleton instance of WebDavService
