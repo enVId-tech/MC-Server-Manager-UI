@@ -20,12 +20,30 @@ class WebDavService {
     }
 
     private createClientWithOptions(url: string): WebDAVClient {
-        return createClient(url, {
+        const options: {
+            httpsAgent: https.Agent;
+            username?: string;
+            password?: string;
+        } = {
             // For development only - disable SSL certificate validation
             httpsAgent: new https.Agent({
                 rejectUnauthorized: false
             })
-        });
+        };
+
+        // Add authentication if credentials are provided
+        const username = process.env.WEBDAV_USERNAME;
+        const password = process.env.WEBDAV_PASSWORD;
+        
+        if (username && password) {
+            options.username = username;
+            options.password = password;
+            console.log(`WebDAV: Using authentication for user: ${username}`);
+        } else {
+            console.log('WebDAV: No authentication credentials provided');
+        }
+
+        return createClient(url, options);
     }
 
     /**

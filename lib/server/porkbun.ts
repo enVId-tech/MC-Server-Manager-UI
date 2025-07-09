@@ -1,7 +1,17 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import dotenv from 'dotenv';
 
-dotenv.config(); // Load environment variables from .env
+// Load environment variables from .env without verbose output
+const originalConsoleLog = console.log;
+const originalConsoleInfo = console.info;
+console.log = () => {}; // Temporarily suppress console.log
+console.info = () => {}; // Temporarily suppress console.info
+
+dotenv.config({ debug: false });
+
+// Restore console methods
+console.log = originalConsoleLog;
+console.info = originalConsoleInfo;
 
 interface DnsRecord {
     id: string;

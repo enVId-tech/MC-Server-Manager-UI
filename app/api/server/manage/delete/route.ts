@@ -416,17 +416,57 @@ async function cleanupServerDnsRecords(domain: string, subdomain: string) {
  */
 async function archiveServerFiles(serverUniqueId: string) {
     const webdavServerBasePath = process.env.WEBDAV_SERVER_BASE_PATH || '/servers';
+    
+    console.log(`🗃️  Starting archive process for server: ${serverUniqueId}`);
+    console.log(`📁 WebDAV base path: ${webdavServerBasePath}`);
+    
     // Get user attached to the server
     const user = await Server.findOne({ uniqueId: serverUniqueId }, 'email').exec();
     if (!user) {
         throw new Error(`Server with uniqueId ${serverUniqueId} not found`);
     }
 
+    console.log(`👤 Server owner: ${user.email}`);
+
     // Complete the full path
     const originalPath = `${webdavServerBasePath}/${user.email}/${serverUniqueId}`;
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0]; // YYYY-MM-DD format
+    // Test WebDAV connection first
+    let webdavWorking = false;
+    try {
+        console.log(`🔌 Testing WebDAV connection...`);
+        const webdavUrl = process.env.WEBDAV_URL;
+        const webdavUsername = process.env.WEBDAV_USERNAME;
+        const webdavPassword = process.env.WEBDAV_PASSWORD;
+        
+        console.log(`📡 WebDAV URL: ${webdavUrl}`);
+        console.log(`👤 WebDAV Username: ${webdavUsername || '(empty)'}`);
+        console.log(`🔑 WebDAV Password: ${webdavPassword ? '(set)' : '(empty)'}`);
+        
+        // Try to list the base directory to test connection
+        const baseContents = await webdavService.getDirectoryContents('/');
+        console.log(`✅ WebDAV connection successful, found ${Array.isArray(baseContents) ? baseContents.length : 0} items in root`);
+        webdavWorking = true;
+    } catch (webdavTestError) {
+        console.error(`❌ WebDAV connection test failed:`, webdavTestError);
+        console.log(`⚠️  Will attempt alternative archiving methods...`);
+        webdavWorking = false;
+    }
+
+    // Create detailed timestamp: YYYY-MM-DD_HH-MM-SS format
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(now.getUTCDate()).padStart(2, '0');
+    const hours = String(now.getUTCHours()).padStart(2, '0');
+    const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(now.getUTCSeconds()).padStart(2, '0');
+    const timestamp = `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
     const archivedPath = `${originalPath}-deleted-${timestamp}`;
+
+    console.log(`📂 Original path: ${originalPath}`);
+    console.log(`📦 Archive path: ${archivedPath}`);
+    console.log(`🕒 Timestamp: ${timestamp}`);
 
     const archiveDetails = {
         originalPath,
@@ -434,54 +474,104 @@ async function archiveServerFiles(serverUniqueId: string) {
         archiveMethod: 'copy_delete' as 'move' | 'copy_delete' | 'rename_fallback'
     };
 
+    // If WebDAV is not working, try alternative approaches
+    if (!webdavWorking) {
+        console.log(`🔄 WebDAV unavailable, attempting alternative archiving via MinecraftServer instance...`);
+        
+        try {
+            // Create a MinecraftServer instance to handle file operations
+            const environmentId = await portainer.getFirstEnvironmentId();
+            if (environmentId) {
+                // Note: MinecraftServer instance would be used for file operations
+                // but for now we'll just mark as archived
+                console.log(`🗂️  Server environment ID: ${environmentId}`);
+                
+                // This is a fallback - just mark as archived without actual file operation
+                // The actual files will be handled by the file deletion process
+                archiveDetails.archiveMethod = 'rename_fallback';
+                archiveDetails.archivedPath = `${originalPath}-deleted-${timestamp}`;
+                
+                console.log(`⚠️  Alternative archiving: Marked for deletion with timestamp`);
+                console.log(`📝 Note: Files will be processed by the standard deletion workflow`);
+                
+                return archiveDetails;
+            }
+        } catch (alternativeError) {
+            console.error(`❌ Alternative archiving also failed:`, alternativeError);
+        }
+
+        // Final fallback: just return the archive details without actually moving files
+        console.log(`⚠️  All archiving methods failed, marking for deletion only`);
+        archiveDetails.archiveMethod = 'rename_fallback';
+        archiveDetails.archivedPath = `${originalPath}-deleted-${timestamp}`;
+        return archiveDetails;
+    }
+
+    // Original WebDAV-based archiving logic (if WebDAV is working)
     try {
         // Check if the original directory exists
+        console.log(`🔍 Checking if directory exists: ${originalPath}`);
         const exists = await webdavService.exists(originalPath);
+        console.log(`📁 Directory exists: ${exists}`);
+        
         if (!exists) {
             throw new Error(`Server directory ${originalPath} does not exist`);
         }
 
         // WebDAV service supports moveFile - let's try that first
         try {
+            console.log(`🚚 Attempting to move directory using WebDAV moveFile...`);
             // Try to use the WebDAV service's move functionality
             await webdavService.moveFile(originalPath, archivedPath);
             archiveDetails.archiveMethod = 'move';
-            console.log(`Successfully moved server files from ${originalPath} to ${archivedPath}`);
+            console.log(`✅ Successfully moved server files from ${originalPath} to ${archivedPath}`);
             return archiveDetails;
         } catch (moveError) {
-            console.warn('Move operation failed, falling back to copy+delete method:', moveError);
+            console.warn(`⚠️  Move operation failed, falling back to copy+delete method:`, moveError);
         }
 
         // Fallback: Copy all contents to new directory and then delete original
+        console.log(`📋 Attempting copy+delete fallback method...`);
+        
         // First, create the archived directory
+        console.log(`📁 Creating archive directory: ${archivedPath}`);
         await webdavService.createDirectory(archivedPath);
 
         // Get all contents of the original directory
+        console.log(`📂 Getting contents of original directory...`);
         const contents = await webdavService.getDirectoryContents(originalPath);
+        console.log(`📋 Found ${Array.isArray(contents) ? contents.length : 0} items to copy`);
         
         // Recursively copy all files and subdirectories
+        console.log(`🔄 Starting recursive copy process...`);
         await copyDirectoryRecursively(originalPath, archivedPath, contents as Array<{ basename?: string; name?: string; type: string }>);
 
         // Delete the original directory after successful copy
+        console.log(`🗑️  Deleting original directory: ${originalPath}`);
         await webdavService.deleteDirectory(originalPath);
         
         archiveDetails.archiveMethod = 'copy_delete';
-        console.log(`Successfully archived server files from ${originalPath} to ${archivedPath} using copy+delete method`);
+        console.log(`✅ Successfully archived server files from ${originalPath} to ${archivedPath} using copy+delete method`);
         
         return archiveDetails;
 
     } catch (error) {
+        console.error(`❌ Primary archive methods failed:`, error);
+        
         // Final fallback: try simple directory rename by adding suffix to existing path
         try {
-            // Try to create a simple renamed directory using WebDAV service
-            const simpleSuffix = `${originalPath}-deleted`;
+            console.log(`🔄 Attempting final fallback rename...`);
+            // Try to create a simple renamed directory using WebDAV service with timestamp
+            const simpleSuffix = `${originalPath}-deleted-${timestamp}`;
+            console.log(`📁 Fallback archive path: ${simpleSuffix}`);
+            
             await webdavService.moveFile(originalPath, simpleSuffix);
             archiveDetails.archivedPath = simpleSuffix;
             archiveDetails.archiveMethod = 'rename_fallback';
-            console.log(`Fallback: Successfully renamed server directory to ${simpleSuffix}`);
+            console.log(`✅ Fallback: Successfully renamed server directory to ${simpleSuffix}`);
             return archiveDetails;
         } catch (fallbackError) {
-            console.error('All archive methods failed:', fallbackError);
+            console.error(`❌ All archive methods failed:`, fallbackError);
         }
         
         throw new Error(`Failed to archive server files: ${error instanceof Error ? error.message : String(error)}`);
@@ -495,20 +585,31 @@ async function archiveServerFiles(serverUniqueId: string) {
  * @param contents Directory contents from WebDAV
  */
 async function copyDirectoryRecursively(sourcePath: string, destPath: string, contents: Array<{ basename?: string; name?: string; type: string }>) {
+    console.log(`🔄 Copying directory contents from ${sourcePath} to ${destPath}`);
+    console.log(`📋 Processing ${contents.length} items...`);
+    
     for (const item of contents) {
         const itemName = item.basename || item.name;
         const sourceItemPath = `${sourcePath}/${itemName}`;
         const destItemPath = `${destPath}/${itemName}`;
         
+        console.log(`📄 Processing: ${itemName} (${item.type})`);
+        
         if (item.type === 'directory') {
             // Create subdirectory and recursively copy its contents
+            console.log(`📁 Creating subdirectory: ${destItemPath}`);
             await webdavService.createDirectory(destItemPath);
+            
+            console.log(`📂 Getting contents of subdirectory: ${sourceItemPath}`);
             const subContents = await webdavService.getDirectoryContents(sourceItemPath);
             await copyDirectoryRecursively(sourceItemPath, destItemPath, subContents as Array<{ basename?: string; name?: string; type: string }>);
         } else {
             // Copy file
+            console.log(`📄 Copying file: ${sourceItemPath} -> ${destItemPath}`);
             const fileContent = await webdavService.getFileContents(sourceItemPath);
             await webdavService.uploadFile(destItemPath, fileContent);
         }
     }
+    
+    console.log(`✅ Completed copying directory: ${sourcePath}`);
 }

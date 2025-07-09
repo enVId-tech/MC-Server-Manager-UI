@@ -9,14 +9,24 @@ if (typeof window === 'undefined') { // Only load dotenv on server-side
         path.join(process.cwd(), '.env.local')
     ];
 
+    // Temporarily suppress console output during dotenv loading
+    const originalConsoleLog = console.log;
+    const originalConsoleInfo = console.info;
+    console.log = () => {}; // Temporarily suppress console.log
+    console.info = () => {}; // Temporarily suppress console.info
+
     // Try to load each env file
     envPaths.forEach(envPath => {
         try {
-            dotenv.config({ path: envPath, override: false });
+            dotenv.config({ path: envPath, override: false, debug: false });
         } catch {
             // Silently continue if file doesn't exist
         }
     });
+    
+    // Restore console methods
+    console.log = originalConsoleLog;
+    console.info = originalConsoleInfo;
 }
 
 interface CachedConnection {

@@ -2,9 +2,18 @@ import axios, { AxiosInstance } from 'axios';
 import https from 'https';
 import { config } from 'dotenv';
 
-// Load environment variables if not already loaded
+// Load environment variables if not already loaded (without verbose output)
 if (!process.env.PORTAINER_URL) {
-    config({ path: '.env.local' });
+    const originalConsoleLog = console.log;
+    const originalConsoleInfo = console.info;
+    console.log = () => {}; // Temporarily suppress console.log
+    console.info = () => {}; // Temporarily suppress console.info
+    
+    config({ path: '.env.local', debug: false });
+    
+    // Restore console methods
+    console.log = originalConsoleLog;
+    console.info = originalConsoleInfo;
 }
 
 // Basic interfaces for Portainer API objects.
