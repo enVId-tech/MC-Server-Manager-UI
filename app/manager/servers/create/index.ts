@@ -5,3 +5,5 @@ export { default as RangeInput } from '../../../_components/Inputs/RangeInput/Ra
 export { default as FileUploadSection } from '../../../_components/Inputs/FileUpload/FileUploadSection';
 export { default as TabButton } from '../../../_components/Inputs/TabButton/TabButton';
 export { default as PreviewDetail } from '../../../_components/Inputs/PreviewDetails/PreviewDetail';
+export { default as ServerPropertiesSection } from './ServerPropertiesSection';
+export { default as PropertyInput } from './PropertyInput';

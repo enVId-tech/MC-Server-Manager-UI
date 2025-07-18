@@ -13,7 +13,8 @@ import {
   RangeInput,
   FileUploadSection,
   TabButton,
-  PreviewDetail
+  PreviewDetail,
+  ServerPropertiesSection
 } from '.';
 import { ClientServerConfig, FileAnalysis, AnalyzedFile } from '@/lib/server/minecraft';
 
@@ -84,6 +85,7 @@ export default function ServerGenerator() {
     subdomain: '',
     worldFiles: null,
     customOptions: '',
+    serverProperties: {},
     // Default values for common world features (will be overridden by API)
     generateStructures: true,
     allowNether: true,
@@ -521,6 +523,15 @@ export default function ServerGenerator() {
         }
       }
     }
+  };
+
+  // Handle server properties changes
+  const handleServerPropertiesChange = (properties: Record<string, string | number | boolean>, propertiesString: string) => {
+    setServerConfig(prevConfig => ({
+      ...prevConfig,
+      serverProperties: properties,
+      customOptions: propertiesString // Keep backward compatibility
+    }));
   };
 
   // Remove plugin
@@ -1331,25 +1342,11 @@ export default function ServerGenerator() {
 
           {/* Advanced Tab */}
           {activeTab === 'advanced' && (
-            <div className={styles.formSection}>
-              <h2 className={styles.sectionTitle}>Advanced Options</h2>
-
-              <div className={styles.formGroup}>
-                <label htmlFor="customOptions">Custom Server Properties</label>
-                <textarea
-                  id="customOptions"
-                  name="customOptions"
-                  value={serverConfig.customOptions as string}
-                  onChange={handleChange}
-                  placeholder="Enter additional server.properties options, one per line (e.g., allow-flight=true)"
-                  rows={10}
-                />
-              </div>
-
-              <div className={styles.formGroup}>
-                <p><strong>Note:</strong> Advanced options allow you to add custom configurations directly to your server.properties file. Use with caution as improper settings may prevent your server from starting.</p>
-              </div>
-            </div>
+            <ServerPropertiesSection
+              version={serverConfig.version}
+              onPropertiesChange={handleServerPropertiesChange}
+              initialProperties={serverConfig.serverProperties}
+            />
           )}
 
           <div className={styles.serverPreview}>

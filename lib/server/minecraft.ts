@@ -122,6 +122,7 @@ export interface ClientServerConfig {
     subdomain: string;
     worldFiles?: AnalyzedFile | null;
     customOptions?: string;
+    serverProperties?: Record<string, string | number | boolean>;
     [key: string]: unknown;
 }
 

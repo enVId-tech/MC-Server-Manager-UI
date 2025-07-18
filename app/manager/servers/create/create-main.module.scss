@@ -935,3 +935,254 @@
     transform: translateX(100%);
   }
 }
+
+// Server Properties Styles
+.serverPropertiesHeader {
+  margin-bottom: 2rem;
+  
+  .sectionDescription {
+    color: $text-secondary;
+    margin: 0.5rem 0 1.5rem 0;
+    line-height: 1.5;
+  }
+}
+
+.presetButtons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  
+  @media (max-width: 640px) {
+    flex-direction: column;
+  }
+}
+
+.presetButton, .resetButton {
+  padding: 0.5rem 1rem;
+  border: 1px solid $border-color;
+  background-color: rgba($dark-card, 0.6);
+  color: $text-primary;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  
+  &:hover {
+    background-color: rgba($accent-blue, 0.1);
+    border-color: $accent-blue;
+    transform: translateY(-1px);
+  }
+  
+  @media (max-width: 640px) {
+    justify-content: center;
+    padding: 0.75rem 1rem;
+  }
+}
+
+.resetButton {
+  background-color: rgba($accent-red, 0.1);
+  border-color: rgba($accent-red, 0.3);
+  color: $accent-red;
+  
+  &:hover {
+    background-color: rgba($accent-red, 0.2);
+    border-color: $accent-red;
+  }
+}
+
+.propertyCategory {
+  margin-bottom: 1rem;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  background-color: rgba($dark-card, 0.3);
+  overflow: hidden;
+}
+
+.categoryHeader {
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background-color: rgba($dark-card, 0.6);
+  border: none;
+  color: $text-primary;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  text-align: left;
+  
+  &:hover {
+    background-color: rgba($accent-blue, 0.1);
+  }
+  
+  &.expanded {
+    background-color: rgba($accent-blue, 0.1);
+    border-bottom: 1px solid $border-color;
+  }
+  
+  @media (max-width: 640px) {
+    padding: 0.875rem 1rem;
+    font-size: 0.9rem;
+  }
+}
+
+.categoryIcon {
+  font-size: 1.25rem;
+  
+  @media (max-width: 640px) {
+    font-size: 1.1rem;
+  }
+}
+
+.categoryTitle {
+  flex: 1;
+}
+
+.categoryCount {
+  color: $text-secondary;
+  font-size: 0.875rem;
+  font-weight: 400;
+  
+  @media (max-width: 640px) {
+    font-size: 0.8rem;
+  }
+}
+
+.expandIcon {
+  color: $text-secondary;
+  font-size: 0.875rem;
+  transition: transform 0.2s ease;
+  
+  .categoryHeader.expanded & {
+    transform: rotate(0deg);
+  }
+}
+
+.categoryContent {
+  padding: 1.5rem;
+  
+  @media (max-width: 640px) {
+    padding: 1rem;
+  }
+}
+
+.propertyGrid {
+  display: grid;
+  gap: 1.5rem;
+  
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  @media (max-width: 640px) {
+    gap: 1rem;
+  }
+}
+
+.fieldRange {
+  color: $text-secondary;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.fieldDescription {
+  display: block;
+  color: $text-secondary;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  line-height: 1.4;
+}
+
+.inputError {
+  border-color: $accent-red !important;
+  box-shadow: 0 0 0 2px rgba($accent-red, 0.1) !important;
+}
+
+.errorText {
+  display: block;
+  color: $accent-red;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  font-weight: 500;
+}
+
+.errorSummary {
+  background-color: rgba($accent-red, 0.1);
+  border: 1px solid rgba($accent-red, 0.3);
+  border-radius: 6px;
+  padding: 1rem;
+  margin: 1.5rem 0;
+  
+  h4 {
+    color: $accent-red;
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+  }
+  
+  ul {
+    margin: 0;
+    padding-left: 1.5rem;
+    color: $text-primary;
+    
+    li {
+      margin-bottom: 0.25rem;
+      font-size: 0.875rem;
+    }
+  }
+}
+
+.propertiesPreview {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: rgba($dark-bg, 0.4);
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  
+  h3 {
+    margin: 0 0 1rem 0;
+    color: $text-primary;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+}
+
+.previewCode {
+  background-color: rgba($dark-bg, 0.8);
+  border: 1px solid $border-color;
+  border-radius: 4px;
+  padding: 1rem;
+  font-family: 'Courier New', Consolas, monospace;
+  font-size: 0.8rem;
+  color: $text-secondary;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 0;
+  
+  @media (max-width: 640px) {
+    font-size: 0.75rem;
+    padding: 0.75rem;
+  }
+}
+
+.infoBox {
+  padding: 1.5rem;
+  background-color: rgba($accent-blue, 0.1);
+  border: 1px solid rgba($accent-blue, 0.3);
+  border-radius: 8px;
+  text-align: center;
+  
+  p {
+    margin: 0;
+    color: $text-primary;
+    font-size: 0.9rem;
+  }
+}
