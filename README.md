@@ -42,7 +42,6 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 
 ### 🌐 Infrastructure Integration
 - **Docker Containers**: Automated server deployment via Portainer
-- **DNS Management**: Automatic SRV record creation via Porkbun API
 - **Dynamic Port Allocation**: Automatic port assignment with conflict resolution
 - **File System**: WebDAV integration for server file management
 
@@ -58,7 +57,7 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 
 - **Frontend**: Next.js 15, React 19, TypeScript, SCSS Modules
 - **Backend**: Next.js API Routes, MongoDB, JWT Authentication
-- **Infrastructure**: Docker, Portainer, WebDAV, Porkbun DNS
+- **Infrastructure**: Docker, Portainer, WebDAV
 - **UI/UX**: React Context API, Custom Notification System, Mobile-responsive Design
 - **Development**: ESLint, TypeScript, SASS, Node.js 18+
 
@@ -72,7 +71,7 @@ MC Server Creator is a full-stack Next.js application that provides users with a
    ```
 
 2. **Environment Setup**
-   Create `.env.local` with your MongoDB, Portainer, and DNS credentials
+   Create `.env.local` with your MongoDB, Portainer, and WebDAV credentials
 
 3. **Start Development**
    ```bash
@@ -94,7 +93,6 @@ This website and repository/codebase is not an official Minecraft website and is
 
 - **itzg/minecraft-server** - Docker image for Minecraft server deployment
 - **Portainer** - Container management platform
-- **Porkbun** - DNS management services
 - **MongoDB** - Database platform
 - **Next.js Team** - Framework development
 - **React Community** - Component libraries and tools

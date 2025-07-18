@@ -483,9 +483,6 @@ export default function Dashboard() {
                                         ✓ Removing server files
                                     </div>
                                     <div className={`${styles.step} ${deletionProgress >= 60 ? styles.completed : ''}`}>
-                                        ✓ Cleaning up DNS records
-                                    </div>
-                                    <div className={`${styles.step} ${deletionProgress >= 80 ? styles.completed : ''}`}>
                                         ✓ Removing from database
                                     </div>
                                     <div className={`${styles.step} ${deletionProgress >= 100 ? styles.completed : ''}`}>

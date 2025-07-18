@@ -81,7 +81,6 @@ export async function POST(request: NextRequest) {
             { id: 'deploy', name: 'Deploying to container platform', status: 'pending', progress: 0 },
             { id: 'files', name: 'Setting up file directories', status: 'pending', progress: 0 },
             { id: 'upload', name: 'Uploading server files', status: 'pending', progress: 0 },
-            { id: 'dns', name: 'Creating DNS records', status: 'pending', progress: 0 },
             { id: 'finalize', name: 'Finalizing deployment', status: 'pending', progress: 0 }
         );
 
@@ -426,71 +425,7 @@ async function deployServer(serverId: string, server: Record<string, unknown>, u
         await new Promise(resolve => setTimeout(resolve, 400));
         await updateStep(serverId, 'upload', 'completed', 100, 'File upload completed');
 
-        // Step 9: Create DNS records
-        await updateStep(serverId, 'dns', 'running', 0, 'Creating DNS SRV record...');
-        try {
-            // Get environment variables for DNS configuration
-            const dnsConfig = {
-                domain: process.env.MINECRAFT_DOMAIN || process.env.DOMAIN || 'example.com',
-                serverIP: process.env.SERVER_TARGET || process.env.SERVER_IP || 'server.example.com'
-            };
-
-            if (dnsConfig.domain !== 'example.com' && dnsConfig.serverIP !== 'server.example.com') {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const serverData = server as any;
-                const subdomain = serverData.subdomainName || serverData.uniqueId;
-
-                // For SRV records, the target should be the subdomain.domain (e.g., main1.etran.dev)
-                // This assumes each subdomain has its own A record pointing to the server IP
-                // Port should always be 25565 for Minecraft SRV records
-                const target = `${subdomain}.${dnsConfig.domain}`;
-                const srvPort = 25565; // Standard Minecraft port for SRV records
-
-                const dnsResult = await updatedMinecraftServer.createDnsRecord(
-                    dnsConfig.domain,
-                    subdomain,
-                    target,
-                    srvPort
-                );
-
-                if (dnsResult.success && dnsResult.recordId) {
-                    // Update the server record with DNS information
-                    await Server.findByIdAndUpdate(serverId, {
-                        $set: {
-                            'dnsRecord': {
-                                recordId: dnsResult.recordId,
-                                domain: dnsConfig.domain,
-                                subdomain: subdomain,
-                                target: target, // Use the computed target (subdomain.domain)
-                                port: srvPort,
-                                createdAt: new Date()
-                            }
-                        }
-                    });
-
-                    // Add rollback action for DNS record
-                    rollbackActions.push(async () => {
-                        console.log(`Rolling back DNS record for server ${serverId}`);
-                        try {
-                            await updatedMinecraftServer.deleteDnsRecord(dnsConfig.domain, subdomain);
-                        } catch (error) {
-                            console.warn('Could not clean up DNS record during rollback:', error);
-                        }
-                    });
-
-                    await updateStep(serverId, 'dns', 'completed', 100, `DNS SRV record created: ${subdomain}.${dnsConfig.domain} -> ${target}:${srvPort}`);
-                } else {
-                    await updateStep(serverId, 'dns', 'completed', 100, `DNS record creation skipped: ${dnsResult.error || 'Configuration not available'}`);
-                }
-            } else {
-                await updateStep(serverId, 'dns', 'completed', 100, 'DNS record creation skipped: Domain not configured');
-            }
-        } catch (error) {
-            console.error('DNS creation error:', error);
-            await updateStep(serverId, 'dns', 'completed', 100, `DNS record creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-
-        // Step 10: Finalize deployment
+        // Step 9: Finalize deployment
         await updateStep(serverId, 'finalize', 'running', 0, 'Finalizing deployment...');
 
         // Update server status to indicate successful deployment

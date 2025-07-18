@@ -11,11 +11,7 @@
     "update-schema:force": "NODE_ENV=development npx tsx scripts/updateSchema.ts",
     "test:portainer": "tsx scripts/test-portainer.ts",
     "test:deployment": "tsx scripts/test-deployment.ts",
-    "test:porkbun-dns": "tsx scripts/test-porkbun-dns.ts",
-    "test:dns-quick": "tsx scripts/quick-dns-test.ts",
-    "test:folder-archiving": "tsx scripts/test-folder-archiving.ts",
-    "validate:porkbun": "tsx scripts/validate-porkbun.ts",
-    "setup:porkbun": "tsx scripts/setup-porkbun.ts"
+    "test:folder-archiving": "tsx scripts/test-folder-archiving.ts"
   },
   "dependencies": {
     "@types/adm-zip": "^0.5.7",

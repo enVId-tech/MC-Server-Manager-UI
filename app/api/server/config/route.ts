@@ -9,7 +9,6 @@ import portainer from "@/lib/server/portainer";
 import MinecraftServerManager from "@/lib/server/serverManager";
 import { v4 as uuidv4 } from 'uuid';
 import verificationService from "@/lib/server/verify";
-// import porkbun from "@/lib/server/porkbun";
 
 // Configure body parsing for this API route
 export const config = {

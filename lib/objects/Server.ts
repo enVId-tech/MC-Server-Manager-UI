@@ -12,14 +12,6 @@ export interface IServer extends Document {
     rconPort?: number;
     createdAt: Date;
     serverConfig: ServerConfigData;
-    dnsRecord?: {
-        recordId: string;
-        domain: string;
-        subdomain: string;
-        target: string;
-        port: number;
-        createdAt: Date;
-    };
 }
 
 const ServerSchema: pkg.Schema = new pkg.Schema({
@@ -82,33 +74,6 @@ const ServerSchema: pkg.Schema = new pkg.Schema({
         default: {},
         required: [true, 'Server configuration is required.'],
         unique: false,
-    },
-    dnsRecord: {
-        recordId: {
-            type: String,
-            required: false,
-        },
-        domain: {
-            type: String,
-            required: false,
-        },
-        subdomain: {
-            type: String,
-            required: false,
-        },
-        target: {
-            type: String,
-            required: false,
-        },
-        port: {
-            type: Number,
-            required: false,
-        },
-        createdAt: {
-            type: Date,
-            default: Date.now,
-            required: false,
-        }
     }
 }, {
     timestamps: true,
