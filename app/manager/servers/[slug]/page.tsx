@@ -118,7 +118,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     });
   const [serverStats, setServerStats] = useState<ServerStats>({
     status: 'loading',
-    playersOnline: 3,
+    playersOnline: 0,
     maxPlayers: 20,
     ramUsage: 2048,
     maxRam: 4096,

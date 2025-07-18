@@ -263,7 +263,13 @@ export async function DELETE(request: NextRequest) {
                     try {
                         // If we archived the files, the original directory should already be gone
                         if (!result.filesArchived) {
-                            await webdavService.deleteDirectory(`/servers/${server.uniqueId}`);
+                            // Use the correct path structure with email username
+                            const emailUsername = server.email.split('@')[0];
+                            const webdavServerBasePath = process.env.WEBDAV_SERVER_BASE_PATH || '/servers';
+                            const fallbackPath = `${webdavServerBasePath}/${emailUsername}/${server.uniqueId}`;
+                            
+                            console.log(`Attempting fallback WebDAV deletion for path: ${fallbackPath}`);
+                            await webdavService.deleteDirectory(fallbackPath);
                             filesDeleted = true;
                             console.log('Fallback: Basic WebDAV deletion completed');
                         }
@@ -428,8 +434,12 @@ async function archiveServerFiles(serverUniqueId: string) {
 
     console.log(`👤 Server owner: ${user.email}`);
 
-    // Complete the full path
-    const originalPath = `${webdavServerBasePath}/${user.email}/${serverUniqueId}`;
+    // Extract username from email (part before @)
+    const emailUsername = user.email.split('@')[0];
+    console.log(`👤 Email username: ${emailUsername}`);
+
+    // Complete the full path using the correct structure: /servers/Games/Velocity-Network/username/uniqueId
+    const originalPath = `${webdavServerBasePath}/${emailUsername}/${serverUniqueId}`;
 
     // Test WebDAV connection first
     let webdavWorking = false;

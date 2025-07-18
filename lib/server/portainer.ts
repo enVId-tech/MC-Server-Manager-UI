@@ -9,7 +9,7 @@ if (!process.env.PORTAINER_URL) {
     console.log = () => {}; // Temporarily suppress console.log
     console.info = () => {}; // Temporarily suppress console.info
     
-    config({ path: '.env.local', debug: false });
+    config({ path: '.env', debug: false });
     
     // Restore console methods
     console.log = originalConsoleLog;
@@ -291,9 +291,16 @@ export class PortainerApiClient {
      * @returns {Promise<PortainerContainer[]>} A promise that resolves to an array of container objects.
      */
     async getContainers(environmentId: number | null = this.defaultEnvironmentId, includeAll: boolean = true): Promise<PortainerContainer[]> {
+        // If no environment ID is provided and no default is set, try to get the first one
         if (environmentId === null) {
-            throw new Error('Environment ID is required to fetch containers.');
+            console.log('No environment ID provided for getContainers, attempting to fetch first available environment...');
+            environmentId = await this.getFirstEnvironmentId();
+            if (environmentId === null) {
+                throw new Error('No Portainer environments found. Cannot fetch containers.');
+            }
+            console.log(`Using environment ID: ${environmentId}`);
         }
+        
         try {
             const params = { all: includeAll };
             const response = await this.axiosInstance.get<PortainerContainer[]>(`/api/endpoints/${environmentId}/docker/containers/json`, { params });
@@ -1390,6 +1397,16 @@ export class PortainerApiClient {
      */
     async getContainerByIdentifier(identifier: string, environmentId: number | null = this.defaultEnvironmentId): Promise<PortainerContainer | null> {
         try {
+            // If no environment ID is provided and no default is set, try to get the first one
+            if (environmentId === null) {
+                console.log('No environment ID provided, attempting to fetch first available environment...');
+                environmentId = await this.getFirstEnvironmentId();
+                if (environmentId === null) {
+                    throw new Error('No Portainer environments found. Cannot fetch containers.');
+                }
+                console.log(`Using environment ID: ${environmentId}`);
+            }
+
             const containers = await this.getContainers(environmentId, true);
             
             // Search by exact name match first

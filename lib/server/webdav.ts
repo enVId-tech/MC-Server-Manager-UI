@@ -1,5 +1,34 @@
 import { createClient, WebDAVClient } from "webdav";
 import https from "https";
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load environment variables from multiple possible locations
+if (typeof window === 'undefined') { // Only load dotenv on server-side
+    const envPaths = [
+        path.join(process.cwd(), '.env'),
+        path.join(process.cwd(), '.env.local')
+    ];
+
+    // Temporarily suppress console output during dotenv loading
+    const originalConsoleLog = console.log;
+    const originalConsoleInfo = console.info;
+    console.log = () => {}; // Temporarily suppress console.log
+    console.info = () => {}; // Temporarily suppress console.info
+
+    // Try to load each env file
+    envPaths.forEach(envPath => {
+        try {
+            dotenv.config({ path: envPath, override: false, debug: false });
+        } catch {
+            // Silently continue if file doesn't exist
+        }
+    });
+    
+    // Restore console methods
+    console.log = originalConsoleLog;
+    console.info = originalConsoleInfo;
+}
 
 /**
  * WebDAV Service
@@ -31,16 +60,16 @@ class WebDavService {
             })
         };
 
-        // Add authentication if credentials are provided
+        // Add authentication if credentials are provided and not empty
         const username = process.env.WEBDAV_USERNAME;
         const password = process.env.WEBDAV_PASSWORD;
         
-        if (username && password) {
+        if (username && password && username.trim() !== '' && password.trim() !== '') {
             options.username = username;
             options.password = password;
             console.log(`WebDAV: Using authentication for user: ${username}`);
         } else {
-            console.log('WebDAV: No authentication credentials provided');
+            console.log('WebDAV: No authentication credentials provided (server may not require them)');
         }
 
         return createClient(url, options);
@@ -66,8 +95,27 @@ class WebDavService {
      * @param {string} path - The path to the directory. Defaults to '/'.
      */
     public async getDirectoryContents(path: string = '/'): Promise<unknown[]> {
-        const contents = await this.client.getDirectoryContents(path);
-        return Array.isArray(contents) ? contents : contents.data; // Ensure it returns an array
+        try {
+            // Check if we have a valid URL before attempting connection
+            if (this.currentUrl === "https://example.com/" || !this.currentUrl.startsWith('https://')) {
+                throw new Error('WebDAV URL is not properly configured. Please set WEBDAV_URL in your environment variables.');
+            }
+
+            const contents = await this.client.getDirectoryContents(path);
+            return Array.isArray(contents) ? contents : contents.data; // Ensure it returns an array
+        } catch (error) {
+            // Provide more helpful error messages based on the error type
+            if (error instanceof Error) {
+                if (error.message.includes('501 Not Implemented')) {
+                    throw new Error('WebDAV server returned 501 Not Implemented. This usually means the WebDAV service is not properly configured, the URL is incorrect, or the server does not support WebDAV.');
+                } else if (error.message.includes('401') || error.message.includes('403')) {
+                    throw new Error('WebDAV authentication failed. Your server may require credentials. Please set WEBDAV_USERNAME and WEBDAV_PASSWORD if needed.');
+                } else if (error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND')) {
+                    throw new Error('Cannot connect to WebDAV server. Please check your WEBDAV_URL and ensure the server is running.');
+                }
+            }
+            throw error;
+        }
     }
 
     async getFileContents(filePath?: string): Promise<Buffer> {
@@ -240,5 +288,21 @@ class WebDavService {
 }
 
 // Singleton instance of WebDavService
-const webdavService = new WebDavService(process.env.WEBDAV_URL || "https://example.com/");
+const webdavUrl = process.env.WEBDAV_URL || "https://example.com/";
+const webdavService = new WebDavService(webdavUrl);
+
+// Log WebDAV configuration status on module load
+if (webdavUrl === "https://example.com/") {
+    console.warn('⚠️  WebDAV URL not configured. Set WEBDAV_URL in environment variables.');
+} else {
+    const username = process.env.WEBDAV_USERNAME;
+    const password = process.env.WEBDAV_PASSWORD;
+    
+    if (username && password && username.trim() !== '' && password.trim() !== '') {
+        console.log('✅ WebDAV service configured with authentication:', webdavUrl);
+    } else {
+        console.log('✅ WebDAV service configured without authentication:', webdavUrl);
+    }
+}
+
 export default webdavService;
