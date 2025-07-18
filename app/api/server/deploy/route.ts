@@ -7,6 +7,53 @@ import portainer from "@/lib/server/portainer";
 import MinecraftServerManager from "@/lib/server/serverManager";
 import { createMinecraftServer, convertClientConfigToServerConfig, ClientServerConfig } from "@/lib/server/minecraft";
 import verificationService from "@/lib/server/verify";
+import { FileInfo } from "@/lib/objects/ServerConfig";
+
+// Interface for server config as stored in database (with FileInfo instead of AnalyzedFile)
+interface DatabaseServerConfig {
+    name: string;
+    serverType: string;
+    version: string;
+    description?: string;
+    seed?: string;
+    gameMode: string;
+    difficulty: string;
+    worldType: string;
+    worldGeneration: string;
+    maxPlayers: number;
+    whitelistEnabled: boolean;
+    onlineMode: boolean;
+    pvpEnabled: boolean;
+    commandBlocksEnabled: boolean;
+    flightEnabled: boolean;
+    spawnAnimalsEnabled: boolean;
+    spawnMonstersEnabled: boolean;
+    spawnNpcsEnabled: boolean;
+    generateStructuresEnabled: boolean;
+    port: number;
+    viewDistance: number;
+    simulationDistance: number;
+    spawnProtection: number;
+    rconEnabled: boolean;
+    rconPassword: string;
+    motd: string;
+    resourcePackUrl?: string;
+    resourcePackSha1?: string;
+    resourcePackPrompt?: string;
+    forceResourcePack: boolean;
+    enableJmxMonitoring: boolean;
+    syncChunkWrites: boolean;
+    enforceWhitelist: boolean;
+    preventProxyConnections: boolean;
+    hideOnlinePlayers: boolean;
+    broadcastRconToOps: boolean;
+    broadcastConsoleToOps: boolean;
+    serverMemory: number;
+    serverProperties?: Record<string, string | number | boolean>;
+    plugins?: FileInfo[];
+    mods?: FileInfo[];
+    worldFiles?: FileInfo;
+}
 
 export interface DeploymentStep {
     id: string;
@@ -215,8 +262,8 @@ async function deployServer(serverId: string, server: Record<string, unknown>, u
         // Step 1: Validate configuration
         await updateStep(serverId, 'validate', 'running', 0, 'Validating server configuration...');
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const serverConfig = (server as any).serverConfig;
+        // Extract server config with proper typing
+        const serverConfig = (server as Record<string, unknown>).serverConfig as DatabaseServerConfig;
         if (!serverConfig) {
             throw new Error('Server configuration is missing');
         }
@@ -339,9 +386,9 @@ async function deployServer(serverId: string, server: Record<string, unknown>, u
             rconEnabled: serverConfig.rconEnabled,
             rconPassword: serverConfig.rconPassword,
             motd: serverConfig.motd,
-            resourcePackUrl: serverConfig.resourcePackUrl,
-            resourcePackSha1: serverConfig.resourcePackSha1,
-            resourcePackPrompt: serverConfig.resourcePackPrompt,
+            resourcePackUrl: serverConfig.resourcePackUrl || '',
+            resourcePackSha1: serverConfig.resourcePackSha1 || '',
+            resourcePackPrompt: serverConfig.resourcePackPrompt || '',
             forceResourcePack: serverConfig.forceResourcePack,
             enableJmxMonitoring: serverConfig.enableJmxMonitoring,
             syncChunkWrites: serverConfig.syncChunkWrites,
@@ -420,10 +467,174 @@ async function deployServer(serverId: string, server: Record<string, unknown>, u
             await updateStep(serverId, 'files', 'completed', 100, 'Container deployment verified');
         }
 
-        // Step 8: Upload files (placeholder for future file uploads)
+        // Step 8: Upload files (server.properties, plugins, mods, world files)
         await updateStep(serverId, 'upload', 'running', 0, 'Preparing file uploads...');
-        await new Promise(resolve => setTimeout(resolve, 400));
-        await updateStep(serverId, 'upload', 'completed', 100, 'File upload completed');
+        
+        try {
+            // Type the server config properly
+            // Note: When retrieved from database, plugins/mods/worldFiles are FileInfo, not AnalyzedFile
+            const serverConfig = (server as Record<string, unknown>).serverConfig as DatabaseServerConfig;
+            
+            let uploadProgress = 10;
+            
+            // Upload server.properties file
+            if (serverConfig.serverProperties && Object.keys(serverConfig.serverProperties).length > 0) {
+                await updateStep(serverId, 'upload', 'running', uploadProgress, 'Uploading server.properties...');
+                
+                // Convert server properties to properties file format
+                const { convertToServerPropertiesFormat } = await import('@/lib/data/serverProperties');
+                const propertiesContent = convertToServerPropertiesFormat(serverConfig.serverProperties);
+                
+                // Upload server.properties directly via WebDAV
+                try {
+                    const webdavService = await import('@/lib/server/webdav');
+                    const serverPath = `/servers/${(server as Record<string, unknown>).uniqueId}`;
+                    await webdavService.default.createDirectory(serverPath);
+                    await webdavService.default.uploadFile(`${serverPath}/server.properties`, propertiesContent);
+                    console.log('Server properties uploaded successfully');
+                } catch (propertiesError) {
+                    console.error('Failed to upload server.properties:', propertiesError);
+                    await updateStep(serverId, 'upload', 'running', uploadProgress, 'Server properties upload failed, continuing...');
+                }
+                
+                uploadProgress += 20;
+                await updateStep(serverId, 'upload', 'running', uploadProgress, 'Server properties processed');
+            }
+
+            // Upload plugin files
+            if (serverConfig.plugins && serverConfig.plugins.length > 0) {
+                await updateStep(serverId, 'upload', 'running', uploadProgress, `Uploading ${serverConfig.plugins.length} plugin(s)...`);
+                
+                const fs = await import('fs/promises');
+                const pluginFiles: { [path: string]: Buffer } = {};
+                
+                for (const plugin of serverConfig.plugins) {
+                    await updateStep(serverId, 'upload', 'running', uploadProgress, `Uploading plugin: ${plugin.originalName}`);
+                    
+                    try {
+                        // Read the plugin file from disk
+                        const pluginPath = plugin.filePath;
+                        const pluginBuffer = await fs.readFile(pluginPath);
+                        pluginFiles[`plugins/${plugin.originalName}`] = pluginBuffer;
+                        
+                        console.log(`Plugin loaded: ${plugin.originalName} (${pluginBuffer.length} bytes)`);
+                    } catch (fileError) {
+                        console.error(`Failed to read plugin file: ${plugin.originalName}`, fileError);
+                        await updateStep(serverId, 'upload', 'running', uploadProgress, `Failed to read plugin: ${plugin.originalName}`);
+                    }
+                    
+                    uploadProgress += Math.floor(30 / serverConfig.plugins.length);
+                }
+                
+                // Upload all plugin files to the server
+                if (Object.keys(pluginFiles).length > 0) {
+                    const pluginUploadResult = await updatedMinecraftServer.uploadServerFiles(pluginFiles, 'plugins');
+                    if (!pluginUploadResult.success) {
+                        console.error('Failed to upload plugins:', pluginUploadResult.error);
+                        await updateStep(serverId, 'upload', 'running', uploadProgress, 'Plugin upload failed, continuing...');
+                    } else {
+                        console.log(`${Object.keys(pluginFiles).length} plugins uploaded successfully`);
+                    }
+                }
+                
+                await updateStep(serverId, 'upload', 'running', uploadProgress, 'Plugins processed');
+            }
+
+            // Upload mod files
+            if (serverConfig.mods && serverConfig.mods.length > 0) {
+                await updateStep(serverId, 'upload', 'running', uploadProgress, `Uploading ${serverConfig.mods.length} mod(s)...`);
+                
+                const fs = await import('fs/promises');
+                const modFiles: { [path: string]: Buffer } = {};
+                
+                for (const mod of serverConfig.mods) {
+                    await updateStep(serverId, 'upload', 'running', uploadProgress, `Uploading mod: ${mod.originalName}`);
+                    
+                    try {
+                        // Read the mod file from disk
+                        const modPath = mod.filePath;
+                        const modBuffer = await fs.readFile(modPath);
+                        modFiles[`mods/${mod.originalName}`] = modBuffer;
+                        
+                        console.log(`Mod loaded: ${mod.originalName} (${modBuffer.length} bytes)`);
+                    } catch (fileError) {
+                        console.error(`Failed to read mod file: ${mod.originalName}`, fileError);
+                        await updateStep(serverId, 'upload', 'running', uploadProgress, `Failed to read mod: ${mod.originalName}`);
+                    }
+                    
+                    uploadProgress += Math.floor(30 / serverConfig.mods.length);
+                }
+                
+                // Upload all mod files to the server
+                if (Object.keys(modFiles).length > 0) {
+                    const modUploadResult = await updatedMinecraftServer.uploadServerFiles(modFiles, 'mods');
+                    if (!modUploadResult.success) {
+                        console.error('Failed to upload mods:', modUploadResult.error);
+                        await updateStep(serverId, 'upload', 'running', uploadProgress, 'Mod upload failed, continuing...');
+                    } else {
+                        console.log(`${Object.keys(modFiles).length} mods uploaded successfully`);
+                    }
+                }
+                
+                await updateStep(serverId, 'upload', 'running', uploadProgress, 'Mods processed');
+            }
+
+            // Upload world files
+            if (serverConfig.worldFiles) {
+                await updateStep(serverId, 'upload', 'running', uploadProgress, 'Uploading world files...');
+                
+                const fs = await import('fs/promises');
+                
+                try {
+                    // Read the world file from disk
+                    const worldPath = serverConfig.worldFiles.filePath;
+                    const worldBuffer = await fs.readFile(worldPath);
+                    
+                    console.log(`World file loaded: ${serverConfig.worldFiles.originalName} (${worldBuffer.length} bytes)`);
+                    
+                    // Upload world file to the server
+                    let worldUploadResult;
+                    if (serverConfig.worldFiles.originalName.endsWith('.zip')) {
+                        // Handle ZIP world files with proper extraction
+                        const worldAnalysis = serverConfig.worldFiles.analysis;
+                        if (worldAnalysis) {
+                            worldUploadResult = await updatedMinecraftServer.uploadAndExtractWorldZip(worldBuffer, worldAnalysis);
+                        } else {
+                            // Fallback to basic world upload
+                            const worldFiles: { [path: string]: Buffer } = {};
+                            worldFiles[`world/${serverConfig.worldFiles.originalName}`] = worldBuffer;
+                            worldUploadResult = await updatedMinecraftServer.uploadServerFiles(worldFiles, 'world');
+                        }
+                    } else {
+                        // Handle other world file types
+                        const worldFiles: { [path: string]: Buffer } = {};
+                        worldFiles[`world/${serverConfig.worldFiles.originalName}`] = worldBuffer;
+                        worldUploadResult = await updatedMinecraftServer.uploadServerFiles(worldFiles, 'world');
+                    }
+                    
+                    if (!worldUploadResult.success) {
+                        console.error('Failed to upload world files:', worldUploadResult.error);
+                        await updateStep(serverId, 'upload', 'running', uploadProgress, 'World file upload failed, continuing...');
+                    } else {
+                        console.log('World files uploaded successfully');
+                    }
+                    
+                } catch (fileError) {
+                    console.error(`Failed to read world file: ${serverConfig.worldFiles.originalName}`, fileError);
+                    await updateStep(serverId, 'upload', 'running', uploadProgress, `Failed to read world file: ${serverConfig.worldFiles.originalName}`);
+                }
+                
+                uploadProgress = 100;
+                await updateStep(serverId, 'upload', 'running', uploadProgress, 'World files processed');
+            }
+
+            await updateStep(serverId, 'upload', 'completed', 100, 'File uploads completed successfully');
+            
+        } catch (uploadError) {
+            console.error('File upload failed:', uploadError);
+            await updateStep(serverId, 'upload', 'failed', 0, `File upload failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`);
+            throw uploadError;
+        }
 
         // Step 9: Finalize deployment
         await updateStep(serverId, 'finalize', 'running', 0, 'Finalizing deployment...');

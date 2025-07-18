@@ -26,6 +26,47 @@ const tabs = [
   { id: 'advanced', label: 'Advanced', icon: FiSettings }
 ];
 
+// Property mapping between general/world settings and advanced properties
+const propertyMapping: Record<string, string> = {
+  maxPlayers: 'max-players',
+  gameMode: 'gamemode',
+  difficulty: 'difficulty',
+  pvpEnabled: 'pvp',
+  onlineMode: 'online-mode',
+  viewDistance: 'view-distance',
+  simulationDistance: 'simulation-distance',
+  spawnProtection: 'spawn-protection',
+  motd: 'motd',
+  seed: 'level-seed',
+  worldType: 'level-type',
+  whitelistEnabled: 'white-list',
+  commandBlocksEnabled: 'enable-command-block',
+  flightEnabled: 'allow-flight',
+  spawnAnimalsEnabled: 'spawn-animals',
+  spawnMonstersEnabled: 'spawn-monsters',
+  spawnNpcsEnabled: 'spawn-npcs',
+  generateStructuresEnabled: 'generate-structures',
+  rconEnabled: 'enable-rcon',
+  rconPassword: 'rcon.password',
+  enforceWhitelist: 'enforce-whitelist',
+  preventProxyConnections: 'prevent-proxy-connections',
+  hideOnlinePlayers: 'hide-online-players',
+  broadcastRconToOps: 'broadcast-rcon-to-ops',
+  broadcastConsoleToOps: 'broadcast-console-to-ops',
+  syncChunkWrites: 'sync-chunk-writes',
+  enableJmxMonitoring: 'enable-jmx-monitoring',
+  forceResourcePack: 'require-resource-pack',
+  resourcePackUrl: 'resource-pack',
+  resourcePackSha1: 'resource-pack-sha1',
+  resourcePackPrompt: 'resource-pack-prompt'
+};
+
+// Reverse mapping for advanced properties to general/world settings
+const reversePropertyMapping: Record<string, string> = {};
+Object.entries(propertyMapping).forEach(([general, advanced]) => {
+  reversePropertyMapping[advanced] = general;
+});
+
 // Interfaces for ServerConfig
 interface ServerTypes {
   id: string;
@@ -193,7 +234,21 @@ export default function ServerGenerator() {
         }
 
         if (!newConfig.version && data.versions && data.versions.length > 0) {
-          newConfig.version = data.versions[0]; // Default to first version
+          newConfig.version = data.versions[0]; // Default to first version (latest)
+          
+          // Load default server properties for the selected version
+          if (data.versions[0]) {
+            // Import the server properties function to load defaults
+            import('@/lib/data/serverProperties').then(({ getDefaultPropertiesForVersion }) => {
+              const defaultProperties = getDefaultPropertiesForVersion(data.versions[0]);
+              if (defaultProperties && Object.keys(defaultProperties).length > 0) {
+                setServerConfig(prevConfig => ({
+                  ...prevConfig,
+                  serverProperties: defaultProperties
+                }));
+              }
+            }).catch(console.error);
+          }
         }
 
         return newConfig;
@@ -243,32 +298,54 @@ export default function ServerGenerator() {
   // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
+    let newValue: string | number | boolean;
 
     if (type === 'checkbox') {
-      const checked = (e.target as HTMLInputElement).checked;
-      setServerConfig({
-        ...serverConfig,
-        [name]: checked
-      });
+      newValue = (e.target as HTMLInputElement).checked;
     } else if (type === 'range' || name === 'maxPlayers') {
-      setServerConfig({
-        ...serverConfig,
-        [name]: parseInt(value)
-      });
+      newValue = parseInt(value);
     } else {
-      setServerConfig({
-        ...serverConfig,
-        [name]: value
-      });
+      newValue = value;
     }
+
+    setServerConfig(prevConfig => {
+      const updatedConfig = {
+        ...prevConfig,
+        [name]: newValue
+      };
+
+      // If this property has a corresponding advanced property, sync it
+      if (propertyMapping[name]) {
+        const advancedProperty = propertyMapping[name];
+        let advancedValue = newValue;
+        
+        // Handle special value transformations
+        if (name === 'worldType' && newValue === 'default') {
+          advancedValue = 'minecraft:normal';
+        } else if (name === 'worldType' && newValue === 'flat') {
+          advancedValue = 'minecraft:flat';
+        } else if (name === 'worldType' && newValue === 'largeBiomes') {
+          advancedValue = 'minecraft:large_biomes';
+        } else if (name === 'worldType' && newValue === 'amplified') {
+          advancedValue = 'minecraft:amplified';
+        }
+        
+        updatedConfig.serverProperties = {
+          ...prevConfig.serverProperties,
+          [advancedProperty]: advancedValue
+        };
+      }
+
+      return updatedConfig;
+    });
   };
 
-  // Handle world file upload
+  // Handle world file upload with immediate file storage
   const handleWorldFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
       
-      // Convert to AnalyzedFile and start analysis if it's a ZIP
+      // Convert to AnalyzedFile and start processing if it's a ZIP
       const analyzedFile: AnalyzedFile = Object.assign(file, {
         isAnalyzing: file.name.endsWith('.zip')
       });
@@ -279,28 +356,46 @@ export default function ServerGenerator() {
         worldFiles: analyzedFile
       });
       
-      // Analyze the world file if it's a ZIP
+      // Process the world file if it's a ZIP
       if (file.name.endsWith('.zip')) {
         try {
-          const formData = new FormData();
-          formData.append('file', file);
+          // First, upload the file to storage
+          const uploadFormData = new FormData();
+          uploadFormData.append('file', file);
+          uploadFormData.append('fileType', 'world');
           
-          const response = await fetch('/api/server/file/analyze', {
+          const uploadResponse = await fetch('/api/server/files/upload', {
             method: 'POST',
-            body: formData
+            body: uploadFormData
           });
           
-          if (response.ok) {
-            const { analysis }: { analysis: FileAnalysis } = await response.json();
+          let uploadedFileInfo = null;
+          if (uploadResponse.ok) {
+            const uploadResult = await uploadResponse.json();
+            uploadedFileInfo = uploadResult.file;
+            console.log('World file uploaded:', uploadedFileInfo);
+          }
+          
+          // Then analyze the file
+          const analyzeFormData = new FormData();
+          analyzeFormData.append('file', file);
+          
+          const analyzeResponse = await fetch('/api/server/file/analyze', {
+            method: 'POST',
+            body: analyzeFormData
+          });
+          
+          if (analyzeResponse.ok) {
+            const { analysis }: { analysis: FileAnalysis } = await analyzeResponse.json();
             console.log('World file analysis:', analysis);
             
-            // Update the file with analysis results
+            // Update the file with analysis results and upload info
             setServerConfig(prevConfig => ({
               ...prevConfig,
               worldFiles: Object.assign(prevConfig.worldFiles!, {
                 analysis,
                 isAnalyzing: false,
-                analysisError: undefined
+                uploadedFileInfo // Store the upload information
               })
             }));
             
@@ -321,31 +416,58 @@ export default function ServerGenerator() {
               ...prevConfig,
               worldFiles: Object.assign(prevConfig.worldFiles!, {
                 isAnalyzing: false,
-                analysisError: 'Analysis failed'
+                analysisError: 'Analysis failed',
+                uploadedFileInfo
               })
             }));
           }
         } catch (error) {
-          console.error('Error analyzing world file:', error);
+          console.error('Error processing world file:', error);
           setServerConfig(prevConfig => ({
             ...prevConfig,
             worldFiles: Object.assign(prevConfig.worldFiles!, {
               isAnalyzing: false,
-              analysisError: 'Analysis failed'
+              analysisError: 'Processing failed'
             })
           }));
+        }
+      } else {
+        // For non-ZIP files, just upload without analysis
+        try {
+          const uploadFormData = new FormData();
+          uploadFormData.append('file', file);
+          uploadFormData.append('fileType', 'world');
+          
+          const uploadResponse = await fetch('/api/server/files/upload', {
+            method: 'POST',
+            body: uploadFormData
+          });
+          
+          if (uploadResponse.ok) {
+            const uploadResult = await uploadResponse.json();
+            console.log('World file uploaded:', uploadResult.file);
+            
+            setServerConfig(prevConfig => ({
+              ...prevConfig,
+              worldFiles: Object.assign(prevConfig.worldFiles!, {
+                uploadedFileInfo: uploadResult.file
+              })
+            }));
+          }
+        } catch (error) {
+          console.error('Error uploading world file:', error);
         }
       }
     }
   };
 
-  // Handle plugins upload
+  // Handle plugins upload with immediate file storage
   const handlePluginsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
       const analyzedFiles: AnalyzedFile[] = [];
       
-      // Convert files to AnalyzedFile and start analysis
+      // Convert files to AnalyzedFile and start processing
       for (const file of newFiles) {
         const analyzedFile: AnalyzedFile = Object.assign(file, {
           isAnalyzing: true
@@ -359,22 +481,40 @@ export default function ServerGenerator() {
         plugins: [...serverConfig.plugins, ...analyzedFiles]
       });
       
-      // Analyze each file
+      // Process each file (upload and analyze)
       for (let i = 0; i < analyzedFiles.length; i++) {
         const file = analyzedFiles[i];
         try {
-          const formData = new FormData();
-          formData.append('file', file);
+          // First, upload the file to storage
+          const uploadFormData = new FormData();
+          uploadFormData.append('file', file);
+          uploadFormData.append('fileType', 'plugin');
           
-          const response = await fetch('/api/server/file/analyze', {
+          const uploadResponse = await fetch('/api/server/files/upload', {
             method: 'POST',
-            body: formData
+            body: uploadFormData
           });
           
-          if (response.ok) {
-            const analysis: FileAnalysis = await response.json();
+          let uploadedFileInfo = null;
+          if (uploadResponse.ok) {
+            const uploadResult = await uploadResponse.json();
+            uploadedFileInfo = uploadResult.file;
+            console.log('Plugin uploaded:', uploadedFileInfo);
+          }
+          
+          // Then analyze the file
+          const analyzeFormData = new FormData();
+          analyzeFormData.append('file', file);
+          
+          const analyzeResponse = await fetch('/api/server/file/analyze', {
+            method: 'POST',
+            body: analyzeFormData
+          });
+          
+          if (analyzeResponse.ok) {
+            const analysis: FileAnalysis = await analyzeResponse.json();
             
-            // Update the file with analysis results
+            // Update the file with analysis results and upload info
             setServerConfig(prevConfig => {
               const updatedPlugins = [...prevConfig.plugins];
               const fileIndex = updatedPlugins.findIndex(f => 
@@ -385,14 +525,18 @@ export default function ServerGenerator() {
                 updatedPlugins[fileIndex] = Object.assign(updatedPlugins[fileIndex], {
                   analysis,
                   isAnalyzing: false,
-                  analysisError: undefined
+                  uploadedFileInfo // Store the upload information
                 });
               }
               
-              return { ...prevConfig, plugins: updatedPlugins };
+              return {
+                ...prevConfig,
+                plugins: updatedPlugins
+              };
             });
+            
           } else {
-            // Handle analysis error
+            // Handle analysis failure
             setServerConfig(prevConfig => {
               const updatedPlugins = [...prevConfig.plugins];
               const fileIndex = updatedPlugins.findIndex(f => 
@@ -402,15 +546,21 @@ export default function ServerGenerator() {
               if (fileIndex !== -1) {
                 updatedPlugins[fileIndex] = Object.assign(updatedPlugins[fileIndex], {
                   isAnalyzing: false,
-                  analysisError: 'Analysis failed'
+                  analysisError: 'Failed to analyze file',
+                  uploadedFileInfo
                 });
               }
               
-              return { ...prevConfig, plugins: updatedPlugins };
+              return {
+                ...prevConfig,
+                plugins: updatedPlugins
+              };
             });
           }
+          
         } catch (error) {
-          console.error('Error analyzing file:', error);
+          console.error('Error processing plugin file:', error);
+          
           // Update file with error state
           setServerConfig(prevConfig => {
             const updatedPlugins = [...prevConfig.plugins];
@@ -421,24 +571,30 @@ export default function ServerGenerator() {
             if (fileIndex !== -1) {
               updatedPlugins[fileIndex] = Object.assign(updatedPlugins[fileIndex], {
                 isAnalyzing: false,
-                analysisError: 'Analysis failed'
+                analysisError: (error as Error)?.message || 'Unknown error occurred'
               });
             }
             
-            return { ...prevConfig, plugins: updatedPlugins };
+            return {
+              ...prevConfig,
+              plugins: updatedPlugins
+            };
           });
         }
       }
+      
+      // Clear the input
+      e.target.value = '';
     }
   };
 
-  // Handle mods upload
+  // Handle mods upload with immediate file storage
   const handleModsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
       const analyzedFiles: AnalyzedFile[] = [];
       
-      // Convert files to AnalyzedFile and start analysis
+      // Convert files to AnalyzedFile and start processing
       for (const file of newFiles) {
         const analyzedFile: AnalyzedFile = Object.assign(file, {
           isAnalyzing: true
@@ -452,22 +608,40 @@ export default function ServerGenerator() {
         mods: [...serverConfig.mods, ...analyzedFiles]
       });
       
-      // Analyze each file
+      // Process each file (upload and analyze)
       for (let i = 0; i < analyzedFiles.length; i++) {
         const file = analyzedFiles[i];
         try {
-          const formData = new FormData();
-          formData.append('file', file);
+          // First, upload the file to storage
+          const uploadFormData = new FormData();
+          uploadFormData.append('file', file);
+          uploadFormData.append('fileType', 'mod');
           
-          const response = await fetch('/api/server/file/analyze', {
+          const uploadResponse = await fetch('/api/server/files/upload', {
             method: 'POST',
-            body: formData
+            body: uploadFormData
           });
           
-          if (response.ok) {
-            const analysis: FileAnalysis = await response.json();
+          let uploadedFileInfo = null;
+          if (uploadResponse.ok) {
+            const uploadResult = await uploadResponse.json();
+            uploadedFileInfo = uploadResult.file;
+            console.log('Mod uploaded:', uploadedFileInfo);
+          }
+          
+          // Then analyze the file
+          const analyzeFormData = new FormData();
+          analyzeFormData.append('file', file);
+          
+          const analyzeResponse = await fetch('/api/server/file/analyze', {
+            method: 'POST',
+            body: analyzeFormData
+          });
+          
+          if (analyzeResponse.ok) {
+            const analysis: FileAnalysis = await analyzeResponse.json();
             
-            // Update the file with analysis results
+            // Update the file with analysis results and upload info
             setServerConfig(prevConfig => {
               const updatedMods = [...prevConfig.mods];
               const fileIndex = updatedMods.findIndex(f => 
@@ -478,14 +652,18 @@ export default function ServerGenerator() {
                 updatedMods[fileIndex] = Object.assign(updatedMods[fileIndex], {
                   analysis,
                   isAnalyzing: false,
-                  analysisError: undefined
+                  uploadedFileInfo // Store the upload information
                 });
               }
               
-              return { ...prevConfig, mods: updatedMods };
+              return {
+                ...prevConfig,
+                mods: updatedMods
+              };
             });
+            
           } else {
-            // Handle analysis error
+            // Handle analysis failure
             setServerConfig(prevConfig => {
               const updatedMods = [...prevConfig.mods];
               const fileIndex = updatedMods.findIndex(f => 
@@ -495,15 +673,21 @@ export default function ServerGenerator() {
               if (fileIndex !== -1) {
                 updatedMods[fileIndex] = Object.assign(updatedMods[fileIndex], {
                   isAnalyzing: false,
-                  analysisError: 'Analysis failed'
+                  analysisError: 'Failed to analyze file',
+                  uploadedFileInfo
                 });
               }
               
-              return { ...prevConfig, mods: updatedMods };
+              return {
+                ...prevConfig,
+                mods: updatedMods
+              };
             });
           }
+          
         } catch (error) {
-          console.error('Error analyzing file:', error);
+          console.error('Error processing mod file:', error);
+          
           // Update file with error state
           setServerConfig(prevConfig => {
             const updatedMods = [...prevConfig.mods];
@@ -514,24 +698,152 @@ export default function ServerGenerator() {
             if (fileIndex !== -1) {
               updatedMods[fileIndex] = Object.assign(updatedMods[fileIndex], {
                 isAnalyzing: false,
-                analysisError: 'Analysis failed'
+                analysisError: (error as Error)?.message || 'Unknown error occurred'
               });
             }
             
-            return { ...prevConfig, mods: updatedMods };
+            return {
+              ...prevConfig,
+              mods: updatedMods
+            };
           });
         }
       }
+      
+      // Clear the input
+      e.target.value = '';
     }
   };
 
   // Handle server properties changes
   const handleServerPropertiesChange = (properties: Record<string, string | number | boolean>, propertiesString: string) => {
-    setServerConfig(prevConfig => ({
-      ...prevConfig,
-      serverProperties: properties,
-      customOptions: propertiesString // Keep backward compatibility
-    }));
+    setServerConfig(prevConfig => {
+      const updatedConfig = {
+        ...prevConfig,
+        serverProperties: properties,
+        customOptions: propertiesString // Keep backward compatibility
+      };
+
+      // Sync advanced properties back to general/world settings
+      Object.entries(properties).forEach(([advancedProperty, value]) => {
+        if (reversePropertyMapping[advancedProperty]) {
+          const generalProperty = reversePropertyMapping[advancedProperty];
+          let generalValue = value;
+          
+          // Handle special value transformations
+          if (advancedProperty === 'level-type') {
+            if (value === 'minecraft:normal') {
+              generalValue = 'default';
+            } else if (value === 'minecraft:flat') {
+              generalValue = 'flat';
+            } else if (value === 'minecraft:large_biomes') {
+              generalValue = 'largeBiomes';
+            } else if (value === 'minecraft:amplified') {
+              generalValue = 'amplified';
+            }
+          }
+          
+          // Update the general property safely
+          switch (generalProperty) {
+            case 'maxPlayers':
+              updatedConfig.maxPlayers = generalValue as number;
+              break;
+            case 'gameMode':
+              updatedConfig.gameMode = generalValue as string;
+              break;
+            case 'difficulty':
+              updatedConfig.difficulty = generalValue as string;
+              break;
+            case 'pvpEnabled':
+              updatedConfig.pvpEnabled = generalValue as boolean;
+              break;
+            case 'onlineMode':
+              updatedConfig.onlineMode = generalValue as boolean;
+              break;
+            case 'viewDistance':
+              updatedConfig.viewDistance = generalValue as number;
+              break;
+            case 'simulationDistance':
+              updatedConfig.simulationDistance = generalValue as number;
+              break;
+            case 'spawnProtection':
+              updatedConfig.spawnProtection = generalValue as number;
+              break;
+            case 'motd':
+              updatedConfig.motd = generalValue as string;
+              break;
+            case 'seed':
+              updatedConfig.seed = generalValue as string;
+              break;
+            case 'worldType':
+              updatedConfig.worldType = generalValue as string;
+              break;
+            case 'whitelistEnabled':
+              updatedConfig.whitelistEnabled = generalValue as boolean;
+              break;
+            case 'commandBlocksEnabled':
+              updatedConfig.commandBlocksEnabled = generalValue as boolean;
+              break;
+            case 'flightEnabled':
+              updatedConfig.flightEnabled = generalValue as boolean;
+              break;
+            case 'spawnAnimalsEnabled':
+              updatedConfig.spawnAnimalsEnabled = generalValue as boolean;
+              break;
+            case 'spawnMonstersEnabled':
+              updatedConfig.spawnMonstersEnabled = generalValue as boolean;
+              break;
+            case 'spawnNpcsEnabled':
+              updatedConfig.spawnNpcsEnabled = generalValue as boolean;
+              break;
+            case 'generateStructuresEnabled':
+              updatedConfig.generateStructuresEnabled = generalValue as boolean;
+              break;
+            case 'rconEnabled':
+              updatedConfig.rconEnabled = generalValue as boolean;
+              break;
+            case 'rconPassword':
+              updatedConfig.rconPassword = generalValue as string;
+              break;
+            case 'enforceWhitelist':
+              updatedConfig.enforceWhitelist = generalValue as boolean;
+              break;
+            case 'preventProxyConnections':
+              updatedConfig.preventProxyConnections = generalValue as boolean;
+              break;
+            case 'hideOnlinePlayers':
+              updatedConfig.hideOnlinePlayers = generalValue as boolean;
+              break;
+            case 'broadcastRconToOps':
+              updatedConfig.broadcastRconToOps = generalValue as boolean;
+              break;
+            case 'broadcastConsoleToOps':
+              updatedConfig.broadcastConsoleToOps = generalValue as boolean;
+              break;
+            case 'syncChunkWrites':
+              updatedConfig.syncChunkWrites = generalValue as boolean;
+              break;
+            case 'enableJmxMonitoring':
+              updatedConfig.enableJmxMonitoring = generalValue as boolean;
+              break;
+            case 'forceResourcePack':
+              updatedConfig.forceResourcePack = generalValue as boolean;
+              break;
+            case 'resourcePackUrl':
+              updatedConfig.resourcePackUrl = generalValue as string;
+              break;
+            case 'resourcePackSha1':
+              updatedConfig.resourcePackSha1 = generalValue as string;
+              break;
+            case 'resourcePackPrompt':
+              updatedConfig.resourcePackPrompt = generalValue as string;
+              break;
+          }
+        }
+      });
+
+      return updatedConfig;
+    });
   };
 
   // Remove plugin
@@ -599,14 +911,26 @@ export default function ServerGenerator() {
         size: file.size,
         type: file.type,
         lastModified: file.lastModified,
-        analysis: file.analysis
+        analysis: file.analysis,
+        // Include uploaded file information
+        originalName: file.uploadedFileInfo?.originalName || file.name,
+        filePath: file.uploadedFileInfo?.filePath || null,
+        filename: file.uploadedFileInfo?.fileName || null,
+        uploadedAt: file.uploadedFileInfo?.uploadedAt || new Date().toISOString(),
+        mimetype: file.uploadedFileInfo?.type || file.type
       })),
       mods: serverConfig.mods.map(file => ({
         name: file.name,
         size: file.size,
         type: file.type,
         lastModified: file.lastModified,
-        analysis: file.analysis
+        analysis: file.analysis,
+        // Include uploaded file information
+        originalName: file.uploadedFileInfo?.originalName || file.name,
+        filePath: file.uploadedFileInfo?.filePath || null,
+        filename: file.uploadedFileInfo?.fileName || null,
+        uploadedAt: file.uploadedFileInfo?.uploadedAt || new Date().toISOString(),
+        mimetype: file.uploadedFileInfo?.type || file.type
       })),
       // Include world file metadata if available
       worldFiles: serverConfig.worldFiles ? {
@@ -614,7 +938,13 @@ export default function ServerGenerator() {
         size: serverConfig.worldFiles.size,
         type: serverConfig.worldFiles.type,
         lastModified: serverConfig.worldFiles.lastModified,
-        analysis: serverConfig.worldFiles.analysis || null
+        analysis: serverConfig.worldFiles.analysis || null,
+        // Include uploaded file information
+        originalName: serverConfig.worldFiles.uploadedFileInfo?.originalName || serverConfig.worldFiles.name,
+        filePath: serverConfig.worldFiles.uploadedFileInfo?.filePath || null,
+        filename: serverConfig.worldFiles.uploadedFileInfo?.fileName || null,
+        uploadedAt: serverConfig.worldFiles.uploadedFileInfo?.uploadedAt || new Date().toISOString(),
+        mimetype: serverConfig.worldFiles.uploadedFileInfo?.type || serverConfig.worldFiles.type
       } : null,
     };
 
@@ -856,7 +1186,7 @@ export default function ServerGenerator() {
           formData.append('analysis', JSON.stringify(file.analysis));
         }
 
-        const uploadResponse = await fetch('/api/server/file/upload', {
+        const uploadResponse = await fetch('/api/server/files/upload', {
           method: 'POST',
           body: formData
         });

@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Validate subdomain using MinecraftServerManager (checks prohibited list and conflicts)
-        const fullSubdomain = `${config.subdomain}.etran.dev`;
+        const fullSubdomain = `${config.subdomain}.mc.etran.dev`;
         const subdomainValidation = await MinecraftServerManager.validateSubdomain(config.subdomain, email);
         if (!subdomainValidation.isValid) {
             return NextResponse.json({ error: subdomainValidation.error }, { status: 400 });
@@ -236,7 +236,15 @@ export async function POST(request: NextRequest) {
             broadcastConsoleToOps: config.broadcastConsoleToOps !== undefined ? config.broadcastConsoleToOps : true,
 
             // Memory and performance
-            serverMemory: config.serverMemory || 1024
+            serverMemory: config.serverMemory || 1024,
+
+            // Server properties (from advanced section)
+            serverProperties: config.serverProperties || {},
+
+            // File information
+            plugins: config.plugins || [],
+            mods: config.mods || [],
+            worldFiles: config.worldFiles || null
         };
 
         // === DATABASE INSERTION PHASE ===

@@ -48,6 +48,17 @@ export interface AnalyzedFile extends File {
   analysis?: FileAnalysis;
   isAnalyzing?: boolean;
   analysisError?: string;
+  uploadedFileInfo?: {
+    fileId: string;
+    originalName: string;
+    fileName: string;
+    filePath: string;
+    size: number;
+    type: string;
+    fileType: string;
+    uploadedAt: string;
+    serverId?: string;
+  };
 }
 
 /**

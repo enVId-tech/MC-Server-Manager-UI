@@ -60,7 +60,7 @@ const commonProperties: PropertyDefinition[] = [
     type: 'number',
     defaultValue: 20,
     min: 1,
-    max: 2147483647,
+    max: 100,
     category: 'general'
   },
   
@@ -196,7 +196,7 @@ const commonProperties: PropertyDefinition[] = [
     type: 'number',
     defaultValue: 16,
     min: 0,
-    max: 29999984,
+    max: 64,
     category: 'performance'
   },
   {
@@ -484,4 +484,19 @@ export function validatePropertyValue(property: PropertyDefinition, value: strin
   }
   
   return null;
+}
+
+/**
+ * Get default properties for a specific version with their default values
+ */
+export function getDefaultPropertiesForVersion(version: string): Record<string, string | number | boolean> {
+  const propertiesByCategory = getServerPropertiesByCategory(version);
+  const defaultProperties: Record<string, string | number | boolean> = {};
+  
+  // Collect all properties from all categories
+  Object.values(propertiesByCategory).flat().forEach(property => {
+    defaultProperties[property.key] = property.defaultValue;
+  });
+  
+  return defaultProperties;
 }

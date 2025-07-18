@@ -1,5 +1,19 @@
 import { Document } from 'mongoose';
 
+// Interface for file information
+export interface FileInfo {
+    filename: string;
+    originalName: string;
+    filePath: string;
+    size: number;
+    mimetype: string;
+    uploadedAt: Date;
+    analysis?: FileAnalysis; // File analysis data
+}
+
+// Import FileAnalysis from minecraft.ts
+import { FileAnalysis } from '../server/minecraft';
+
 // Interface for server configuration (used for type definitions only)
 // The actual server config is embedded in the Server document as Schema.Types.Mixed
 export interface IServerConfig extends Document {
@@ -61,6 +75,14 @@ export interface IServerConfig extends Document {
 
     // Memory and performance
     serverMemory: number;
+
+    // Server properties (from advanced section)
+    serverProperties?: Record<string, string | number | boolean>;
+
+    // File information
+    plugins?: FileInfo[];
+    mods?: FileInfo[];
+    worldFiles?: FileInfo;
 }
 
 // Type for plain server configuration object (without Mongoose Document methods)
