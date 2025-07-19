@@ -45,6 +45,15 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 - **Dynamic Port Allocation**: Automatic port assignment with conflict resolution
 - **File System**: WebDAV integration for server file management
 
+### 🔧 Developer Tools & Logging
+- **Console Configuration**: File-specific logging controls with blacklist/whitelist modes
+- **REST API Logging**: Toggleable request/response logging with detailed options
+  - Request/response headers and body logging
+  - Request timing and performance metrics
+  - Error-only logging mode for production
+  - Configurable via environment variables
+- **Debug Mode**: Enhanced development logging with timestamps and colors
+
 ### 🎨 User Experience
 - **Responsive Design**: Mobile-first approach that works on all devices
 - **Professional UI**: Styled notifications and confirmation dialogs
