@@ -914,7 +914,7 @@ export class MinecraftServer {
      */
     async uploadServerFiles(files: { [path: string]: Buffer | string }, type: 'plugins' | 'mods' | 'world'): Promise<{ success: boolean; error?: string }> {
         try {
-            const serverPath = `/servers/${this.uniqueId}`;
+            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${this.config.userEmail || 'default-user'}/${this.uniqueId}`;
 
             // Ensure server directory exists
             await webdavService.createDirectory(serverPath);
@@ -998,15 +998,15 @@ export class MinecraftServer {
     }
 
     /**
-     * Upload world files with proper extraction and analysis
+     * Upload world files with proper extraction and directory location
      */
-    async uploadWorldFile(worldFile: File, analysis?: FileAnalysis): Promise<{ success: boolean; error?: string }> {
+    async uploadWorldFile(worldFile: File): Promise<{ success: boolean; error?: string }> {
         try {
             const worldBuffer = Buffer.from(await worldFile.arrayBuffer());
             
-            // If it's a ZIP file with world analysis, extract it properly
-            if (worldFile.name.endsWith('.zip') && analysis?.type === 'world') {
-                return await this.uploadAndExtractWorldZip(worldBuffer, analysis);
+            // If it's a ZIP file, extract it and locate the world directory
+            if (worldFile.name.endsWith('.zip')) {
+                return await this.uploadAndExtractWorldZip(worldBuffer);
             } else {
                 // For other files, upload as-is (legacy support)
                 const worldFiles: { [path: string]: Buffer } = {};
@@ -1023,9 +1023,9 @@ export class MinecraftServer {
     }
 
     /**
-     * Upload and extract world ZIP file properly
+     * Upload and extract world ZIP file properly using world directory locator
      */
-    async uploadAndExtractWorldZip(worldBuffer: Buffer, analysis: FileAnalysis): Promise<{ success: boolean; error?: string }> {
+    async uploadAndExtractWorldZip(worldBuffer: Buffer): Promise<{ success: boolean; error?: string }> {
         let tempDir: string;
         
         try {
@@ -1040,18 +1040,31 @@ export class MinecraftServer {
             const extractDir = path.join(tempDir, 'extracted');
             await extractZip(tempZipPath, { dir: extractDir });
             
-            // Log world analysis for debugging
-            console.log('Uploading world with analysis:', {
-                worldName: analysis.worldName,
-                type: analysis.type,
-                gameMode: analysis.gameMode,
-                difficulty: analysis.difficulty
-            });
+            // Locate the proper world directory using our intelligent locator
+            const worldLocation = await this.locateWorldDirectory(extractDir);
             
-            // Read extracted contents and upload to world directory
-            const worldFiles = await this.readDirectoryRecursively(extractDir);
+            if (worldLocation.matchType === 'none') {
+                return {
+                    success: false,
+                    error: 'No valid Minecraft world directory found in the ZIP file. Please ensure the ZIP contains a level.dat file, region folder, or playerdata folder.'
+                };
+            }
+
+            console.log(`World directory found: ${worldLocation.relativePath || '(root)'} (${worldLocation.matchType} match)`);
             
-            return await this.uploadServerFiles(worldFiles, 'world');
+            // Read only the contents of the located world directory
+            const worldFiles = await this.readDirectoryRecursively(worldLocation.worldPath!);
+            
+            // Check if this is a Bukkit-based server that needs dimension separation
+            const isBukkitBased = ['SPIGOT', 'PAPER', 'PURPUR', 'BUKKIT'].includes(this.config.TYPE?.toUpperCase() || '');
+            
+            if (isBukkitBased) {
+                console.log('Detected Bukkit-based server, reorganizing world dimensions...');
+                const reorganizedFiles = this.reorganizeWorldForBukkit(worldFiles);
+                return await this.uploadBukkitWorldFiles(reorganizedFiles);
+            } else {
+                return await this.uploadServerFiles(worldFiles, 'world');
+            }
             
         } catch (error) {
             console.error('Error extracting and uploading world ZIP:', error);
@@ -1068,6 +1081,110 @@ export class MinecraftServer {
                     console.warn('Failed to cleanup temp directory:', cleanupError);
                 }
             }
+        }
+    }
+
+    /**
+     * Reorganize world files for Bukkit-based servers
+     * Separates Nether (DIM-1) and End (DIM1) dimensions into their own world folders
+     */
+    private reorganizeWorldForBukkit(worldFiles: { [path: string]: Buffer }): {
+        overworld: { [path: string]: Buffer };
+        nether: { [path: string]: Buffer };
+        end: { [path: string]: Buffer };
+    } {
+        const overworld: { [path: string]: Buffer } = {};
+        const nether: { [path: string]: Buffer } = {};
+        const end: { [path: string]: Buffer } = {};
+
+        for (const [filePath, content] of Object.entries(worldFiles)) {
+            // Check if the file is in a dimension folder
+            if (filePath.includes('DIM-1' + path.sep) || filePath.includes('DIM-1/')) {
+                // Nether dimension - remove DIM-1 from path
+                const netherPath = filePath.replace(/DIM-1[\\\/]/g, '');
+                if (netherPath !== filePath) { // Only if we actually removed DIM-1
+                    nether[netherPath] = content;
+                    console.log(`Moved Nether file: ${filePath} -> ${netherPath}`);
+                } else {
+                    overworld[filePath] = content;
+                }
+            } else if (filePath.includes('DIM1' + path.sep) || filePath.includes('DIM1/')) {
+                // End dimension - remove DIM1 from path
+                const endPath = filePath.replace(/DIM1[\\\/]/g, '');
+                if (endPath !== filePath) { // Only if we actually removed DIM1
+                    end[endPath] = content;
+                    console.log(`Moved End file: ${filePath} -> ${endPath}`);
+                } else {
+                    overworld[filePath] = content;
+                }
+            } else {
+                // Overworld files (including level.dat, playerdata, etc.)
+                overworld[filePath] = content;
+            }
+        }
+
+        console.log(`World organization complete: ${Object.keys(overworld).length} overworld files, ${Object.keys(nether).length} nether files, ${Object.keys(end).length} end files`);
+        
+        return { overworld, nether, end };
+    }
+
+    /**
+     * Upload world files organized for Bukkit-based servers
+     */
+    private async uploadBukkitWorldFiles(reorganizedFiles: {
+        overworld: { [path: string]: Buffer };
+        nether: { [path: string]: Buffer };
+        end: { [path: string]: Buffer };
+    }): Promise<{ success: boolean; error?: string }> {
+        try {
+            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${this.config.userEmail || 'default-user'}/${this.uniqueId}`;
+
+            // Ensure server directory exists
+            await webdavService.createDirectory(serverPath);
+
+            // Upload overworld files to the main world directory
+            if (Object.keys(reorganizedFiles.overworld).length > 0) {
+                await webdavService.createDirectory(`${serverPath}/world`);
+                
+                for (const [relativePath, content] of Object.entries(reorganizedFiles.overworld)) {
+                    const fullPath = `${serverPath}/world/${relativePath}`;
+                    await webdavService.uploadFile(fullPath, content);
+                }
+                console.log(`Uploaded ${Object.keys(reorganizedFiles.overworld).length} overworld files`);
+            }
+
+            // Upload nether files to world_nether directory (Bukkit convention)
+            if (Object.keys(reorganizedFiles.nether).length > 0) {
+                await webdavService.createDirectory(`${serverPath}/world_nether`);
+                await webdavService.createDirectory(`${serverPath}/world_nether/DIM-1`);
+                
+                for (const [relativePath, content] of Object.entries(reorganizedFiles.nether)) {
+                    const fullPath = `${serverPath}/world_nether/DIM-1/${relativePath}`;
+                    await webdavService.uploadFile(fullPath, content);
+                }
+                console.log(`Uploaded ${Object.keys(reorganizedFiles.nether).length} nether files to world_nether/DIM-1`);
+            }
+
+            // Upload end files to world_the_end directory (Bukkit convention)
+            if (Object.keys(reorganizedFiles.end).length > 0) {
+                await webdavService.createDirectory(`${serverPath}/world_the_end`);
+                await webdavService.createDirectory(`${serverPath}/world_the_end/DIM1`);
+                
+                for (const [relativePath, content] of Object.entries(reorganizedFiles.end)) {
+                    const fullPath = `${serverPath}/world_the_end/DIM1/${relativePath}`;
+                    await webdavService.uploadFile(fullPath, content);
+                }
+                console.log(`Uploaded ${Object.keys(reorganizedFiles.end).length} end files to world_the_end/DIM1`);
+            }
+
+            console.log(`Bukkit world upload completed for ${this.serverName}`);
+            return { success: true };
+        } catch (error) {
+            console.error('Error uploading Bukkit world files:', error);
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
+            };
         }
     }
 
@@ -1098,6 +1215,137 @@ export class MinecraftServer {
     }
 
     /**
+     * Locate the proper world directory in an extracted ZIP file
+     */
+    async locateWorldDirectory(extractDir: string): Promise<{
+        worldPath: string | null;
+        matchType: 'level.dat' | 'region' | 'playerdata' | 'none';
+        relativePath: string | null;
+    }> {
+        interface WorldCandidate {
+            path: string;
+            relativePath: string;
+            depth: number;
+            matchType: 'level.dat' | 'region' | 'playerdata';
+            parentFolderName: string;
+        }
+
+        const candidates: WorldCandidate[] = [];
+
+        // Recursive function to search through directory structure
+        async function searchDirectory(currentPath: string, relativePath: string, depth: number): Promise<void> {
+            try {
+                const items = await fs.readdir(currentPath, { withFileTypes: true });
+                
+                // Check for level.dat in current directory
+                const hasLevelDat = items.some(item => item.isFile() && item.name === 'level.dat');
+                if (hasLevelDat) {
+                    const parentFolderName = path.basename(currentPath);
+                    candidates.push({
+                        path: currentPath,
+                        relativePath,
+                        depth,
+                        matchType: 'level.dat',
+                        parentFolderName
+                    });
+                    return; // level.dat found, no need to search deeper in this branch
+                }
+
+                // Check for fallback indicators (region or playerdata folders)
+                const hasRegion = items.some(item => item.isDirectory() && item.name === 'region');
+                const hasPlayerdata = items.some(item => item.isDirectory() && item.name === 'playerdata');
+
+                if (hasRegion) {
+                    const parentFolderName = path.basename(currentPath);
+                    candidates.push({
+                        path: currentPath,
+                        relativePath,
+                        depth,
+                        matchType: 'region',
+                        parentFolderName
+                    });
+                }
+
+                if (hasPlayerdata) {
+                    const parentFolderName = path.basename(currentPath);
+                    candidates.push({
+                        path: currentPath,
+                        relativePath,
+                        depth,
+                        matchType: 'playerdata',
+                        parentFolderName
+                    });
+                }
+
+                // Continue searching subdirectories
+                for (const item of items) {
+                    if (item.isDirectory()) {
+                        const subPath = path.join(currentPath, item.name);
+                        const subRelativePath = relativePath ? `${relativePath}/${item.name}` : item.name;
+                        await searchDirectory(subPath, subRelativePath, depth + 1);
+                    }
+                }
+            } catch (error) {
+                // Skip directories that can't be read
+                console.warn(`Could not read directory ${currentPath}:`, error);
+            }
+        }
+
+        // Start the search from the root
+        await searchDirectory(extractDir, '', 0);
+
+        if (candidates.length === 0) {
+            return { worldPath: null, matchType: 'none', relativePath: null };
+        }
+
+        // Sort candidates by priority:
+        // 1. level.dat matches first (highest priority)
+        // 2. Lower depth (closer to root)
+        // 3. ASCII comparison of parent folder names (earlier in ASCII = higher priority)
+        candidates.sort((a, b) => {
+            // Priority 1: level.dat always wins
+            if (a.matchType === 'level.dat' && b.matchType !== 'level.dat') return -1;
+            if (b.matchType === 'level.dat' && a.matchType !== 'level.dat') return 1;
+
+            // Priority 2: Hierarchy depth (closer to root wins)
+            if (a.depth !== b.depth) {
+                return a.depth - b.depth;
+            }
+
+            // Priority 3: ASCII comparison of parent folder names
+            // Find first differentiating character and choose the one closer to 0 in ASCII
+            const aName = a.parentFolderName.toLowerCase();
+            const bName = b.parentFolderName.toLowerCase();
+            
+            const maxLength = Math.max(aName.length, bName.length);
+            for (let i = 0; i < maxLength; i++) {
+                const aChar = aName.charCodeAt(i) || Number.MAX_SAFE_INTEGER; // Treat missing chars as high value
+                const bChar = bName.charCodeAt(i) || Number.MAX_SAFE_INTEGER;
+                
+                if (aChar !== bChar) {
+                    return aChar - bChar; // Lower ASCII value wins
+                }
+            }
+
+            // If all characters are the same, shorter name wins
+            return aName.length - bName.length;
+        });
+
+        const winner = candidates[0];
+        
+        console.log(`World directory located: ${winner.relativePath || '(root)'} (${winner.matchType} match)`);
+        if (candidates.length > 1) {
+            console.log(`Other candidates found: ${candidates.slice(1).map(c => `${c.relativePath || '(root)'} (${c.matchType})`).join(', ')}`);
+        }
+
+        return {
+            worldPath: winner.path,
+            matchType: winner.matchType,
+            relativePath: winner.relativePath || null
+        };
+    }
+
+    /**
      * Download server files from WebDAV
      */
     async downloadServerFiles(paths: string[]): Promise<{
@@ -1106,7 +1354,7 @@ export class MinecraftServer {
         error?: string
     }> {
         try {
-            const serverPath = `/servers/${this.uniqueId}`;
+            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${this.config.userEmail || 'default-user'}/${this.uniqueId}`;
             const files: { [path: string]: Buffer } = {};
 
             for (const relativePath of paths) {
@@ -1135,7 +1383,7 @@ export class MinecraftServer {
     async createBackup(): Promise<{ success: boolean; backupPath?: string; error?: string }> {
         try {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const backupPath = `/servers/${this.uniqueId}/backups/backup-${timestamp}.zip`;
+            const backupPath = `${this.getServerBasePath()}/backups/${this.serverName}-${timestamp}.zip`;
 
             // In a real implementation, you would:
             // 1. Stop the server temporarily
@@ -1234,7 +1482,7 @@ export class MinecraftServer {
             const localPaths: string[] = [];
             
             // WebDAV server path structure
-            const serverPath = `/servers/${this.uniqueId}`;
+            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${this.getUserEmail()}/${this.uniqueId}`;
             const userEmail = this.getUserEmail();
             const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
             const userFolder = userEmail.split('@')[0];

@@ -16,6 +16,62 @@ async function ensureUploadDir() {
   }
 }
 
+/**
+ * Clean up old temporary files (files older than 24 hours)
+ */
+async function cleanupOldTemporaryFiles(userEmail: string): Promise<void> {
+  try {
+    const userUploadDir = path.join(UPLOAD_DIR, userEmail);
+    
+    // Check if user directory exists
+    try {
+      await fs.access(userUploadDir);
+    } catch {
+      return; // Directory doesn't exist, nothing to cleanup
+    }
+
+    const files = await fs.readdir(userUploadDir, { withFileTypes: true });
+    const now = Date.now();
+    const maxAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+    let cleanedCount = 0;
+
+    for (const file of files) {
+      if (file.isFile()) {
+        const filePath = path.join(userUploadDir, file.name);
+        try {
+          const stats = await fs.stat(filePath);
+          const age = now - stats.mtime.getTime();
+          
+          if (age > maxAge) {
+            await fs.unlink(filePath);
+            cleanedCount++;
+            console.log(`Cleaned up old temporary file: ${file.name}`);
+          }
+        } catch (error) {
+          console.warn(`Failed to check/delete old file ${file.name}:`, error);
+        }
+      }
+    }
+
+    // Try to remove directory if it's empty
+    try {
+      const remainingFiles = await fs.readdir(userUploadDir);
+      if (remainingFiles.length === 0) {
+        await fs.rmdir(userUploadDir);
+        console.log(`Removed empty user upload directory: ${userUploadDir}`);
+      }
+    } catch {
+      // Ignore errors when trying to remove directory
+    }
+
+    if (cleanedCount > 0) {
+      console.log(`Cleanup completed: removed ${cleanedCount} old temporary files for user ${userEmail}`);
+    }
+  } catch (error) {
+    console.error('Error during old file cleanup:', error);
+  }
+}
+
 export async function POST(request: NextRequest) {
   console.log('Upload route called - POST request received');
   try {
@@ -30,6 +86,9 @@ export async function POST(request: NextRequest) {
 
     await ensureUploadDir();
     console.log('Upload directory ensured');
+
+    // Clean up old temporary files while we're here
+    await cleanupOldTemporaryFiles(user.email);
 
     const formData = await request.formData();
     console.log('FormData parsed successfully');

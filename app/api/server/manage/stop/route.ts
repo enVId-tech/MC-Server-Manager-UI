@@ -40,16 +40,37 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ message: 'Server not found or access denied.' }, { status: 404 });
         }
 
-        // Get container by server MongoDB _id (containers are named mc-{_id})
+        // Dynamically get Portainer environment ID - fail if not available
+        let portainerEnvironmentId: number;
+        try {
+            const environments = await portainer.getEnvironments();
+            if (environments.length === 0) {
+                throw new Error('No Portainer environments found');
+            }
+
+            // Use the first available environment
+            const availableEnvironment = environments[0];
+            portainer.DefaultEnvironmentId = availableEnvironment.Id;
+            portainerEnvironmentId = availableEnvironment.Id;
+            console.log(`Using environment ID: ${availableEnvironment.Id}`);
+
+        } catch (error) {
+            return NextResponse.json({
+                message: 'Failed to connect to Portainer',
+                error: error instanceof Error ? error.message : 'Unknown error'
+            }, { status: 500 });
+        }
+
+        // Get container by server uniqueId (containers are named mc-{uniqueId})
         const containerIdentifier = `mc-${server.uniqueId}`;
-        const container = await portainer.getContainerByIdentifier(containerIdentifier);
+        const container = await portainer.getContainerByIdentifier(containerIdentifier, portainerEnvironmentId);
         
         if (!container) {
             return NextResponse.json({ message: `Container '${containerIdentifier}' not found for this server.` }, { status: 404 });
         }
 
-        // Stop the container
-        await portainer.stopContainer(container.Id, null, timeout);
+        // Stop the container with the proper environment ID
+        await portainer.stopContainer(container.Id, portainerEnvironmentId, timeout);
         
         // Update server status in database (use updateOne to avoid validation issues)
         await Server.updateOne(

@@ -25,6 +25,12 @@ interface FileAnalysisResult {
   fileName?: string;
   fileSize?: number;
   extractedPath?: string;
+  // World directory location information
+  worldDirectory?: {
+    absolutePath: string;
+    relativePath: string | null;
+    matchType: 'level.dat' | 'region' | 'playerdata';
+  };
   // Advanced world analysis fields
   gameMode?: 'survival' | 'creative' | 'adventure' | 'spectator';
   difficulty?: 'peaceful' | 'easy' | 'normal' | 'hard';
@@ -132,21 +138,38 @@ async function analyzeFile(filePath: string, fileName: string): Promise<FileAnal
 }
 
 async function analyzeExtractedContents(extractDir: string, fileName: string, result: FileAnalysisResult): Promise<FileAnalysisResult> {
-  // Check for world files
-  const hasLevelDat = await checkFileExists(extractDir, 'level.dat');
-  const hasPlayerDataFolder = await checkFileExists(extractDir, 'playerdata');
-
-  if (hasLevelDat) {
+  // Use the new world locator to find world files more intelligently
+  const worldLocation = await locateWorldDirectory(extractDir);
+  
+  if (worldLocation.matchType !== 'none') {
     result.type = 'world';
     result.worldName = path.basename(fileName, '.zip');
-    result.hasPlayerData = hasPlayerDataFolder;
+    
+    // Store world location information for later use
+    result.worldDirectory = {
+      absolutePath: worldLocation.worldPath!,
+      relativePath: worldLocation.relativePath,
+      matchType: worldLocation.matchType
+    };
 
-    // Perform comprehensive world analysis
-    await analyzeWorldStructure(extractDir, result);
-    await analyzeLevelDat(extractDir, result);
-    await analyzePlayerData(extractDir, result);
-    await analyzeDatapacks(extractDir, result);
-    await estimateWorldSize(extractDir, result);
+    const worldDir = worldLocation.worldPath!;
+    
+    // Check if this world directory has player data
+    result.hasPlayerData = await checkFileExists(worldDir, 'playerdata');
+
+    // Perform comprehensive world analysis using the located world directory
+    await analyzeWorldStructure(worldDir, result);
+    
+    // Only analyze level.dat if we found it
+    if (worldLocation.matchType === 'level.dat') {
+      await analyzeLevelDat(worldDir, result);
+    } else {
+      result.warnings?.push(`World identified by ${worldLocation.matchType} folder, but no level.dat found`);
+    }
+    
+    await analyzePlayerData(worldDir, result);
+    await analyzeDatapacks(worldDir, result);
+    await estimateWorldSize(worldDir, result);
 
     return result;
   }
@@ -746,4 +769,138 @@ async function checkFileExists(basePath: string, relativePath: string): Promise<
   } catch {
     return false;
   }
+}
+
+/**
+ * Locate the closest world directory within a zip file by finding level.dat or fallback indicators
+ * Uses hierarchy depth and ASCII comparison for conflict resolution
+ * @param extractDir - The directory where the zip was extracted
+ * @returns Object containing the world path and type of match found
+ */
+async function locateWorldDirectory(extractDir: string): Promise<{
+  worldPath: string | null;
+  matchType: 'level.dat' | 'region' | 'playerdata' | 'none';
+  relativePath: string | null;
+}> {
+  interface WorldCandidate {
+    path: string;
+    relativePath: string;
+    depth: number;
+    matchType: 'level.dat' | 'region' | 'playerdata';
+    parentFolderName: string;
+  }
+
+  const candidates: WorldCandidate[] = [];
+
+  // Recursive function to search through directory structure
+  async function searchDirectory(currentPath: string, relativePath: string, depth: number): Promise<void> {
+    try {
+      const items = await fs.readdir(currentPath, { withFileTypes: true });
+      
+      // Check for level.dat in current directory
+      const hasLevelDat = items.some(item => item.isFile() && item.name === 'level.dat');
+      if (hasLevelDat) {
+        const parentFolderName = path.basename(currentPath);
+        candidates.push({
+          path: currentPath,
+          relativePath,
+          depth,
+          matchType: 'level.dat',
+          parentFolderName
+        });
+        return; // level.dat found, no need to search deeper in this branch
+      }
+
+      // Check for fallback indicators (region or playerdata folders)
+      const hasRegion = items.some(item => item.isDirectory() && item.name === 'region');
+      const hasPlayerdata = items.some(item => item.isDirectory() && item.name === 'playerdata');
+
+      if (hasRegion) {
+        const parentFolderName = path.basename(currentPath);
+        candidates.push({
+          path: currentPath,
+          relativePath,
+          depth,
+          matchType: 'region',
+          parentFolderName
+        });
+      }
+
+      if (hasPlayerdata) {
+        const parentFolderName = path.basename(currentPath);
+        candidates.push({
+          path: currentPath,
+          relativePath,
+          depth,
+          matchType: 'playerdata',
+          parentFolderName
+        });
+      }
+
+      // Continue searching subdirectories
+      for (const item of items) {
+        if (item.isDirectory()) {
+          const subPath = path.join(currentPath, item.name);
+          const subRelativePath = relativePath ? `${relativePath}/${item.name}` : item.name;
+          await searchDirectory(subPath, subRelativePath, depth + 1);
+        }
+      }
+    } catch (error) {
+      // Skip directories that can't be read
+      console.warn(`Could not read directory ${currentPath}:`, error);
+    }
+  }
+
+  // Start the search from the root
+  await searchDirectory(extractDir, '', 0);
+
+  if (candidates.length === 0) {
+    return { worldPath: null, matchType: 'none', relativePath: null };
+  }
+
+  // Sort candidates by priority:
+  // 1. level.dat matches first (highest priority)
+  // 2. Lower depth (closer to root)
+  // 3. ASCII comparison of parent folder names (earlier in ASCII = higher priority)
+  candidates.sort((a, b) => {
+    // Priority 1: level.dat always wins
+    if (a.matchType === 'level.dat' && b.matchType !== 'level.dat') return -1;
+    if (b.matchType === 'level.dat' && a.matchType !== 'level.dat') return 1;
+
+    // Priority 2: Hierarchy depth (closer to root wins)
+    if (a.depth !== b.depth) {
+      return a.depth - b.depth;
+    }
+
+    // Priority 3: ASCII comparison of parent folder names
+    // Find first differentiating character and choose the one closer to 0 in ASCII
+    const aName = a.parentFolderName.toLowerCase();
+    const bName = b.parentFolderName.toLowerCase();
+    
+    const maxLength = Math.max(aName.length, bName.length);
+    for (let i = 0; i < maxLength; i++) {
+      const aChar = aName.charCodeAt(i) || Number.MAX_SAFE_INTEGER; // Treat missing chars as high value
+      const bChar = bName.charCodeAt(i) || Number.MAX_SAFE_INTEGER;
+      
+      if (aChar !== bChar) {
+        return aChar - bChar; // Lower ASCII value wins
+      }
+    }
+
+    // If all characters are the same, shorter name wins
+    return aName.length - bName.length;
+  });
+
+  const winner = candidates[0];
+  
+  console.log(`World directory located: ${winner.relativePath || '(root)'} (${winner.matchType} match)`);
+  if (candidates.length > 1) {
+    console.log(`Other candidates found: ${candidates.slice(1).map(c => `${c.relativePath || '(root)'} (${c.matchType})`).join(', ')}`);
+  }
+
+  return {
+    worldPath: winner.path,
+    matchType: winner.matchType,
+    relativePath: winner.relativePath || null
+  };
 }

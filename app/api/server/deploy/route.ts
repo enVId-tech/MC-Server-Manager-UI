@@ -8,6 +8,8 @@ import MinecraftServerManager from "@/lib/server/serverManager";
 import { createMinecraftServer, convertClientConfigToServerConfig, ClientServerConfig } from "@/lib/server/minecraft";
 import verificationService from "@/lib/server/verify";
 import { FileInfo } from "@/lib/objects/ServerConfig";
+import { promises as fs } from 'fs';
+import path from 'path';
 
 // Interface for server config as stored in database (with FileInfo instead of AnalyzedFile)
 interface DatabaseServerConfig {
@@ -75,6 +77,87 @@ export interface DeploymentStatus {
 
 // Store deployment statuses in memory (in production, use Redis or database)
 const deploymentStatuses = new Map<string, DeploymentStatus>();
+
+/**
+ * Cleanup temporary files after successful deployment
+ */
+async function cleanupTemporaryFiles(serverConfig: DatabaseServerConfig, userEmail: string): Promise<void> {
+    try {
+        const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
+        const userUploadDir = path.join(UPLOAD_DIR, userEmail);
+        
+        console.log(`Starting cleanup of temporary files in: ${userUploadDir}`);
+        
+        // Check if user upload directory exists
+        try {
+            await fs.access(userUploadDir);
+        } catch {
+            console.log('No temporary files to cleanup - upload directory does not exist');
+            return;
+        }
+
+        const filesToDelete: string[] = [];
+
+        // Add world file paths to deletion list
+        if (serverConfig.worldFiles && serverConfig.worldFiles.filename) {
+            const worldFilePath = path.join(userUploadDir, serverConfig.worldFiles.filename);
+            filesToDelete.push(worldFilePath);
+            console.log(`Marked world file for deletion: ${worldFilePath}`);
+        }
+
+        // Add plugin file paths to deletion list
+        if (serverConfig.plugins && Array.isArray(serverConfig.plugins)) {
+            for (const plugin of serverConfig.plugins) {
+                if (plugin.filename) {
+                    const pluginFilePath = path.join(userUploadDir, plugin.filename);
+                    filesToDelete.push(pluginFilePath);
+                    console.log(`Marked plugin file for deletion: ${pluginFilePath}`);
+                }
+            }
+        }
+
+        // Add mod file paths to deletion list
+        if (serverConfig.mods && Array.isArray(serverConfig.mods)) {
+            for (const mod of serverConfig.mods) {
+                if (mod.filename) {
+                    const modFilePath = path.join(userUploadDir, mod.filename);
+                    filesToDelete.push(modFilePath);
+                    console.log(`Marked mod file for deletion: ${modFilePath}`);
+                }
+            }
+        }
+
+        // Delete all marked files
+        let deletedCount = 0;
+        for (const filePath of filesToDelete) {
+            try {
+                await fs.unlink(filePath);
+                deletedCount++;
+                console.log(`Deleted temporary file: ${filePath}`);
+            } catch (error) {
+                console.warn(`Failed to delete temporary file ${filePath}:`, error);
+            }
+        }
+
+        // Try to remove the user upload directory if it's empty
+        try {
+            const remainingFiles = await fs.readdir(userUploadDir);
+            if (remainingFiles.length === 0) {
+                await fs.rmdir(userUploadDir);
+                console.log(`Removed empty upload directory: ${userUploadDir}`);
+            } else {
+                console.log(`Upload directory not empty, keeping: ${userUploadDir} (${remainingFiles.length} files remaining)`);
+            }
+        } catch (error) {
+            console.warn(`Failed to remove upload directory ${userUploadDir}:`, error);
+        }
+
+        console.log(`Cleanup completed. Deleted ${deletedCount} temporary files.`);
+    } catch (error) {
+        console.error('Error during temporary file cleanup:', error);
+        // Don't throw the error - cleanup failure shouldn't break deployment
+    }
+}
 
 // Deploy server with step-by-step tracking
 export async function POST(request: NextRequest) {
@@ -488,7 +571,8 @@ async function deployServer(serverId: string, server: Record<string, unknown>, u
                 // Upload server.properties directly via WebDAV
                 try {
                     const webdavService = await import('@/lib/server/webdav');
-                    const serverPath = `/servers/${(server as Record<string, unknown>).uniqueId}`;
+                    const serverRecord = server as Record<string, unknown>;
+                    const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${user.email || 'default-user'}/${serverRecord.uniqueId}`;
                     await webdavService.default.createDirectory(serverPath);
                     await webdavService.default.uploadFile(`${serverPath}/server.properties`, propertiesContent);
                     console.log('Server properties uploaded successfully');
@@ -595,16 +679,8 @@ async function deployServer(serverId: string, server: Record<string, unknown>, u
                     // Upload world file to the server
                     let worldUploadResult;
                     if (serverConfig.worldFiles.originalName.endsWith('.zip')) {
-                        // Handle ZIP world files with proper extraction
-                        const worldAnalysis = serverConfig.worldFiles.analysis;
-                        if (worldAnalysis) {
-                            worldUploadResult = await updatedMinecraftServer.uploadAndExtractWorldZip(worldBuffer, worldAnalysis);
-                        } else {
-                            // Fallback to basic world upload
-                            const worldFiles: { [path: string]: Buffer } = {};
-                            worldFiles[`world/${serverConfig.worldFiles.originalName}`] = worldBuffer;
-                            worldUploadResult = await updatedMinecraftServer.uploadServerFiles(worldFiles, 'world');
-                        }
+                        // Handle ZIP world files with proper extraction using intelligent world locator
+                        worldUploadResult = await updatedMinecraftServer.uploadAndExtractWorldZip(worldBuffer);
                     } else {
                         // Handle other world file types
                         const worldFiles: { [path: string]: Buffer } = {};
@@ -647,6 +723,11 @@ async function deployServer(serverId: string, server: Record<string, unknown>, u
                 lastDeploymentStatus: 'success'
             }
         });
+
+        await updateStep(serverId, 'finalize', 'running', 50, 'Cleaning up temporary files...');
+
+        // Cleanup temporary files from uploads directory
+        await cleanupTemporaryFiles(server.serverConfig as DatabaseServerConfig, user.email);
 
         await new Promise(resolve => setTimeout(resolve, 500));
         await updateStep(serverId, 'finalize', 'completed', 100, 'Deployment completed successfully');

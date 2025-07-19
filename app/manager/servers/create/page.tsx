@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import styles from './create-main.module.scss';
 import { FiTrash2, FiSettings, FiServer, FiGlobe, FiPackage, FiFileText } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
@@ -716,7 +716,7 @@ export default function ServerGenerator() {
   };
 
   // Handle server properties changes
-  const handleServerPropertiesChange = (properties: Record<string, string | number | boolean>, propertiesString: string) => {
+  const handleServerPropertiesChange = useCallback((properties: Record<string, string | number | boolean>, propertiesString: string) => {
     setServerConfig(prevConfig => {
       const updatedConfig = {
         ...prevConfig,
@@ -844,7 +844,7 @@ export default function ServerGenerator() {
 
       return updatedConfig;
     });
-  };
+  }, []); // Empty dependency array since the function doesn't depend on any external values
 
   // Remove plugin
   const removePlugin = (index: number) => {

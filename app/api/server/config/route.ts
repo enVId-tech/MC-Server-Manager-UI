@@ -168,6 +168,7 @@ export async function POST(request: NextRequest) {
             email,
             config.serverType
         );
+        
         if (!folderCreation.success) {
             return NextResponse.json({ error: folderCreation.error }, { status: 500 });
         }

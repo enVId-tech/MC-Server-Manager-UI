@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createMinecraftServer } from '@/lib/server/minecraft';
+import { createMinecraftServer, AnalyzedFile } from '@/lib/server/minecraft';
 import verificationService from '@/lib/server/verify';
 import { IUser } from '@/lib/objects/User';
 import Server from '@/lib/objects/Server';
@@ -69,15 +69,23 @@ export async function POST(request: NextRequest) {
     
     switch (fileType) {
       case 'world':
-        uploadResult = await minecraftServer.uploadWorldFile(file, analysis);
+        uploadResult = await minecraftServer.uploadWorldFile(file);
         break;
       case 'plugins':
-        // Convert single file to array for compatibility
-        uploadResult = await minecraftServer.uploadPlugins([file as File & { analysis?: typeof analysis }]);
+        // Convert single file to array for compatibility and add analysis if available
+        const pluginFile = file as AnalyzedFile;
+        if (analysis) {
+          pluginFile.analysis = analysis;
+        }
+        uploadResult = await minecraftServer.uploadPlugins([pluginFile]);
         break;
       case 'mods':
-        // Convert single file to array for compatibility  
-        uploadResult = await minecraftServer.uploadMods([file as File & { analysis?: typeof analysis }]);
+        // Convert single file to array for compatibility and add analysis if available
+        const modFile = file as AnalyzedFile;
+        if (analysis) {
+          modFile.analysis = analysis;
+        }
+        uploadResult = await minecraftServer.uploadMods([modFile]);
         break;
       default:
         return NextResponse.json({ error: 'Invalid file type' }, { status: 400 });

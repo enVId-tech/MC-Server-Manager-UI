@@ -254,6 +254,37 @@ class WebDavService {
     }
 
     /**
+     * Recursively delete a directory and all its contents from the WebDAV server.
+     * This method will delete all files and subdirectories within the specified directory,
+     * then delete the directory itself.
+     * @param dirPath - The path to the directory to delete recursively.
+     */
+    public async deleteDirectoryRecursively(dirPath: string): Promise<void> {
+        try {
+            const items = await this.getDirectoryContents(dirPath);
+            
+            for (const item of items) {
+                const webdavItem = item as { filename: string; basename?: string; type: string };
+                const filename = webdavItem.filename || webdavItem.basename || '';
+                const itemPath = `${dirPath}/${filename}`;
+                
+                if (webdavItem.type === 'directory') {
+                    await this.deleteDirectoryRecursively(itemPath);
+                } else {
+                    await this.deleteFile(itemPath);
+                }
+            }
+            
+            // Delete the directory itself after all contents are deleted
+            await this.client.deleteFile(dirPath);
+            console.log(`Directory recursively deleted successfully from ${dirPath}`);
+        } catch (error) {
+            console.error(`Error recursively deleting directory from ${dirPath}:`, error);
+            throw error;
+        }
+    }
+
+    /**
      * Check if a file or directory exists on the WebDAV server.
      * @param path - The path to check.
      */
