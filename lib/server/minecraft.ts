@@ -866,6 +866,8 @@ export class MinecraftServer {
                 return { success: false, error: 'Server stack not found' };
             }
 
+            console.log(`=== Deleting Minecraft server stack ${serverStack.Name} from Portainer with stack ID ${serverStack.Id} ===`);
+
             await portainer.deleteStack(serverStack.Id, this.environmentId);
             console.log(`Deleted Minecraft server ${this.serverName} from Portainer`);
             return { success: true };
@@ -914,7 +916,8 @@ export class MinecraftServer {
      */
     async uploadServerFiles(files: { [path: string]: Buffer | string }, type: 'plugins' | 'mods' | 'world'): Promise<{ success: boolean; error?: string }> {
         try {
-            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${this.config.userEmail || 'default-user'}/${this.uniqueId}`;
+            const userEmail = this.getUserEmail().split('@')[0]; // Use local part of email for folder structure
+            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${this.uniqueId}`;
 
             // Ensure server directory exists
             await webdavService.createDirectory(serverPath);
@@ -1137,7 +1140,8 @@ export class MinecraftServer {
         end: { [path: string]: Buffer };
     }): Promise<{ success: boolean; error?: string }> {
         try {
-            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${this.config.userEmail || 'default-user'}/${this.uniqueId}`;
+            const userEmail = this.getUserEmail().split('@')[0]; // Use local part of email for folder structure
+            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${this.uniqueId}`;
 
             // Ensure server directory exists
             await webdavService.createDirectory(serverPath);
@@ -1354,7 +1358,8 @@ export class MinecraftServer {
         error?: string
     }> {
         try {
-            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${this.config.userEmail || 'default-user'}/${this.uniqueId}`;
+            const userEmail = this.getUserEmail().split('@')[0]; // Use local part of email for folder structure
+            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${this.uniqueId}`;
             const files: { [path: string]: Buffer } = {};
 
             for (const relativePath of paths) {
@@ -1482,7 +1487,7 @@ export class MinecraftServer {
             const localPaths: string[] = [];
             
             // WebDAV server path structure
-            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${this.getUserEmail()}/${this.uniqueId}`;
+            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${this.getUserEmail().split("@")[0]}/${this.uniqueId}`;
             const userEmail = this.getUserEmail();
             const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
             const userFolder = userEmail.split('@')[0];

@@ -47,3 +47,6 @@ next-env.d.ts
 
 test-files
 test-files/*
+
+uploads
+uploads/*

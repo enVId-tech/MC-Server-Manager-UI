@@ -22,7 +22,6 @@ export async function GET(request: NextRequest) {
         const domainName = url.searchParams.get('domainName') || '';
         const path = url.searchParams.get('path') || '/';
         
-
         console.log(`Received request for server files with domainName: ${domainName} and path: ${path}`);
 
         if (!domainName) {

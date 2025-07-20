@@ -316,6 +316,21 @@ class WebDavService {
             throw error;
         }
     }
+
+    public async moveDirectory(sourcePath: string, destPath: string): Promise<void> {
+        try {
+            // First try to use moveFile which may work for directories in some WebDAV implementations
+            if (typeof this.client.moveFile === 'function') {
+                await this.client.moveFile(sourcePath, destPath);
+                console.log(`Successfully moved directory ${sourcePath} to ${destPath}`);
+            } else {
+                throw new Error('moveFile method not available on WebDAV client');
+            }
+        } catch (error) {
+            console.error(`Error moving directory ${sourcePath} to ${destPath}:`, error);
+            throw error;
+        }
+    }
 }
 
 // Singleton instance of WebDavService

@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
             email,
             config.serverType
         );
-        
+
         if (!folderCreation.success) {
             return NextResponse.json({ error: folderCreation.error }, { status: 500 });
         }
@@ -273,17 +273,19 @@ export async function POST(request: NextRequest) {
         // Add database rollback action
         rollbackActions.push(async () => {
             try {
-                await Server.findByIdAndDelete(newServer._id);
-                console.log(`Deleted server ${newServer._id} from database during rollback`);
+                await Server.findOneAndDelete({ uniqueId: uniqueId });
+                console.log(`Deleted server ${uniqueId} from database during rollback`);
             } catch (error) {
-                console.error(`Error deleting server ${newServer._id} during rollback:`, error);
+                console.error(`Error deleting server ${uniqueId} during rollback:`, error);
             }
         });
 
         // === SUCCESS RESPONSE ===
+        console.log(`Server created successfully with uniqueId: ${newServer.uniqueId}`);
+        
         return NextResponse.json({
             message: "Server created successfully",
-            serverId: newServer._id,
+            serverId: newServer.uniqueId, // Use uniqueId as serverId for consistency
             uniqueId: newServer.uniqueId,
             config: {
                 name: serverConfigData.name,

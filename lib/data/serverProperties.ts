@@ -16,6 +16,10 @@ export interface PropertyDefinition {
   max?: number;
   placeholder?: string;
   category: 'general' | 'world' | 'network' | 'performance' | 'gameplay' | 'advanced';
+  serverManaged?: boolean; // If true, this property is filled server-side only
+  clientEditable?: boolean; // If false, client cannot modify this field
+  versionIntroduced?: string; // Minimum version where this property was introduced
+  versionRemoved?: string; // Version where this property was removed (if any)
 }
 
 export interface VersionProperties {
@@ -332,6 +336,82 @@ const commonProperties: PropertyDefinition[] = [
     type: 'boolean',
     defaultValue: false,
     category: 'advanced'
+  },
+  
+  // Server-managed properties (filled server-side only)
+  {
+    key: 'server-ip',
+    displayName: 'Server IP Address',
+    description: 'IP address the server binds to (managed by server)',
+    type: 'string',
+    defaultValue: '',
+    serverManaged: true,
+    clientEditable: false,
+    category: 'network'
+  },
+  {
+    key: 'query.port',
+    displayName: 'Query Port',
+    description: 'Port for server query (auto-assigned)',
+    type: 'number',
+    defaultValue: 25565,
+    serverManaged: true,
+    clientEditable: false,
+    category: 'network'
+  },
+  {
+    key: 'enable-query',
+    displayName: 'Enable Query',
+    description: 'Enable GameSpy4 protocol server listener',
+    type: 'boolean',
+    defaultValue: false,
+    serverManaged: true,
+    clientEditable: false,
+    category: 'network'
+  },
+  {
+    key: 'level-name',
+    displayName: 'World Name',
+    description: 'Name of the world folder (managed by server)',
+    type: 'string',
+    defaultValue: 'world',
+    serverManaged: true,
+    clientEditable: false,
+    category: 'world'
+  },
+  {
+    key: 'enable-status',
+    displayName: 'Enable Server Status',
+    description: 'Make server appear in server list',
+    type: 'boolean',
+    defaultValue: true,
+    serverManaged: true,
+    clientEditable: false,
+    category: 'network'
+  },
+  {
+    key: 'function-permission-level',
+    displayName: 'Function Permission Level',
+    description: 'Permission level for functions (server managed)',
+    type: 'number',
+    defaultValue: 2,
+    min: 1,
+    max: 4,
+    serverManaged: true,
+    clientEditable: false,
+    category: 'advanced'
+  },
+  {
+    key: 'op-permission-level',
+    displayName: 'Operator Permission Level', 
+    description: 'Default permission level for operators',
+    type: 'number',
+    defaultValue: 4,
+    min: 1,
+    max: 4,
+    serverManaged: true,
+    clientEditable: false,
+    category: 'advanced'
   }
 ];
 
@@ -344,7 +424,19 @@ const versionSpecificProperties: Record<string, PropertyDefinition[]> = {
       description: 'Enforce secure chat profiles',
       type: 'boolean',
       defaultValue: true,
-      category: 'advanced'
+      category: 'advanced',
+      versionIntroduced: '1.19'
+    },
+    {
+      key: 'text-filtering-config',
+      displayName: 'Text Filtering Config',
+      description: 'Text filtering configuration file',
+      type: 'string',
+      defaultValue: '',
+      serverManaged: true,
+      clientEditable: false,
+      category: 'advanced',
+      versionIntroduced: '1.19'
     }
   ],
   '1.20': [
@@ -354,7 +446,41 @@ const versionSpecificProperties: Record<string, PropertyDefinition[]> = {
       description: 'Log player IP addresses',
       type: 'boolean',
       defaultValue: true,
-      category: 'advanced'
+      category: 'advanced',
+      versionIntroduced: '1.20'
+    },
+    {
+      key: 'initial-enabled-packs',
+      displayName: 'Initial Enabled Data Packs',
+      description: 'Data packs enabled on world creation',
+      type: 'string',
+      defaultValue: 'vanilla',
+      serverManaged: true,
+      clientEditable: false,
+      category: 'world',
+      versionIntroduced: '1.20'
+    }
+  ],
+  '1.21': [
+    {
+      key: 'accepts-transfers',
+      displayName: 'Accept Transfers',
+      description: 'Allow server transfer packets',
+      type: 'boolean',
+      defaultValue: false,
+      category: 'network',
+      versionIntroduced: '1.21'
+    },
+    {
+      key: 'server-links-file',
+      displayName: 'Server Links File',
+      description: 'Path to server links configuration',
+      type: 'string',
+      defaultValue: 'server-links.json',
+      serverManaged: true,
+      clientEditable: false,
+      category: 'advanced',
+      versionIntroduced: '1.21'
     }
   ]
 };
@@ -384,6 +510,36 @@ export const supportedVersions = [
 ];
 
 /**
+ * Parse version string for comparison
+ */
+function parseVersion(version: string): { major: number; minor: number; patch: number } {
+  if (version === 'latest') {
+    return { major: 999, minor: 999, patch: 999 };
+  }
+  
+  const cleanVersion = version.replace(/[^\d.]/g, '');
+  const parts = cleanVersion.split('.').map(part => parseInt(part, 10) || 0);
+  
+  return {
+    major: parts[0] || 1,
+    minor: parts[1] || 0,
+    patch: parts[2] || 0
+  };
+}
+
+/**
+ * Check if a version is greater than or equal to another
+ */
+function isVersionGreaterOrEqual(version: string, targetVersion: string): boolean {
+  const v1 = parseVersion(version);
+  const v2 = parseVersion(targetVersion);
+  
+  if (v1.major !== v2.major) return v1.major >= v2.major;
+  if (v1.minor !== v2.minor) return v1.minor >= v2.minor;
+  return v1.patch >= v2.patch;
+}
+
+/**
  * Get server properties for a specific Minecraft version
  */
 export function getServerPropertiesForVersion(version: string): PropertyDefinition[] {
@@ -399,6 +555,25 @@ export function getServerPropertiesForVersion(version: string): PropertyDefiniti
   if (versionNumber >= 1.20 || version === 'latest') {
     properties = properties.concat(versionSpecificProperties['1.20'] || []);
   }
+  
+  if (versionNumber >= 1.21 || version === 'latest') {
+    properties = properties.concat(versionSpecificProperties['1.21'] || []);
+  }
+  
+  // Filter properties based on version requirements
+  properties = properties.filter(prop => {
+    // Check if property was introduced after the current version
+    if (prop.versionIntroduced && !isVersionGreaterOrEqual(version, prop.versionIntroduced)) {
+      return false;
+    }
+    
+    // Check if property was removed before the current version
+    if (prop.versionRemoved && isVersionGreaterOrEqual(version, prop.versionRemoved)) {
+      return false;
+    }
+    
+    return true;
+  });
   
   // Sort properties by category for better organization
   const categoryOrder = ['general', 'world', 'gameplay', 'performance', 'network', 'advanced'];

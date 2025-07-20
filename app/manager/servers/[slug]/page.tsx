@@ -712,13 +712,14 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
             message: 'Server is being deleted...'
           });
 
-          const response = await fetch('/api/server', {
+          const response = await fetch('/api/server/delete', {
             method: 'DELETE',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              serverId: uniqueId
+              serverId: uniqueId,
+              reason: 'manual-deletion'
             })
           });
 

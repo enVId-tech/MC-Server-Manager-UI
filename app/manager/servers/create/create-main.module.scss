@@ -1113,6 +1113,69 @@
   font-weight: 500;
 }
 
+// Server-managed field styles
+.readOnlyInput {
+  background-color: rgba($dark-bg, 0.5) !important;
+  color: rgba($text-primary, 0.7) !important;
+  cursor: not-allowed !important;
+  border-style: dashed !important;
+  border-color: rgba($border-color, 0.5) !important;
+
+  &:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    background-color: rgba($dark-bg, 0.5) !important;
+  }
+
+  &:focus {
+    border-color: rgba($border-color, 0.5) !important;
+    box-shadow: none !important;
+    background-color: rgba($dark-bg, 0.5) !important;
+  }
+}
+
+.serverManagedBadge {
+  display: inline-block;
+  background-color: rgba($accent-orange, 0.2);
+  color: $accent-orange;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  margin-left: 0.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1px solid rgba($accent-orange, 0.3);
+  
+  @media (max-width: 768px) {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.3rem;
+  }
+}
+
+.versionBadge {
+  display: inline-block;
+  background-color: rgba($accent-blue, 0.2);
+  color: $accent-blue;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  margin-left: 0.3rem;
+  font-weight: 500;
+  border: 1px solid rgba($accent-blue, 0.3);
+  
+  @media (max-width: 768px) {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.3rem;
+  }
+}
+
+.serverManagedNote {
+  color: rgba($text-primary, 0.6);
+  font-style: italic;
+  font-size: 0.85em;
+}
+
 .errorSummary {
   background-color: rgba($accent-red, 0.1);
   border: 1px solid rgba($accent-red, 0.3);
@@ -1184,5 +1247,285 @@
     margin: 0;
     color: $text-primary;
     font-size: 0.9rem;
+  }
+}
+
+// Version Warning Modal Styles
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 1rem;
+  backdrop-filter: blur(4px);
+}
+
+.modal {
+  background-color: rgba($dark-bg, 0.95);
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  border: 2px solid $border-color;
+  
+  &.warning {
+    border-color: $accent-orange;
+    box-shadow: 0 20px 40px rgba($accent-orange, 0.2);
+  }
+  
+  &.danger {
+    border-color: $accent-red;
+    box-shadow: 0 20px 40px rgba($accent-red, 0.2);
+  }
+  
+  &.info {
+    border-color: $accent-blue;
+    box-shadow: 0 20px 40px rgba($accent-blue, 0.2);
+  }
+  
+  @media (max-width: 768px) {
+    margin: 1rem;
+    max-height: 85vh;
+  }
+}
+
+.modalHeader {
+  padding: 1.5rem 1.5rem 1rem 1.5rem;
+  border-bottom: 1px solid rgba($border-color, 0.3);
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 1.4rem;
+  color: $text-primary;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 600;
+}
+
+.warningIcon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+}
+
+.modalContent {
+  padding: 1.5rem;
+  line-height: 1.6;
+}
+
+.warningMessage {
+  font-size: 1rem;
+  color: $text-primary;
+  margin-bottom: 1.5rem;
+  background-color: rgba($accent-orange, 0.1);
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid $accent-orange;
+}
+
+.riskList {
+  margin-bottom: 1.5rem;
+  
+  h4 {
+    color: $accent-red;
+    margin: 0 0 0.75rem 0;
+    font-size: 1rem;
+  }
+  
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    
+    li {
+      padding: 0.5rem 0;
+      padding-left: 1.5rem;
+      position: relative;
+      color: rgba($text-primary, 0.9);
+      
+      &::before {
+        content: '⚠️';
+        position: absolute;
+        left: 0;
+        top: 0.5rem;
+      }
+    }
+  }
+}
+
+.versionComparison {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: rgba($dark-bg, 0.7);
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  border: 1px solid rgba($border-color, 0.3);
+  
+  @media (max-width: 480px) {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}
+
+.versionInfo {
+  text-align: center;
+  flex: 1;
+  
+  .versionLabel {
+    display: block;
+    font-size: 0.85rem;
+    color: rgba($text-primary, 0.7);
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .versionValue {
+    display: block;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: $accent-blue;
+    background-color: rgba($accent-blue, 0.1);
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    border: 1px solid rgba($accent-blue, 0.2);
+  }
+}
+
+.versionArrow {
+  font-size: 2rem;
+  color: $accent-orange;
+  font-weight: bold;
+  margin: 0 1rem;
+  
+  @media (max-width: 480px) {
+    transform: rotate(90deg);
+    margin: 0;
+  }
+}
+
+.recommendationBox {
+  background-color: rgba($accent-green, 0.1);
+  border: 1px solid rgba($accent-green, 0.3);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1.5rem 0;
+  
+  h4 {
+    color: $accent-green;
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+  }
+  
+  p {
+    margin: 0;
+    color: rgba($text-primary, 0.9);
+  }
+}
+
+.modalActions {
+  padding: 1rem 1.5rem 1.5rem 1.5rem;
+  border-top: 1px solid rgba($border-color, 0.3);
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  
+  @media (max-width: 480px) {
+    flex-direction: column;
+  }
+}
+
+.btn {
+  padding: 0.75rem 1.25rem;
+  border-radius: 6px;
+  border: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-poppins);
+  font-size: 0.9rem;
+  flex: 1;
+  min-width: fit-content;
+  
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+.btnPrimary {
+  background-color: $accent-green;
+  color: white;
+  
+  &:hover {
+    background-color: color.scale($accent-green, $lightness: 10%);
+  }
+}
+
+.btnWarning {
+  background-color: $accent-orange;
+  color: white;
+  
+  &:hover {
+    background-color: color.scale($accent-orange, $lightness: 10%);
+  }
+}
+
+.btnDanger {
+  background-color: $accent-red;
+  color: white;
+  
+  &:hover {
+    background-color: color.scale($accent-red, $lightness: 10%);
+  }
+}
+
+.btnSecondary {
+  background-color: transparent;
+  color: $text-primary;
+  border: 1px solid $border-color;
+  
+  &:hover {
+    background-color: rgba($border-color, 0.1);
+  }
+}
+
+.dangerNotice {
+  background-color: rgba($accent-red, 0.15);
+  border: 2px solid $accent-red;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 1.5rem 0 1.5rem;
+  color: $text-primary;
+  font-weight: 500;
+  text-align: center;
+  animation: pulse 2s infinite;
+  
+  strong {
+    color: $accent-red;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
   }
 }

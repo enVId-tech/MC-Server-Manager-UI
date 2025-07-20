@@ -44,6 +44,10 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
     await dbConnect();
+    
+    // Log deprecation warning
+    console.warn('⚠️  DEPRECATION WARNING: /api/server DELETE endpoint is deprecated. Please use /api/server/delete for comprehensive server deletion with proper cleanup.');
+    
     try {
         const user: IUser | null = await verificationService.getUserFromToken(request);
 

@@ -17,6 +17,12 @@ import {
   ServerPropertiesSection
 } from '.';
 import { ClientServerConfig, FileAnalysis, AnalyzedFile } from '@/lib/server/minecraft';
+import VersionWarningModal from './VersionWarningModal';
+import { 
+  extractVersionFromAnalysis, 
+  compareVersions, 
+  isVersionChangeSafe 
+} from '@/lib/utils/versionUtils';
 
 // Tab configuration
 const tabs = [
@@ -154,6 +160,18 @@ export default function ServerGenerator() {
   const [serverId, setServerId] = useState<string>('');
   const [serverUniqueId, setServerUniqueId] = useState<string>('');
   const [canRetryDeployment, setCanRetryDeployment] = useState(false);
+
+  // Version warning modal state
+  const [versionWarning, setVersionWarning] = useState<{
+    isOpen: boolean;
+    currentVersion: string;
+    detectedVersion: string;
+    fileName: string;
+    isUpgrade: boolean;
+    isDowngrade: boolean;
+    onConfirm: () => void;
+    onSwitchVersion: () => void;
+  } | null>(null);
 
   const router = useRouter();
 
@@ -401,14 +419,66 @@ export default function ServerGenerator() {
             
             // If it's a world file, potentially update world settings based on analysis
             if (analysis.type === 'world') {
-              setServerConfig(prevConfig => ({
-                ...prevConfig,
-                // Update settings based on world analysis
-                gameMode: analysis.gameMode || prevConfig.gameMode,
-                difficulty: analysis.difficulty || prevConfig.difficulty,
-                seed: analysis.seed || prevConfig.seed,
-                // Note: Could also update spawn settings, gamerules, etc.
-              }));
+              // Extract version from analysis
+              const detectedVersion = extractVersionFromAnalysis(analysis);
+              const currentVersion = serverConfig.version;
+              
+              // Check for version conflicts if both versions are available
+              if (detectedVersion && currentVersion && detectedVersion !== currentVersion) {
+                const comparison = compareVersions(currentVersion, detectedVersion);
+                const safety = isVersionChangeSafe(detectedVersion, currentVersion);
+                
+                // Show version warning modal for significant version differences
+                if (!comparison.isSame && (safety.riskLevel === 'medium' || safety.riskLevel === 'high' || safety.riskLevel === 'extreme')) {
+                  setVersionWarning({
+                    isOpen: true,
+                    currentVersion,
+                    detectedVersion,
+                    fileName: file.name,
+                    isUpgrade: comparison.isNewer,
+                    isDowngrade: comparison.isOlder,
+                    onConfirm: () => {
+                      // User chose to keep current version
+                      setVersionWarning(null);
+                      // Update settings based on world analysis but keep current version
+                      setServerConfig(prevConfig => ({
+                        ...prevConfig,
+                        gameMode: analysis.gameMode || prevConfig.gameMode,
+                        difficulty: analysis.difficulty || prevConfig.difficulty,
+                        seed: analysis.seed || prevConfig.seed,
+                      }));
+                    },
+                    onSwitchVersion: () => {
+                      // User chose to switch to detected version
+                      setVersionWarning(null);
+                      // Update both version and settings
+                      setServerConfig(prevConfig => ({
+                        ...prevConfig,
+                        version: detectedVersion,
+                        gameMode: analysis.gameMode || prevConfig.gameMode,
+                        difficulty: analysis.difficulty || prevConfig.difficulty,
+                        seed: analysis.seed || prevConfig.seed,
+                      }));
+                    }
+                  });
+                } else {
+                  // Minor version difference or same version - proceed without warning
+                  setServerConfig(prevConfig => ({
+                    ...prevConfig,
+                    gameMode: analysis.gameMode || prevConfig.gameMode,
+                    difficulty: analysis.difficulty || prevConfig.difficulty,
+                    seed: analysis.seed || prevConfig.seed,
+                  }));
+                }
+              } else {
+                // No version conflict or version information unavailable
+                setServerConfig(prevConfig => ({
+                  ...prevConfig,
+                  gameMode: analysis.gameMode || prevConfig.gameMode,
+                  difficulty: analysis.difficulty || prevConfig.difficulty,
+                  seed: analysis.seed || prevConfig.seed,
+                }));
+              }
             }
           } else {
             // Handle analysis error
@@ -1279,6 +1349,21 @@ export default function ServerGenerator() {
 
   return (
     <main className={styles.serverGenerator} style={{ backgroundImage: `url('${createBackground.src}')` }}>
+      {/* Version Warning Modal */}
+      {versionWarning && (
+        <VersionWarningModal
+          isOpen={versionWarning.isOpen}
+          onClose={() => setVersionWarning(null)}
+          onConfirm={versionWarning.onConfirm}
+          onSwitchVersion={versionWarning.onSwitchVersion}
+          currentVersion={versionWarning.currentVersion}
+          detectedVersion={versionWarning.detectedVersion}
+          fileName={versionWarning.fileName}
+          isUpgrade={versionWarning.isUpgrade}
+          isDowngrade={versionWarning.isDowngrade}
+        />
+      )}
+
       {/* Loading/Success Overlay */}
       {(isCreating || creationSuccess) && (
         <div className={styles.creationOverlay}>
