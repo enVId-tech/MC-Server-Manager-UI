@@ -11,7 +11,7 @@ updates:
       interval: "weekly"
     # Automatically merge minor and patch updates
     open-pull-requests-limit: 10
-    target-branch: "main"
+    target-branch: "master"
     assignees:
       - "enVId-tech"
     reviewers:
