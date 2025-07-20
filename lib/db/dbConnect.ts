@@ -34,17 +34,11 @@ interface CachedConnection {
     promise: Promise<typeof mongoose> | null;
 }
 
-interface GlobalWithMongoose extends Global {
-    mongoose?: CachedConnection;
-}
-
 // Type-safe global access
-const globalWithMongoose = global as GlobalWithMongoose;
+const cached: CachedConnection = globalThis.mongoose || { conn: null, promise: null };
 
-const cached: CachedConnection = globalWithMongoose.mongoose || { conn: null, promise: null };
-
-if (!globalWithMongoose.mongoose) {
-    globalWithMongoose.mongoose = cached;
+if (!globalThis.mongoose) {
+    globalThis.mongoose = cached;
 }
 
 async function dbConnect(): Promise<typeof mongoose> {
