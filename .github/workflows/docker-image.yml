@@ -9,6 +9,8 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    # Skip Docker push for Dependabot PRs (they don't have access to secrets)
+    if: github.actor != 'dependabot[bot]'
 
     steps:
       - uses: actions/checkout@v4
@@ -24,3 +26,14 @@ jobs:
 
       - name: Push to Docker Hub
         run: docker push envidtech/mc-server-creator:latest
+
+  # Separate job for Dependabot PRs - build only (no push)
+  build-only:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the Docker image (test only)
+        run: docker build . --file Dockerfile --tag envidtech/mc-server-creator:test
