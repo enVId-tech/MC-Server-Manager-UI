@@ -9,8 +9,8 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    # Only run for pushes to main branches, not for any pull requests
-    if: github.event_name == 'push'
+    # Skip Docker push for Dependabot PRs (they don't have access to secrets)
+    if: github.actor != 'dependabot[bot]'
 
     steps:
       - uses: actions/checkout@v4
@@ -27,11 +27,10 @@ jobs:
       - name: Push to Docker Hub
         run: docker push envidtech/mc-server-creator:latest
 
-  # Job for all pull requests - build only (no push, no login)
+  # Separate job for Dependabot PRs - build only (no push)
   build-only:
     runs-on: ubuntu-latest
-    # Run for all pull requests (including dependabot)
-    if: github.event_name == 'pull_request'
+    if: github.actor == 'dependabot[bot]'
 
     steps:
       - uses: actions/checkout@v4
