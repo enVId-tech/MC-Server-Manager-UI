@@ -402,13 +402,13 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
       if (!response.ok) {
         // More specific error handling
         let errorMessage = data.message || 'Failed to start server';
-        
+
         if (data.errors && data.errors.rconPort) {
           errorMessage = 'Server configuration error: RCON port must be at least 25565';
         } else if (data._message && data._message.includes('validation failed')) {
           errorMessage = 'Server configuration validation failed. Please check server settings.';
         }
-        
+
         throw new Error(errorMessage);
       }
 
@@ -425,7 +425,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     } catch (error) {
       // Reset server status on error
       setServerStats(prev => ({ ...prev, status: 'offline' }));
-      
+
       showNotification({
         type: 'error',
         title: 'Start Failed',
@@ -735,6 +735,10 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
             message: data.message || 'Your server has been deleted!'
           });
 
+          // Clear all intervals and stop any ongoing operations immediately
+          setIsLoaded(false);
+          setUniqueId('');
+          
           // Redirect to dashboard after successful deletion
           setTimeout(() => {
             router.push('/manager/dashboard');
@@ -764,7 +768,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   // Add useEffect hooks for status polling (repeated calls)
   useEffect(() => {
     console.log('Setting up status polling interval, isLoaded:', isLoaded, 'uniqueId:', uniqueId);
-    
+
     if (!isLoaded || !uniqueId) {
       console.log('Not setting up interval - isLoaded:', isLoaded, 'uniqueId:', uniqueId);
       return;
@@ -1111,14 +1115,14 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                   <button
                     className={`${styles.controlButton} ${styles.stop}`}
                     onClick={stopServer}
-                    disabled={serverStats.status === 'loading' || serverStats.status === 'crashed' || serverStats.status === 'offline' || serverStats.status === 'starting'}
+                    disabled={serverStats.status === 'starting' || serverStats.status === 'loading' || serverStats.status === 'crashed' || serverStats.status === 'offline'}
                   >
                     <FaStop /> Stop
                   </button>
                   <button
                     className={`${styles.controlButton} ${styles.kill}`}
                     onClick={killServer}
-                    disabled={serverStats.status === 'crashed' || serverStats.status === 'offline' || serverStats.status === 'starting'}
+                    disabled={serverStats.status === 'starting' || serverStats.status === 'crashed' || serverStats.status === 'offline'}
                   >
                     <FaSlash /> Kill
                   </button>

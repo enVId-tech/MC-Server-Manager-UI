@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
         const domainName = url.searchParams.get('domainName') || '';
         const path = url.searchParams.get('path') || '/';
-        
+
         console.log(`Received request for server files with domainName: ${domainName} and path: ${path}`);
 
         if (!domainName) {
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
         console.log(`Looking for server with domainName of: ${domainName}`);
 
         // Find the server in the database using multiple possible matches
-        const server = await Server.findOne({ 
+        const server = await Server.findOne({
             email: user.email,
             $or: [
                 { subdomainName: domainName },
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
         if (!server) {
             console.log(`Server not found for user ${user.email} with identifier: ${domainName}`);
-            return NextResponse.json({ 
+            return NextResponse.json({
                 message: 'Server not found.',
                 debug: {
                     userEmail: user.email,
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
                 const itemPath = item.filename as string;
                 // Remove the server path prefix to get relative path
                 const relativePath = itemPath.replace(serverPath, '') || '/';
-                
+
                 return {
                     name: item.basename as string,
                     type: item.type === 'directory' ? 'folder' as const : 'file' as const,
@@ -121,11 +121,11 @@ export async function GET(request: NextRequest) {
 // Helper function to determine if a file is readable
 function isReadableFile(filename: string): boolean {
     const readableExtensions = [
-        '.txt', '.properties', '.json', '.yml', '.yaml', '.log', '.conf', 
+        '.txt', '.properties', '.json', '.yml', '.yaml', '.log', '.conf',
         '.cfg', '.ini', '.md', '.xml', '.sh', '.bat', '.cmd', '.js', '.ts',
         '.java', '.py', '.sql', '.css', '.html', '.htm', '.toml', '.env'
     ];
-    
+
     const extension = filename.substring(filename.lastIndexOf('.')).toLowerCase();
     return readableExtensions.includes(extension) || filename.includes('.');
 }
@@ -133,11 +133,11 @@ function isReadableFile(filename: string): boolean {
 // Helper function to determine if a file is editable
 function isEditableFile(filename: string): boolean {
     const editableExtensions = [
-        '.properties', '.json', '.yml', '.yaml', '.conf', '.cfg', '.ini', 
+        '.properties', '.json', '.yml', '.yaml', '.conf', '.cfg', '.ini',
         '.md', '.xml', '.sh', '.bat', '.cmd', '.js', '.ts', '.java', '.py',
         '.sql', '.css', '.html', '.htm', '.toml', '.env', '.txt'
     ];
-    
+
     const extension = filename.substring(filename.lastIndexOf('.')).toLowerCase();
     return editableExtensions.includes(extension);
 }

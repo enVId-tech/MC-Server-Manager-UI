@@ -85,9 +85,9 @@ async function cleanupTemporaryFiles(serverConfig: DatabaseServerConfig, userEma
     try {
         const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
         const userUploadDir = path.join(UPLOAD_DIR, userEmail);
-        
+
         console.log(`Starting cleanup of temporary files in: ${userUploadDir}`);
-        
+
         // Check if user upload directory exists
         try {
             await fs.access(userUploadDir);
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
         if (!serverId) {
             return NextResponse.json({ error: "Server ID is required." }, { status: 400 });
         }
-        
+
         const user: IUser | null = await verificationService.getUserFromToken(request);
 
         if (!user) {
@@ -333,7 +333,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             console.log('Connecting to Portainer...');
             const environments = await portainer.getEnvironments();
             console.log(`Found ${environments.length} Portainer environments`);
-            
+
             if (environments.length === 0) {
                 throw new Error('No Portainer environments found');
             }
@@ -428,7 +428,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                             $unset: { port: 1, rconPort: 1 }
                         }
                     );
-                    
+
                     console.log(`Ports ${allocatedPort} and ${allocatedRconPort || 'N/A'} removed from server ${serverId} record`);
                 } catch (portRollbackError) {
                     console.warn('Error during port rollback:', portRollbackError);
@@ -534,7 +534,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
         console.log(`Unique ID: ${server.uniqueId}`);
 
         const deployResult = await updatedMinecraftServer.deployToPortainer();
-        
+
         console.log(`Portainer deployment result:`, deployResult);
 
         if (!deployResult.success) {
@@ -544,7 +544,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             await updateStep(serverId, 'deploy', 'running', 50, 'Portainer failed, trying fallback deployment...');
 
             const fallbackResult = await updatedMinecraftServer.deployToDockerCompose(user.email);
-            
+
             console.log(`Fallback deployment result:`, fallbackResult);
 
             if (!fallbackResult.success) {
@@ -569,13 +569,13 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                 const portainerEnvironments = await portainer.getEnvironments();
                 if (portainerEnvironments.length > 0) {
                     const environmentId = portainerEnvironments[0].Id;
-                    
+
                     // Clean up containers
                     const containers = await portainer.getContainers(environmentId);
                     const serverContainers = containers.filter(container =>
                         container.Names.some(name => name.includes(serverId))
                     );
-                    
+
                     for (const container of serverContainers) {
                         try {
                             if (container.State === 'running') {
@@ -587,11 +587,11 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                             console.warn(`Failed to clean up container ${container.Names[0]}:`, containerError);
                         }
                     }
-                    
+
                     // Clean up stacks
                     const stacks = await portainer.getStacks();
                     const serverStacks = stacks.filter(stack => stack.Name.includes(serverId));
-                    
+
                     for (const stack of serverStacks) {
                         try {
                             await portainer.deleteStack(stack.Id, environmentId);
@@ -601,9 +601,9 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                         }
                     }
                 }
-                
+
                 console.log('Deployment rollback completed - server record preserved');
-                
+
             } catch (error) {
                 console.warn('Error during deployment rollback:', error);
             }
@@ -626,22 +626,22 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
 
         // Step 8: Upload files (server.properties, plugins, mods, world files)
         await updateStep(serverId, 'upload', 'running', 0, 'Preparing file uploads...');
-        
+
         try {
             // Type the server config properly
             // Note: When retrieved from database, plugins/mods/worldFiles are FileInfo, not AnalyzedFile
             const serverConfig = server.serverConfig as DatabaseServerConfig;
-            
+
             let uploadProgress = 10;
-            
+
             // Upload server.properties file
             if (serverConfig.serverProperties && Object.keys(serverConfig.serverProperties).length > 0) {
                 await updateStep(serverId, 'upload', 'running', uploadProgress, 'Uploading server.properties...');
-                
+
                 // Convert server properties to properties file format
                 const { convertToServerPropertiesFormat } = await import('@/lib/data/serverProperties');
                 const propertiesContent = convertToServerPropertiesFormat(serverConfig.serverProperties);
-                
+
                 // Upload server.properties directly via WebDAV
                 try {
                     const webdavService = await import('@/lib/server/webdav');
@@ -654,7 +654,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                     console.error('Failed to upload server.properties:', propertiesError);
                     await updateStep(serverId, 'upload', 'running', uploadProgress, 'Server properties upload failed, continuing...');
                 }
-                
+
                 uploadProgress += 20;
                 await updateStep(serverId, 'upload', 'running', uploadProgress, 'Server properties processed');
             }
@@ -662,28 +662,28 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             // Upload plugin files
             if (serverConfig.plugins && serverConfig.plugins.length > 0) {
                 await updateStep(serverId, 'upload', 'running', uploadProgress, `Uploading ${serverConfig.plugins.length} plugin(s)...`);
-                
+
                 const fs = await import('fs/promises');
                 const pluginFiles: { [path: string]: Buffer } = {};
-                
+
                 for (const plugin of serverConfig.plugins) {
                     await updateStep(serverId, 'upload', 'running', uploadProgress, `Uploading plugin: ${plugin.originalName}`);
-                    
+
                     try {
                         // Read the plugin file from disk
                         const pluginPath = plugin.filePath;
                         const pluginBuffer = await fs.readFile(pluginPath);
                         pluginFiles[`plugins/${plugin.originalName}`] = pluginBuffer;
-                        
+
                         console.log(`Plugin loaded: ${plugin.originalName} (${pluginBuffer.length} bytes)`);
                     } catch (fileError) {
                         console.error(`Failed to read plugin file: ${plugin.originalName}`, fileError);
                         await updateStep(serverId, 'upload', 'running', uploadProgress, `Failed to read plugin: ${plugin.originalName}`);
                     }
-                    
+
                     uploadProgress += Math.floor(30 / serverConfig.plugins.length);
                 }
-                
+
                 // Upload all plugin files to the server
                 if (Object.keys(pluginFiles).length > 0) {
                     const pluginUploadResult = await updatedMinecraftServer.uploadServerFiles(pluginFiles, 'plugins');
@@ -694,35 +694,35 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                         console.log(`${Object.keys(pluginFiles).length} plugins uploaded successfully`);
                     }
                 }
-                
+
                 await updateStep(serverId, 'upload', 'running', uploadProgress, 'Plugins processed');
             }
 
             // Upload mod files
             if (serverConfig.mods && serverConfig.mods.length > 0) {
                 await updateStep(serverId, 'upload', 'running', uploadProgress, `Uploading ${serverConfig.mods.length} mod(s)...`);
-                
+
                 const fs = await import('fs/promises');
                 const modFiles: { [path: string]: Buffer } = {};
-                
+
                 for (const mod of serverConfig.mods) {
                     await updateStep(serverId, 'upload', 'running', uploadProgress, `Uploading mod: ${mod.originalName}`);
-                    
+
                     try {
                         // Read the mod file from disk
                         const modPath = mod.filePath;
                         const modBuffer = await fs.readFile(modPath);
                         modFiles[`mods/${mod.originalName}`] = modBuffer;
-                        
+
                         console.log(`Mod loaded: ${mod.originalName} (${modBuffer.length} bytes)`);
                     } catch (fileError) {
                         console.error(`Failed to read mod file: ${mod.originalName}`, fileError);
                         await updateStep(serverId, 'upload', 'running', uploadProgress, `Failed to read mod: ${mod.originalName}`);
                     }
-                    
+
                     uploadProgress += Math.floor(30 / serverConfig.mods.length);
                 }
-                
+
                 // Upload all mod files to the server
                 if (Object.keys(modFiles).length > 0) {
                     const modUploadResult = await updatedMinecraftServer.uploadServerFiles(modFiles, 'mods');
@@ -733,23 +733,23 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                         console.log(`${Object.keys(modFiles).length} mods uploaded successfully`);
                     }
                 }
-                
+
                 await updateStep(serverId, 'upload', 'running', uploadProgress, 'Mods processed');
             }
 
             // Upload world files
             if (serverConfig.worldFiles) {
                 await updateStep(serverId, 'upload', 'running', uploadProgress, 'Uploading world files...');
-                
+
                 const fs = await import('fs/promises');
-                
+
                 try {
                     // Read the world file from disk
                     const worldPath = serverConfig.worldFiles.filePath;
                     const worldBuffer = await fs.readFile(worldPath);
-                    
+
                     console.log(`World file loaded: ${serverConfig.worldFiles.originalName} (${worldBuffer.length} bytes)`);
-                    
+
                     // Upload world file to the server
                     let worldUploadResult;
                     if (serverConfig.worldFiles.originalName.endsWith('.zip')) {
@@ -761,25 +761,25 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                         worldFiles[`world/${serverConfig.worldFiles.originalName}`] = worldBuffer;
                         worldUploadResult = await updatedMinecraftServer.uploadServerFiles(worldFiles, 'world');
                     }
-                    
+
                     if (!worldUploadResult.success) {
                         console.error('Failed to upload world files:', worldUploadResult.error);
                         await updateStep(serverId, 'upload', 'running', uploadProgress, 'World file upload failed, continuing...');
                     } else {
                         console.log('World files uploaded successfully');
                     }
-                    
+
                 } catch (fileError) {
                     console.error(`Failed to read world file: ${serverConfig.worldFiles.originalName}`, fileError);
                     await updateStep(serverId, 'upload', 'running', uploadProgress, `Failed to read world file: ${serverConfig.worldFiles.originalName}`);
                 }
-                
+
                 uploadProgress = 100;
                 await updateStep(serverId, 'upload', 'running', uploadProgress, 'World files processed');
             }
 
             await updateStep(serverId, 'upload', 'completed', 100, 'File uploads completed successfully');
-            
+
         } catch (uploadError) {
             console.error('File upload failed:', uploadError);
             await updateStep(serverId, 'upload', 'failed', 0, `File upload failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`);
@@ -798,7 +798,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                     deployedAt: new Date(),
                     lastDeploymentStatus: 'success'
                 }
-        });
+            });
 
         await updateStep(serverId, 'finalize', 'running', 50, 'Cleaning up temporary files...');
 
@@ -829,10 +829,10 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
         try {
             await MinecraftServerManager.executeRollback(rollbackActions);
             console.log('Rollback completed successfully');
-            
+
             // Update step to show cleanup completed
             await updateStep(serverId, 'finalize', 'failed', 0, 'Deployment failed, cleanup completed');
-            
+
         } catch (rollbackError) {
             console.error('Error during rollback execution:', rollbackError);
             await updateStep(serverId, 'finalize', 'failed', 0, 'Deployment failed, cleanup partially completed');
@@ -853,9 +853,9 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                 $set: {
                     lastDeploymentStatus: 'failed',
                     lastDeploymentError: error instanceof Error ? error.message : 'Unknown error occurred',
-                lastDeploymentAt: new Date()
-            }
-        });
+                    lastDeploymentAt: new Date()
+                }
+            });
 
         throw error;
     }

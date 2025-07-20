@@ -59,7 +59,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
 
     try {
         details.push('Starting comprehensive server deletion...');
-        
+
         // Get Portainer environment
         let portainerEnvironmentId: number;
         try {
@@ -82,11 +82,11 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
         // 1. Clean up Portainer deployment (containers and stacks)
         try {
             details.push('Cleaning up Portainer deployment...');
-            
+
             // Try to find and delete containers
             const containers = await portainer.getContainers(portainerEnvironmentId);
             const serverContainers = containers.filter(container =>
-                container.Names.some(name => 
+                container.Names.some(name =>
                     name.includes(`mc-${server.uniqueId}`) ||
                     name.includes(`minecraft-${server.uniqueId}`) ||
                     name.includes(server.uniqueId as string)
@@ -95,12 +95,12 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
 
             if (serverContainers.length > 0) {
                 details.push(`Found ${serverContainers.length} container(s) to remove`);
-                
+
                 for (const container of serverContainers) {
                     try {
                         const containerName = container.Names[0];
                         details.push(`Removing container: ${containerName}`);
-                        
+
                         // Stop container if running
                         if (container.State === 'running') {
                             await portainer.axiosInstance.post(
@@ -108,13 +108,13 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
                             );
                             details.push(`Container ${containerName} stopped`);
                         }
-                        
+
                         // Remove container
                         await portainer.axiosInstance.delete(
                             `/api/endpoints/${portainerEnvironmentId}/docker/containers/${container.Id}`
                         );
                         details.push(`Container ${containerName} removed successfully`);
-                        
+
                     } catch (containerError) {
                         details.push(`Warning: Failed to remove container ${container.Names[0]} - ${containerError instanceof Error ? containerError.message : 'Unknown error'}`);
                         hasErrors = true;
@@ -126,20 +126,20 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
 
             // Try to find and delete stacks
             const stacks = await portainer.getStacks();
-            const serverStacks = stacks.filter(stack => 
+            const serverStacks = stacks.filter(stack =>
                 stack.Name === `minecraft-${server.uniqueId}` ||
                 stack.Name.includes(server.uniqueId as string)
             );
 
             if (serverStacks.length > 0) {
                 details.push(`Found ${serverStacks.length} stack(s) to remove`);
-                
+
                 for (const stack of serverStacks) {
                     try {
                         details.push(`Removing stack: ${stack.Name}`);
                         await portainer.deleteStack(stack.Id, portainerEnvironmentId);
                         details.push(`Stack ${stack.Name} removed successfully`);
-                        
+
                     } catch (stackError) {
                         details.push(`Warning: Failed to remove stack ${stack.Name} - ${stackError instanceof Error ? stackError.message : 'Unknown error'}`);
                         hasErrors = true;
@@ -154,35 +154,52 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
             hasErrors = true;
         }
 
-        // 2. Rename WebDAV server folder instead of deleting
-        try {
-            details.push('Renaming server files directory...');
-            
-            const webdavService = await import('@/lib/server/webdav');
-            const userEmail = user.email.split('@')[0] || 'default-user';
-            const serverBasePath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${server.uniqueId}`;
-            
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const deletedFolderPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/DELETED-${reason}-${timestamp}-${server.uniqueId}`;
 
-            const exists = await webdavService.default.exists(serverBasePath);
-            if (exists) {
-                await webdavService.default.moveDirectory(serverBasePath, deletedFolderPath);
-                details.push(`Server folder renamed from: ${serverBasePath}`);
-                details.push(`Server folder renamed to: ${deletedFolderPath}`);
-            } else {
-                details.push(`Server files directory not found: ${serverBasePath}`);
+        if (!process.env.DELETE_SERVER_FOLDERS || process.env.DELETE_SERVER_FOLDERS.toLowerCase() !== 'true') {
+            // 2. Rename WebDAV server folder instead of deleting
+            try {
+                details.push('Renaming server files directory...');
+
+                const webdavService = await import('@/lib/server/webdav');
+                const userEmail = user.email.split('@')[0] || 'default-user';
+                const serverBasePath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${server.uniqueId}`;
+
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const deletedFolderPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/DELETED-${reason}-${timestamp}-${server.uniqueId}`;
+
+                const exists = await webdavService.default.exists(serverBasePath);
+                if (exists) {
+                    await webdavService.default.moveDirectory(serverBasePath, deletedFolderPath);
+                    details.push(`Server folder renamed from: ${serverBasePath}`);
+                    details.push(`Server folder renamed to: ${deletedFolderPath}`);
+                } else {
+                    details.push(`Server files directory not found: ${serverBasePath}`);
+                }
+
+            } catch (webdavError) {
+                details.push(`Warning: WebDAV folder rename failed - ${webdavError instanceof Error ? webdavError.message : 'Unknown error'}`);
+                hasErrors = true;
             }
+        } else {
+            // 2. Delete WebDAV server folder
+            try {
+                details.push('Deleting server files directory...');
+                const webdavService = await import('@/lib/server/webdav');
+                const userEmail = user.email.split('@')[0] || 'default-user';
+                const serverBasePath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${server.uniqueId}`;
 
-        } catch (webdavError) {
-            details.push(`Warning: WebDAV folder rename failed - ${webdavError instanceof Error ? webdavError.message : 'Unknown error'}`);
-            hasErrors = true;
+                await webdavService.default.deleteDirectory(serverBasePath);
+                details.push(`Server folder deleted: ${serverBasePath}`);
+            } catch (webdavError) {
+                details.push(`Warning: WebDAV folder delete failed - ${webdavError instanceof Error ? webdavError.message : 'Unknown error'}`);
+                hasErrors = true;
+            }
         }
 
         // 3. Clean up local temporary files
         try {
             details.push('Cleaning up temporary files...');
-            
+
             const serverConfig = server.serverConfig as DatabaseServerConfig;
             if (serverConfig) {
                 const path = await import('path');
@@ -193,10 +210,10 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
                 // Check if upload directory exists
                 try {
                     await fs.access(userUploadDir);
-                    
+
                     // List files to delete
                     const filesToDelete: string[] = [];
-                    
+
                     // Check for world files
                     if (serverConfig.worldFiles) {
                         const worldFilePath = path.join(userUploadDir, (serverConfig.worldFiles as FileInfo).filename);
@@ -207,7 +224,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
                             // File doesn't exist, skip
                         }
                     }
-                    
+
                     // Check for plugin files
                     if (serverConfig.plugins && Array.isArray(serverConfig.plugins)) {
                         for (const plugin of serverConfig.plugins) {
@@ -220,7 +237,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
                             }
                         }
                     }
-                    
+
                     // Check for mod files
                     if (serverConfig.mods && Array.isArray(serverConfig.mods)) {
                         for (const mod of serverConfig.mods) {
@@ -233,7 +250,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
                             }
                         }
                     }
-                    
+
                     // Delete found files
                     for (const filePath of filesToDelete) {
                         try {
@@ -244,7 +261,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
                             hasErrors = true;
                         }
                     }
-                    
+
                     if (filesToDelete.length === 0) {
                         details.push('No temporary files found to delete');
                     }
@@ -262,9 +279,9 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
         // 4. Delete server record from database
         try {
             details.push('Deleting server record from database...');
-            
+
             const deletedServer = await Server.findOneAndDelete({ uniqueId: serverId });
-            
+
             if (deletedServer) {
                 details.push(`Server record deleted from database: ${deletedServer.serverName || serverId}`);
             } else {
@@ -277,7 +294,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
         }
 
         details.push('Server deletion completed');
-        
+
         return {
             success: !hasErrors,
             details,
@@ -287,7 +304,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         details.push(`Fatal error during server deletion: ${errorMessage}`);
-        
+
         return {
             success: false,
             error: errorMessage,
