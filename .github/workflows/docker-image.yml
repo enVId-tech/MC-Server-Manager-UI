@@ -9,8 +9,8 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    # Only run for pushes or PRs from the main repo (not forks/dependabot)
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    # Only run for pushes to main branches, not for any pull requests
+    if: github.event_name == 'push'
 
     steps:
       - uses: actions/checkout@v4
@@ -27,11 +27,11 @@ jobs:
       - name: Push to Docker Hub
         run: docker push envidtech/mc-server-creator:latest
 
-  # Separate job for external PRs (forks, dependabot) - build only (no push)
+  # Job for all pull requests - build only (no push, no login)
   build-only:
     runs-on: ubuntu-latest
-    # Only run for pull requests from forks or dependabot
-    if: github.event_name == 'pull_request' && (github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.full_name != github.repository)
+    # Run for all pull requests (including dependabot)
+    if: github.event_name == 'pull_request'
 
     steps:
       - uses: actions/checkout@v4
