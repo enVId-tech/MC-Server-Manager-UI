@@ -13,7 +13,15 @@ import {
   FaMemory,
   FaUsers,
   FaCircle,
-  FaSlash
+  FaSlash,
+  FaWifi,
+  FaExclamationTriangle,
+  FaCheckCircle,
+  FaSpinner,
+  FaArrowUp,
+  FaArrowDown,
+  FaMagic,
+  FaCog
 } from 'react-icons/fa';
 import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
@@ -41,6 +49,11 @@ interface ServerStats {
   ramUsage: number;
   maxRam: number;
   cpuUsage: number;
+  networkRx?: number;
+  networkTx?: number;
+  isOptimal?: boolean;
+  recommendations?: string[];
+  error?: string;
 }
 
 export default function Server({ params }: { params: Promise<{ slug: string }> }) {
@@ -120,10 +133,62 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     status: 'loading',
     playersOnline: 0,
     maxPlayers: 20,
-    ramUsage: 2048,
-    maxRam: 4096,
-    cpuUsage: 45
+    ramUsage: 0,
+    maxRam: 1024,
+    cpuUsage: 0,
+    networkRx: 0,
+    networkTx: 0,
+    isOptimal: true
   });
+
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  
+  // Resource scaling state
+  const [isScaling, setIsScaling] = useState(false);
+  const [scalingDirection, setScalingDirection] = useState<'up' | 'down' | 'optimize' | null>(null);
+  const [scalingMessage, setScalingMessage] = useState<string | null>(null);
+  const [scalingSuccess, setScalingSuccess] = useState(false);
+
+  // Fetch server status and resources
+  const fetchServerStats = useCallback(async () => {
+    try {
+      setIsLoadingStats(true);
+      const response = await fetch(`/api/server/status?uniqueId=${encodeURIComponent(resolvedParams.slug)}&includeResources=true`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch server status');
+      }
+
+      const statusData = await response.json();
+      
+      // Update server stats with real data
+      setServerStats(prev => ({
+        ...prev,
+        status: statusData.status || 'offline',
+        playersOnline: statusData.resources?.playersOnline || 0,
+        maxPlayers: statusData.resources?.maxPlayers || 20,
+        ramUsage: statusData.resources?.memoryUsage || 0,
+        maxRam: statusData.resources?.memoryLimit || 1024,
+        cpuUsage: Math.round(statusData.resources?.cpuUsage || 0),
+        networkRx: statusData.resources?.networkRx || 0,
+        networkTx: statusData.resources?.networkTx || 0,
+        isOptimal: statusData.resources?.isOptimal !== undefined ? statusData.resources.isOptimal : true,
+        recommendations: statusData.resources?.recommendations || [],
+        error: statusData.resources?.error
+      }));
+
+    } catch (error) {
+      console.error('Error fetching server stats:', error);
+      // Keep current stats but update status to indicate error
+      setServerStats(prev => ({
+        ...prev,
+        status: 'offline',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }));
+    } finally {
+      setIsLoadingStats(false);
+    }
+  }, [resolvedParams.slug]);
 
   const [activeTab, setActiveTab] = useState<'files' | 'info' | 'notes'>('files');
 
@@ -658,6 +723,136 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     }
   };
 
+  // Resource scaling functions
+  const handleScaleResources = async (direction: 'up' | 'down') => {
+    try {
+      setIsScaling(true);
+      setScalingDirection(direction);
+      setScalingMessage(null);
+      
+      showNotification({
+        type: 'info',
+        title: 'Scaling Resources',
+        message: `Scaling ${direction === 'up' ? 'up' : 'down'} server resources...`
+      });
+
+      const response = await fetch('/api/server/resources', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uniqueId: uniqueId,
+          action: 'scale',
+          direction: direction
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || `Failed to scale ${direction} resources`);
+      }
+
+      setScalingSuccess(true);
+      setScalingMessage(`Successfully scaled ${direction === 'up' ? 'up' : 'down'} resources`);
+
+      showNotification({
+        type: 'success',
+        title: 'Resources Scaled',
+        message: data.message || `Resources have been scaled ${direction === 'up' ? 'up' : 'down'} successfully`
+      });
+
+      // Refresh server stats after scaling
+      setTimeout(() => {
+        fetchServerStats();
+      }, 2000);
+
+    } catch (error) {
+      setScalingSuccess(false);
+      setScalingMessage(error instanceof Error ? error.message : 'Failed to scale resources');
+      
+      showNotification({
+        type: 'error',
+        title: 'Scaling Failed',
+        message: error instanceof Error ? error.message : 'Failed to scale resources'
+      });
+      console.error('Error scaling resources:', error);
+    } finally {
+      setIsScaling(false);
+      setScalingDirection(null);
+      
+      // Clear message after 5 seconds
+      setTimeout(() => {
+        setScalingMessage(null);
+      }, 5000);
+    }
+  };
+
+  const handleOptimizeResources = async () => {
+    try {
+      setIsScaling(true);
+      setScalingDirection('optimize');
+      setScalingMessage(null);
+      
+      showNotification({
+        type: 'info',
+        title: 'Optimizing Resources',
+        message: 'Auto-optimizing server resources based on current usage...'
+      });
+
+      const response = await fetch('/api/server/resources', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uniqueId: uniqueId,
+          action: 'optimize'
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to optimize resources');
+      }
+
+      setScalingSuccess(true);
+      setScalingMessage('Resources have been optimized based on current usage patterns');
+
+      showNotification({
+        type: 'success',
+        title: 'Resources Optimized',
+        message: data.message || 'Resources have been automatically optimized'
+      });
+
+      // Refresh server stats after optimization
+      setTimeout(() => {
+        fetchServerStats();
+      }, 2000);
+
+    } catch (error) {
+      setScalingSuccess(false);
+      setScalingMessage(error instanceof Error ? error.message : 'Failed to optimize resources');
+      
+      showNotification({
+        type: 'error',
+        title: 'Optimization Failed',
+        message: error instanceof Error ? error.message : 'Failed to optimize resources'
+      });
+      console.error('Error optimizing resources:', error);
+    } finally {
+      setIsScaling(false);
+      setScalingDirection(null);
+      
+      // Clear message after 5 seconds
+      setTimeout(() => {
+        setScalingMessage(null);
+      }, 5000);
+    }
+  };
+
   const downloadServer = async () => {
     try {
       showNotification({
@@ -791,17 +986,16 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   }, [currentPath, resolvedParams.slug, fetchFiles]);
 
   useEffect(() => {
-    // Update server stats every 5 seconds
+    // Initial fetch
+    fetchServerStats();
+
+    // Update server stats every 10 seconds with real data
     const interval = setInterval(() => {
-      setServerStats(prev => ({
-        ...prev,
-        ramUsage: Math.floor(Math.random() * 500) + 1800,
-        cpuUsage: Math.floor(Math.random() * 30) + 30
-      }));
-    }, 5000);
+      fetchServerStats();
+    }, 10000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchServerStats]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -1060,22 +1254,62 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
 
                     <div className={styles.statItem}>
                       <FiCpu className={styles.statIcon} />
-                      <span>Allocated CPU Thread Usage: {serverStats.cpuUsage}%</span>
-                      <div className={styles.playerBar}>
+                      <span>CPU Usage: {serverStats.cpuUsage}%</span>
+                      <div className={styles.ramBar}>
+                        <div
+                          className={styles.ramFill}
+                          style={{ 
+                            width: `${Math.min(serverStats.cpuUsage, 100)}%`,
+                            background: serverStats.cpuUsage > 90 ? '#ff4444' : 
+                                       serverStats.cpuUsage > 75 ? '#ffa500' : '#4caf50'
+                          }}
+                        />
                       </div>
                     </div>
 
                     <div className={styles.statItem}>
                       <FaMemory className={styles.statIcon} />
-                      <span>{serverStats.ramUsage}MB / {serverStats.maxRam}MB RAM</span>
+                      <span>{serverStats.ramUsage}MB / {serverStats.maxRam}MB Allocated</span>
 
                       <div className={styles.ramBar}>
                         <div
                           className={styles.ramFill}
-                          style={{ width: `${(serverStats.ramUsage / serverStats.maxRam) * 100}%` }}
+                          style={{ 
+                            width: `${(serverStats.ramUsage / serverStats.maxRam) * 100}%`,
+                            background: (serverStats.ramUsage / serverStats.maxRam) > 0.9 ? '#ff4444' : 
+                                       (serverStats.ramUsage / serverStats.maxRam) > 0.75 ? '#ffa500' : '#4caf50'
+                          }}
                         />
                       </div>
                     </div>
+
+                    {/* {serverStats.networkRx !== undefined && serverStats.networkTx !== undefined && (
+                      <div className={styles.statItem}>
+                        <FaWifi className={styles.statIcon} />
+                        <span>Network: ↓{serverStats.networkRx}MB ↑{serverStats.networkTx}MB</span>
+                      </div>
+                    )} */}
+
+                    {!serverStats.isOptimal && (
+                      <div className={styles.statItem} style={{ color: '#ffa500' }}>
+                        <FaExclamationTriangle className={styles.statIcon} />
+                        <span>Resources need optimization</span>
+                      </div>
+                    )}
+
+                    {serverStats.isOptimal && serverStats.status === 'online' && (
+                      <div className={styles.statItem} style={{ color: '#4caf50' }}>
+                        <FaCheckCircle className={styles.statIcon} />
+                        <span>Resources optimized</span>
+                      </div>
+                    )}
+
+                    {/* {isLoadingStats && (
+                      <div className={styles.statItem} style={{ color: '#3182ce' }}>
+                        <FaSpinner className={`${styles.statIcon} ${styles.spinning}`} />
+                        <span>Updating resource data...</span>
+                      </div>
+                    )} */}
                   </div>
                 </div>
               )}
@@ -1250,11 +1484,123 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                       <strong>CPU Usage:</strong>
                       <span>{serverStats.cpuUsage}%</span>
                     </div>
+                    {serverStats.networkRx !== undefined && serverStats.networkTx !== undefined && (
+                      <>
+                        <div className={styles.infoItem}>
+                          <strong>Network Download:</strong>
+                          <span>{serverStats.networkRx}MB</span>
+                        </div>
+                        <div className={styles.infoItem}>
+                          <strong>Network Upload:</strong>
+                          <span>{serverStats.networkTx}MB</span>
+                        </div>
+                      </>
+                    )}
                     <div className={styles.infoItem}>
                       <strong>Server Type:</strong>
                       <span>Minecraft Java Edition</span>
                     </div>
+                    <div className={styles.infoItem}>
+                      <strong>Resource Status:</strong>
+                      <span style={{ 
+                        color: serverStats.isOptimal ? '#4caf50' : '#ffa500',
+                        fontWeight: 'bold'
+                      }}>
+                        {serverStats.isOptimal ? '✅ Optimized' : '⚠️ Needs Attention'}
+                      </span>
+                    </div>
                   </div>
+                  
+                  {serverStats.recommendations && serverStats.recommendations.length > 0 && (
+                    <div className={styles.resourceRecommendations}>
+                      <h4>🔧 Resource Recommendations</h4>
+                      <div className={styles.notesList}>
+                        {serverStats.recommendations.map((recommendation, index) => (
+                          <div key={index} className={styles.note} style={{ borderLeftColor: '#ffa500' }}>
+                            <strong>Optimization Tip:</strong> {recommendation}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Manual Resource Controls */}
+                  {/* <div className={styles.resourceControls}>
+                    <h4>⚡ Resource Controls</h4>
+                    <div className={styles.controlButtons}>
+                      <button 
+                        className={`${styles.scaleButton} ${styles.scaleUp}`}
+                        onClick={() => handleScaleResources('up')}
+                        disabled={isScaling || serverStats.status === 'offline'}
+                        title="Increase server resources (CPU/RAM)"
+                      >
+                        {isScaling && scalingDirection === 'up' ? (
+                          <>
+                            <FaSpinner className={styles.spinning} />
+                            <span>Scaling Up...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FaArrowUp />
+                            <span>Scale Up</span>
+                          </>
+                        )}
+                      </button>
+                      
+                      <button 
+                        className={`${styles.scaleButton} ${styles.scaleDown}`}
+                        onClick={() => handleScaleResources('down')}
+                        disabled={isScaling || serverStats.status === 'offline'}
+                        title="Decrease server resources (CPU/RAM)"
+                      >
+                        {isScaling && scalingDirection === 'down' ? (
+                          <>
+                            <FaSpinner className={styles.spinning} />
+                            <span>Scaling Down...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FaArrowDown />
+                            <span>Scale Down</span>
+                          </>
+                        )}
+                      </button>
+                      
+                      <button 
+                        className={`${styles.scaleButton} ${styles.optimize}`}
+                        onClick={handleOptimizeResources}
+                        disabled={isScaling}
+                        title="Automatically optimize resources based on usage"
+                      >
+                        {isScaling && scalingDirection === 'optimize' ? (
+                          <>
+                            <FaSpinner className={styles.spinning} />
+                            <span>Optimizing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FaMagic />
+                            <span>Auto-Optimize</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    
+                    {scalingMessage && (
+                      <div className={`${styles.scalingMessage} ${scalingSuccess ? styles.success : styles.error}`}>
+                        {scalingMessage}
+                      </div>
+                    )}
+                  </div> */}
+
+                  {serverStats.error && (
+                    <div className={styles.resourceError}>
+                      <h4>⚠️ Resource Monitoring Issue</h4>
+                      <div className={styles.note} style={{ borderLeftColor: '#ff4444' }}>
+                        <strong>Error:</strong> {serverStats.error}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

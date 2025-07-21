@@ -4,6 +4,7 @@ import { IUser } from "@/lib/objects/User";
 import Server from "@/lib/objects/Server";
 import portainer from "@/lib/server/portainer";
 import verificationService from "@/lib/server/verify";
+import resourceMonitor from "@/lib/server/resourceMonitor";
 
 export async function GET(request: NextRequest) {
     await dbConnect();
@@ -18,6 +19,7 @@ export async function GET(request: NextRequest) {
         // Get server uniqueId from request body
         const url = new URL(request.url);
         const serverIdentifier = url.searchParams.get('uniqueId') || '';
+        const includeResources = url.searchParams.get('includeResources') === 'true';
 
         if (!serverIdentifier) {
             return NextResponse.json({ message: 'Server uniqueId is required.' }, { status: 400 });
@@ -49,11 +51,31 @@ export async function GET(request: NextRequest) {
         const container = await portainer.getContainerByIdentifier(containerIdentifier);
         
         if (!container) {
-            return NextResponse.json({ 
+            const baseResponse = { 
                 status: 'offline',
                 message: 'Container not found for this server.',
                 serverId: server.uniqueId.toString()
-            }, { status: 200 });
+            };
+
+            if (includeResources) {
+                return NextResponse.json({
+                    ...baseResponse,
+                    resources: {
+                        cpuUsage: 0,
+                        memoryUsage: 0,
+                        memoryLimit: server.serverConfig?.serverMemory || 1024,
+                        memoryUsagePercent: 0,
+                        playersOnline: 0,
+                        maxPlayers: server.serverConfig?.maxPlayers || 20,
+                        networkRx: 0,
+                        networkTx: 0,
+                        isOptimal: false,
+                        error: 'Container not found'
+                    }
+                }, { status: 200 });
+            }
+
+            return NextResponse.json(baseResponse, { status: 200 });
         }
 
         // Map container state to our server status
@@ -79,18 +101,58 @@ export async function GET(request: NextRequest) {
                 serverStatus = 'paused';
             } else {
                 serverStatus = 'offline';
-                return NextResponse.json({
+                const baseResponse = {
                     status: serverStatus,
                     message: 'Container status is not available.',
-                serverId: server.uniqueId.toString()
-            }, { status: 200 });
+                    serverId: server.uniqueId.toString()
+                };
+
+                if (includeResources) {
+                    return NextResponse.json({
+                        ...baseResponse,
+                        resources: {
+                            cpuUsage: 0,
+                            memoryUsage: 0,
+                            memoryLimit: server.serverConfig?.serverMemory || 1024,
+                            memoryUsagePercent: 0,
+                            playersOnline: 0,
+                            maxPlayers: server.serverConfig?.maxPlayers || 20,
+                            networkRx: 0,
+                            networkTx: 0,
+                            isOptimal: false,
+                            error: 'Container status unavailable'
+                        }
+                    }, { status: 200 });
+                }
+
+                return NextResponse.json(baseResponse, { status: 200 });
             }
         } else {
-            return NextResponse.json({ 
+            const baseResponse = { 
                 status: 'offline',
                 message: 'Container not found for this server.',
                 serverId: server.uniqueId.toString()
-            }, { status: 200 });
+            };
+
+            if (includeResources) {
+                return NextResponse.json({
+                    ...baseResponse,
+                    resources: {
+                        cpuUsage: 0,
+                        memoryUsage: 0,
+                        memoryLimit: server.serverConfig?.serverMemory || 1024,
+                        memoryUsagePercent: 0,
+                        playersOnline: 0,
+                        maxPlayers: server.serverConfig?.maxPlayers || 20,
+                        networkRx: 0,
+                        networkTx: 0,
+                        isOptimal: false,
+                        error: 'Container not found'
+                    }
+                }, { status: 200 });
+            }
+
+            return NextResponse.json(baseResponse, { status: 200 });
         }
 
         console.log(`Container status for ${server.serverName} (${containerIdentifier}): ${serverStatus}`);
@@ -104,16 +166,98 @@ export async function GET(request: NextRequest) {
                 .catch(err => console.error(`Failed to update server status for ${server.serverName}:`, err));
         }
 
-        return NextResponse.json({
+        let responseData: any = {
             status: serverStatus,
-        }, { status: 200 });
+        };
+
+        // Include resource information if requested
+        if (includeResources && serverStatus === 'online') {
+            try {
+                console.log(`📊 Getting resource summary for server ${server.uniqueId}...`);
+                const resourceSummary = await resourceMonitor.getResourceSummary(server.uniqueId);
+                
+                if (resourceSummary) {
+                    console.log(`✅ Resource summary retrieved:`, {
+                        cpuUsage: resourceSummary.cpuUsage,
+                        memoryUsage: resourceSummary.memoryUsage,
+                        playersOnline: resourceSummary.playersOnline,
+                        maxPlayers: resourceSummary.maxPlayers
+                    });
+                } else {
+                    console.log(`⚠️ Resource summary is null for server ${server.uniqueId}`);
+                }
+                
+                responseData.resources = resourceSummary || {
+                    cpuUsage: 0,
+                    memoryUsage: 0,
+                    memoryLimit: server.serverConfig?.serverMemory || 1024,
+                    memoryUsagePercent: 0,
+                    playersOnline: 0,
+                    maxPlayers: server.serverConfig?.maxPlayers || 20,
+                    networkRx: 0,
+                    networkTx: 0,
+                    isOptimal: false,
+                    error: 'Failed to get resource data'
+                };
+            } catch (resourceError) {
+                console.error('Failed to get resource summary:', resourceError);
+                responseData.resources = {
+                    cpuUsage: 0,
+                    memoryUsage: 0,
+                    memoryLimit: server.serverConfig?.serverMemory || 1024,
+                    memoryUsagePercent: 0,
+                    playersOnline: 0,
+                    maxPlayers: server.serverConfig?.maxPlayers || 20,
+                    networkRx: 0,
+                    networkTx: 0,
+                    isOptimal: false,
+                    error: 'Resource monitoring unavailable'
+                };
+            }
+        } else if (includeResources) {
+            // Server is not online, but still provide static resource info
+            responseData.resources = {
+                cpuUsage: 0,
+                memoryUsage: 0,
+                memoryLimit: server.serverConfig?.serverMemory || 1024,
+                memoryUsagePercent: 0,
+                playersOnline: 0,
+                maxPlayers: server.serverConfig?.maxPlayers || 20,
+                networkRx: 0,
+                networkTx: 0,
+                isOptimal: false,
+                error: `Server is ${serverStatus}`
+            };
+        }
+
+        return NextResponse.json(responseData, { status: 200 });
 
     } catch (error) {
         console.error('Error fetching server status:', error);
-        return NextResponse.json({ 
+        
+        const errorResponse: any = { 
             status: 'offline',
             message: 'Failed to fetch server status.',
             error: error instanceof Error ? error.message : 'Unknown error'
-        }, { status: 500 });
+        };
+
+        // Include resource error info if requested
+        const url = new URL(request.url);
+        if (url.searchParams.get('includeResources') === 'true') {
+            errorResponse.resources = {
+                cpuUsage: 0,
+                memoryUsage: 0,
+                memoryLimit: 1024,
+                memoryUsagePercent: 0,
+                playersOnline: 0,
+                maxPlayers: 20,
+                networkRx: 0,
+                networkTx: 0,
+                isOptimal: false,
+                error: 'Service unavailable'
+            };
+        }
+
+        return NextResponse.json(errorResponse, { status: 500 });
     }
 }

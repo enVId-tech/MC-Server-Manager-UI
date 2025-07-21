@@ -53,6 +53,15 @@ export interface PortainerContainer {
         PublicPort?: number;
         Type: string;
     }>;
+    HostConfig?: {
+        Memory?: number;
+        CpuQuota?: number;
+        CpuPeriod?: number;
+        RestartPolicy?: {
+            Name: string;
+            MaximumRetryCount?: number;
+        };
+    };
 }
 
 export interface PortainerImage {
@@ -1202,6 +1211,315 @@ export class PortainerApiClient {
         } catch (error) {
             console.error(`❌ Failed to get used ports for environment ${environmentId}:`, error);
             throw error;
+        }
+    }
+
+    /**
+     * Get container statistics (CPU, memory usage, network I/O)
+     * @param containerId - The ID of the container
+     * @param environmentId - The ID of the Portainer environment
+     * @returns Promise resolving to container statistics
+     */
+    async getContainerStats(containerId: string, environmentId: number | null = this.defaultEnvironmentId): Promise<any> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to get container stats.');
+        }
+
+        try {
+            const response = await this.axiosInstance.get(
+                `/api/endpoints/${environmentId}/docker/containers/${containerId}/stats?stream=false`
+            );
+            return response.data;
+        } catch (error) {
+            console.error(`❌ Failed to get container stats for ${containerId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Update container resources (CPU and memory limits)
+     * @param containerId - The ID of the container to update
+     * @param environmentId - The ID of the Portainer environment
+     * @param resources - The resource limits to apply
+     * @returns Promise resolving when resources are updated
+     */
+    async updateContainerResources(
+        containerId: string, 
+        environmentId: number | null = this.defaultEnvironmentId,
+        resources: {
+            cpuQuota?: number; // CPU quota in microseconds per CPU period
+            cpuPeriod?: number; // CPU period in microseconds 
+            memory?: number;   // Memory limit in bytes
+        }
+    ): Promise<void> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to update container resources.');
+        }
+
+        try {
+            console.log(`🔧 Updating resources for container ${containerId}...`);
+            
+            // Get current container configuration
+            const containerInfo = await this.axiosInstance.get(
+                `/api/endpoints/${environmentId}/docker/containers/${containerId}/json`
+            );
+
+            const updateConfig = {
+                Memory: resources.memory || containerInfo.data.HostConfig.Memory,
+                CpuQuota: resources.cpuQuota || containerInfo.data.HostConfig.CpuQuota,
+                CpuPeriod: resources.cpuPeriod || containerInfo.data.HostConfig.CpuPeriod,
+                // Preserve other existing configurations
+                RestartPolicy: containerInfo.data.HostConfig.RestartPolicy,
+            };
+
+            await this.axiosInstance.post(
+                `/api/endpoints/${environmentId}/docker/containers/${containerId}/update`,
+                updateConfig
+            );
+
+            console.log(`✅ Container resources updated successfully`);
+        } catch (error) {
+            console.error(`❌ Failed to update container resources for ${containerId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Execute a command in a running container
+     * @param containerId - The ID of the container
+     * @param command - The command to execute
+     * @param environmentId - The ID of the Portainer environment
+     * @returns Promise resolving to command execution result
+     */
+    async executeCommand(
+        containerId: string, 
+        command: string, 
+        environmentId: number | null = this.defaultEnvironmentId
+    ): Promise<{ output: string; exitCode: number }> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to execute command.');
+        }
+
+        try {
+            // Create exec instance
+            const execResponse = await this.axiosInstance.post(
+                `/api/endpoints/${environmentId}/docker/containers/${containerId}/exec`,
+                {
+                    AttachStdout: true,
+                    AttachStderr: true,
+                    Cmd: ["/bin/sh", "-c", command]
+                }
+            );
+
+            const execId = execResponse.data.Id;
+
+            // Start the exec instance
+            const startResponse = await this.axiosInstance.post(
+                `/api/endpoints/${environmentId}/docker/exec/${execId}/start`,
+                {
+                    Detach: false,
+                    Tty: false
+                }
+            );
+
+            return {
+                output: startResponse.data,
+                exitCode: 0
+            };
+        } catch (error) {
+            console.error(`❌ Failed to execute command in container ${containerId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get Minecraft server info via server.properties and status query
+     * This is a simpler, more reliable method for getting basic server info
+     */
+    async getMinecraftServerInfo(
+        containerId: string,
+        environmentId: number | null = this.defaultEnvironmentId
+    ): Promise<{ maxPlayers: number; serverName?: string; error?: string }> {
+        try {
+            // Try to read server.properties from the container
+            const serverPropsResult = await this.executeCommand(
+                containerId,
+                'cat /minecraft/server.properties 2>/dev/null || echo "not found"',
+                environmentId
+            );
+            
+            let maxPlayers = 20; // default
+            let serverName = 'Minecraft Server';
+            
+            if (serverPropsResult.output && !serverPropsResult.output.includes('not found')) {
+                // Extract max-players from server.properties
+                const maxPlayersMatch = serverPropsResult.output.match(/max-players=(\d+)/);
+                if (maxPlayersMatch) {
+                    maxPlayers = parseInt(maxPlayersMatch[1]);
+                }
+                
+                // Extract server name
+                const serverNameMatch = serverPropsResult.output.match(/server-name=(.+)/);
+                if (serverNameMatch) {
+                    serverName = serverNameMatch[1].trim();
+                }
+            }
+            
+            return {
+                maxPlayers,
+                serverName
+            };
+        } catch (error) {
+            console.error(`❌ Failed to get server info for container ${containerId}:`, error);
+            return {
+                maxPlayers: 20,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            };
+        }
+    }
+
+    /**
+     * Get Minecraft server player count via RCON or server query
+     * @param containerId - The ID of the container
+     * @param environmentId - The ID of the Portainer environment
+     * @param rconPort - RCON port if available
+     * @param rconPassword - RCON password if available
+     * @returns Promise resolving to player count information
+     */
+    async getMinecraftServerPlayerCount(
+        containerId: string, 
+        environmentId: number | null = this.defaultEnvironmentId,
+        rconPort?: number,
+        rconPassword?: string
+    ): Promise<{ playersOnline: number; maxPlayers: number; playerList?: string[]; error?: string }> {
+        try {
+            console.log(`🔍 Getting player count for container ${containerId}...`);
+            
+            // Get more comprehensive logs for better analysis
+            const logs = await this.getContainerLogs(containerId, environmentId, 500);
+            
+            // Method 1: Look for explicit player count messages
+            // These are the most reliable when they exist
+            const exactCountMatches = [
+                /There are (\d+) of a max of (\d+) players online/gi,
+                /(\d+) of (\d+) players online/gi,
+                /Players online: (\d+)\/(\d+)/gi,
+                /Current players: (\d+) \/ (\d+)/gi
+            ];
+            
+            for (const pattern of exactCountMatches) {
+                const matches = logs.match(pattern);
+                if (matches && matches.length > 0) {
+                    const lastMatch = matches[matches.length - 1];
+                    const numbers = lastMatch.match(/(\d+)/g);
+                    if (numbers && numbers.length >= 2) {
+                        console.log(`✅ Found exact player count: ${numbers[0]}/${numbers[1]}`);
+                        return {
+                            playersOnline: parseInt(numbers[0]),
+                            maxPlayers: parseInt(numbers[1])
+                        };
+                    }
+                }
+            }
+            
+            // Method 2: Get max players from server configuration
+            const maxPlayersPatterns = [
+                /max-players=(\d+)/g,
+                /Maximum players: (\d+)/gi,
+                /Player limit: (\d+)/gi
+            ];
+            
+            let maxPlayers = 20; // default
+            for (const pattern of maxPlayersPatterns) {
+                const matches = logs.match(pattern);
+                if (matches && matches.length > 0) {
+                    const lastMatch = matches[matches.length - 1];
+                    const number = lastMatch.match(/(\d+)/);
+                    if (number) {
+                        maxPlayers = parseInt(number[1]);
+                        break;
+                    }
+                }
+            }
+            
+            // Method 3: Analyze player activity in recent logs (improved algorithm)
+            // Focus on the most recent 100 lines for current activity
+            const recentLogLines = logs.split('\n').slice(-100);
+            const playerTracker = new Map<string, { joined: boolean; lastSeen: number }>();
+            
+            // Process each log line to track player activity
+            recentLogLines.forEach((line, index) => {
+                // Player joined
+                const joinMatch = line.match(/(\w+) joined the game/);
+                if (joinMatch) {
+                    const playerName = joinMatch[1];
+                    playerTracker.set(playerName, { joined: true, lastSeen: index });
+                }
+                
+                // Player left
+                const leaveMatch = line.match(/(\w+) left the game/);
+                if (leaveMatch) {
+                    const playerName = leaveMatch[1];
+                    const player = playerTracker.get(playerName);
+                    if (player) {
+                        player.joined = false;
+                        player.lastSeen = index;
+                    } else {
+                        playerTracker.set(playerName, { joined: false, lastSeen: index });
+                    }
+                }
+                
+                // Player chat activity (indicates active presence)
+                const chatMatch = line.match(/<(\w+)>/);
+                if (chatMatch) {
+                    const playerName = chatMatch[1];
+                    const player = playerTracker.get(playerName);
+                    if (player) {
+                        player.joined = true; // Chat indicates player is online
+                        player.lastSeen = index;
+                    } else {
+                        playerTracker.set(playerName, { joined: true, lastSeen: index });
+                    }
+                }
+                
+                // Player commands or achievements
+                const commandMatch = line.match(/\[(\w+): /);
+                if (commandMatch) {
+                    const playerName = commandMatch[1];
+                    if (playerName !== 'Server' && playerName !== 'RCON') {
+                        const player = playerTracker.get(playerName);
+                        if (player) {
+                            player.joined = true;
+                            player.lastSeen = index;
+                        } else {
+                            playerTracker.set(playerName, { joined: true, lastSeen: index });
+                        }
+                    }
+                }
+            });
+            
+            // Count currently online players
+            const currentPlayers = Array.from(playerTracker.entries())
+                .filter(([_, info]) => info.joined)
+                .map(([name, _]) => name);
+            
+            const playersOnline = currentPlayers.length;
+            
+            console.log(`📊 Player analysis: ${playersOnline}/${maxPlayers} (tracked: ${Array.from(playerTracker.keys()).join(', ') || 'none'})`);
+            
+            return {
+                playersOnline: playersOnline,
+                maxPlayers: maxPlayers,
+                playerList: currentPlayers
+            };
+            
+        } catch (error) {
+            console.error(`❌ Failed to get player count for container ${containerId}:`, error);
+            return {
+                playersOnline: 0,
+                maxPlayers: 20,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            };
         }
     }
 

@@ -11,7 +11,9 @@
     "update-schema:force": "NODE_ENV=development npx tsx scripts/updateSchema.ts",
     "test:portainer": "tsx scripts/test-portainer.ts",
     "test:deployment": "tsx scripts/test-deployment.ts",
-    "test:folder-archiving": "tsx scripts/test-folder-archiving.ts"
+    "test:folder-archiving": "tsx scripts/test-folder-archiving.ts",
+    "test:player-detection": "tsx scripts/test-player-detection.ts",
+    "monitor:resources": "tsx scripts/resource-monitor.ts"
   },
   "dependencies": {
     "@types/adm-zip": "^0.5.7",
