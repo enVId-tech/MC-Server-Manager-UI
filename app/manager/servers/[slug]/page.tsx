@@ -14,14 +14,8 @@ import {
   FaUsers,
   FaCircle,
   FaSlash,
-  FaWifi,
   FaExclamationTriangle,
-  FaCheckCircle,
-  FaSpinner,
-  FaArrowUp,
-  FaArrowDown,
-  FaMagic,
-  FaCog
+  FaCheckCircle
 } from 'react-icons/fa';
 import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
@@ -141,18 +135,9 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     isOptimal: true
   });
 
-  const [isLoadingStats, setIsLoadingStats] = useState(false);
-  
-  // Resource scaling state
-  const [isScaling, setIsScaling] = useState(false);
-  const [scalingDirection, setScalingDirection] = useState<'up' | 'down' | 'optimize' | null>(null);
-  const [scalingMessage, setScalingMessage] = useState<string | null>(null);
-  const [scalingSuccess, setScalingSuccess] = useState(false);
-
   // Fetch server status and resources
   const fetchServerStats = useCallback(async () => {
     try {
-      setIsLoadingStats(true);
       const response = await fetch(`/api/server/status?uniqueId=${encodeURIComponent(resolvedParams.slug)}&includeResources=true`);
       
       if (!response.ok) {
@@ -185,8 +170,6 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
         status: 'offline',
         error: error instanceof Error ? error.message : 'Unknown error'
       }));
-    } finally {
-      setIsLoadingStats(false);
     }
   }, [resolvedParams.slug]);
 
@@ -720,136 +703,6 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
         message: error instanceof Error ? error.message : 'Failed to kill server'
       });
       console.error('Error killing server:', error);
-    }
-  };
-
-  // Resource scaling functions
-  const handleScaleResources = async (direction: 'up' | 'down') => {
-    try {
-      setIsScaling(true);
-      setScalingDirection(direction);
-      setScalingMessage(null);
-      
-      showNotification({
-        type: 'info',
-        title: 'Scaling Resources',
-        message: `Scaling ${direction === 'up' ? 'up' : 'down'} server resources...`
-      });
-
-      const response = await fetch('/api/server/resources', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          uniqueId: uniqueId,
-          action: 'scale',
-          direction: direction
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || `Failed to scale ${direction} resources`);
-      }
-
-      setScalingSuccess(true);
-      setScalingMessage(`Successfully scaled ${direction === 'up' ? 'up' : 'down'} resources`);
-
-      showNotification({
-        type: 'success',
-        title: 'Resources Scaled',
-        message: data.message || `Resources have been scaled ${direction === 'up' ? 'up' : 'down'} successfully`
-      });
-
-      // Refresh server stats after scaling
-      setTimeout(() => {
-        fetchServerStats();
-      }, 2000);
-
-    } catch (error) {
-      setScalingSuccess(false);
-      setScalingMessage(error instanceof Error ? error.message : 'Failed to scale resources');
-      
-      showNotification({
-        type: 'error',
-        title: 'Scaling Failed',
-        message: error instanceof Error ? error.message : 'Failed to scale resources'
-      });
-      console.error('Error scaling resources:', error);
-    } finally {
-      setIsScaling(false);
-      setScalingDirection(null);
-      
-      // Clear message after 5 seconds
-      setTimeout(() => {
-        setScalingMessage(null);
-      }, 5000);
-    }
-  };
-
-  const handleOptimizeResources = async () => {
-    try {
-      setIsScaling(true);
-      setScalingDirection('optimize');
-      setScalingMessage(null);
-      
-      showNotification({
-        type: 'info',
-        title: 'Optimizing Resources',
-        message: 'Auto-optimizing server resources based on current usage...'
-      });
-
-      const response = await fetch('/api/server/resources', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          uniqueId: uniqueId,
-          action: 'optimize'
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to optimize resources');
-      }
-
-      setScalingSuccess(true);
-      setScalingMessage('Resources have been optimized based on current usage patterns');
-
-      showNotification({
-        type: 'success',
-        title: 'Resources Optimized',
-        message: data.message || 'Resources have been automatically optimized'
-      });
-
-      // Refresh server stats after optimization
-      setTimeout(() => {
-        fetchServerStats();
-      }, 2000);
-
-    } catch (error) {
-      setScalingSuccess(false);
-      setScalingMessage(error instanceof Error ? error.message : 'Failed to optimize resources');
-      
-      showNotification({
-        type: 'error',
-        title: 'Optimization Failed',
-        message: error instanceof Error ? error.message : 'Failed to optimize resources'
-      });
-      console.error('Error optimizing resources:', error);
-    } finally {
-      setIsScaling(false);
-      setScalingDirection(null);
-      
-      // Clear message after 5 seconds
-      setTimeout(() => {
-        setScalingMessage(null);
-      }, 5000);
     }
   };
 

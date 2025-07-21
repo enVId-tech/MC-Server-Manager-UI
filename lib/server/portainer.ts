@@ -1220,7 +1220,12 @@ export class PortainerApiClient {
      * @param environmentId - The ID of the Portainer environment
      * @returns Promise resolving to container statistics
      */
-    async getContainerStats(containerId: string, environmentId: number | null = this.defaultEnvironmentId): Promise<any> {
+    async getContainerStats(containerId: string, environmentId: number | null = this.defaultEnvironmentId): Promise<{
+        memory_stats: { usage: number; limit: number };
+        cpu_stats: { cpu_usage: { total_usage: number }; system_cpu_usage: number; online_cpus?: number };
+        precpu_stats: { cpu_usage: { total_usage: number }; system_cpu_usage: number };
+        networks: Record<string, { rx_bytes: number; tx_bytes: number }>;
+    } | null> {
         if (environmentId === null) {
             throw new Error('Environment ID is required to get container stats.');
         }
@@ -1389,8 +1394,10 @@ export class PortainerApiClient {
     async getMinecraftServerPlayerCount(
         containerId: string, 
         environmentId: number | null = this.defaultEnvironmentId,
-        rconPort?: number,
-        rconPassword?: string
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        _rconPort?: number,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        _rconPassword?: string
     ): Promise<{ playersOnline: number; maxPlayers: number; playerList?: string[]; error?: string }> {
         try {
             console.log(`🔍 Getting player count for container ${containerId}...`);
@@ -1500,8 +1507,8 @@ export class PortainerApiClient {
             
             // Count currently online players
             const currentPlayers = Array.from(playerTracker.entries())
-                .filter(([_, info]) => info.joined)
-                .map(([name, _]) => name);
+                .filter(([, info]) => info.joined)
+                .map(([name]) => name);
             
             const playersOnline = currentPlayers.length;
             

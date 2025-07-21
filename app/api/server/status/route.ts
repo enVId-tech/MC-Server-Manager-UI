@@ -166,7 +166,22 @@ export async function GET(request: NextRequest) {
                 .catch(err => console.error(`Failed to update server status for ${server.serverName}:`, err));
         }
 
-        let responseData: any = {
+        const responseData: {
+            status: string;
+            resources?: {
+                cpuUsage: number;
+                memoryUsage: number;
+                memoryLimit: number;
+                memoryUsagePercent: number;
+                playersOnline: number;
+                maxPlayers: number;
+                networkRx: number;
+                networkTx: number;
+                isOptimal: boolean;
+                recommendations?: string[];
+                error?: string;
+            };
+        } = {
             status: serverStatus,
         };
 
@@ -235,7 +250,23 @@ export async function GET(request: NextRequest) {
     } catch (error) {
         console.error('Error fetching server status:', error);
         
-        const errorResponse: any = { 
+        const errorResponse: { 
+            status: string;
+            message: string;
+            error: string;
+            resources?: {
+                cpuUsage: number;
+                memoryUsage: number;
+                memoryLimit: number;
+                memoryUsagePercent: number;
+                playersOnline: number;
+                maxPlayers: number;
+                networkRx: number;
+                networkTx: number;
+                isOptimal: boolean;
+                error: string;
+            };
+        } = { 
             status: 'offline',
             message: 'Failed to fetch server status.',
             error: error instanceof Error ? error.message : 'Unknown error'

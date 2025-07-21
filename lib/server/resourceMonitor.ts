@@ -89,7 +89,7 @@ export class ResourceMonitor {
             let networkRx = 0;
             let networkTx = 0;
             if (stats.networks) {
-                Object.values(stats.networks).forEach((network: any) => {
+                Object.values(stats.networks).forEach((network: { rx_bytes?: number; tx_bytes?: number }) => {
                     networkRx += network.rx_bytes || 0;
                     networkTx += network.tx_bytes || 0;
                 });
@@ -247,7 +247,7 @@ export class ResourceMonitor {
     async monitorAllServers(): Promise<{
         serversChecked: number;
         serversScaled: number;
-        results: Array<{ serverId: string; result: any }>;
+        results: Array<{ serverId: string; result: { scaled: boolean; reason?: string; error?: string } }>;
     }> {
         try {
             await dbConnect();
