@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
         if (action === 'add') {
             // Add individual ports
             if (ports && Array.isArray(ports)) {
-                const invalidPorts = ports.filter((port: number) =>
+                const invalidPorts = ports.filter((port: unknown) =>
                     typeof port !== 'number' || port < 1024 || port > 65535
                 );
 
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
 
             // Remove port ranges (by start port)
             if (portRanges && Array.isArray(portRanges)) {
-                const rangesToRemove = portRanges.map((r: PortReservationRange) => r.start);
+                const rangesToRemove = portRanges.map((r: unknown) => (r as PortReservationRange).start);
                 targetUser.reservedPortRanges = (targetUser.reservedPortRanges || []).filter(
                     (range: PortReservationRange) => !rangesToRemove.includes(range.start)
                 );

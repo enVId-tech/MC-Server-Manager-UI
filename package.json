@@ -20,7 +20,7 @@
     "@types/js-yaml": "^4.0.9",
     "@types/uuid": "^10.0.0",
     "adm-zip": "^0.5.16",
-    "axios": "^1.10.0",
+    "axios": "^1.11.0",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "body-parser": "^2.2.0",

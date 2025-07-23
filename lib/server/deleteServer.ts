@@ -154,9 +154,44 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
             hasErrors = true;
         }
 
+        // 2. Clean up Velocity configuration
+        try {
+            details.push('Cleaning up Velocity configuration...');
+            
+            // Check if Velocity integration is enabled
+            if (process.env.VELOCITY_CONFIG_PATH && process.env.VELOCITY_NETWORK_NAME) {
+                const velocityService = await import('@/lib/server/velocity');
+                
+                // Try to remove the server from Velocity configuration
+                const serverName = server.serverName as string || `mc-${server.uniqueId}`;
+                const removalResult = await velocityService.default.removeServerFromVelocityConfig(
+                    serverName,
+                    server.uniqueId as string
+                );
+                
+                if (removalResult.success) {
+                    details.push('Successfully removed server from Velocity configuration');
+                    if (removalResult.details) {
+                        details.push(...removalResult.details);
+                    }
+                } else {
+                    details.push(`Warning: Velocity configuration cleanup failed - ${removalResult.error || 'Unknown error'}`);
+                    if (removalResult.details) {
+                        details.push(...removalResult.details);
+                    }
+                    hasErrors = true;
+                }
+            } else {
+                details.push('Velocity integration not configured - skipping Velocity cleanup');
+            }
+            
+        } catch (velocityCleanupError) {
+            details.push(`Warning: Velocity cleanup failed - ${velocityCleanupError instanceof Error ? velocityCleanupError.message : 'Unknown error'}`);
+            hasErrors = true;
+        }
 
         if (!process.env.DELETE_SERVER_FOLDERS || process.env.DELETE_SERVER_FOLDERS.toLowerCase() !== 'true') {
-            // 2. Rename WebDAV server folder instead of deleting
+            // 3. Rename WebDAV server folder instead of deleting
             try {
                 details.push('Renaming server files directory...');
 
@@ -181,7 +216,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
                 hasErrors = true;
             }
         } else {
-            // 2. Delete WebDAV server folder
+            // 3. Delete WebDAV server folder
             try {
                 details.push('Deleting server files directory...');
                 const webdavService = await import('@/lib/server/webdav');
@@ -196,7 +231,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
             }
         }
 
-        // 3. Clean up local temporary files
+        // 4. Clean up local temporary files
         try {
             details.push('Cleaning up temporary files...');
 
@@ -276,7 +311,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
             hasErrors = true;
         }
 
-        // 4. Delete server record from database
+        // 5. Delete server record from database
         try {
             details.push('Deleting server record from database...');
 

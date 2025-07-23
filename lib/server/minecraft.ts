@@ -504,7 +504,10 @@ export class MinecraftServer {
                     restart: 'unless-stopped',
                     stdin_open: true,
                     tty: true,
-                    networks: ['minecraft-network'],
+                    networks: [
+                        'minecraft-network',
+                        ...(process.env.VELOCITY_NETWORK_NAME ? [process.env.VELOCITY_NETWORK_NAME] : [])
+                    ],
                     labels: {
                         'minecraft.server.id': this.uniqueId,
                         'minecraft.server.name': this.serverName,
@@ -516,7 +519,13 @@ export class MinecraftServer {
             networks: {
                 'minecraft-network': {
                     driver: 'bridge'
-                }
+                },
+                ...(process.env.VELOCITY_NETWORK_NAME ? {
+                    [process.env.VELOCITY_NETWORK_NAME]: {
+                        external: true,
+                        name: process.env.VELOCITY_NETWORK_NAME
+                    }
+                } : {})
             },
             volumes: {
                 [`${this.uniqueId}-data`]: {},
