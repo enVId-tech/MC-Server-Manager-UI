@@ -50,6 +50,8 @@ export async function GET(request: NextRequest) {
         const containerIdentifier = `mc-${server.uniqueId}`;
         const container = await portainer.getContainerByIdentifier(containerIdentifier);
         
+        console.log(`Container status for ${server.serverName} (${containerIdentifier}):`, container?.Status || 'not found');
+
         if (!container) {
             const baseResponse = { 
                 status: 'offline',

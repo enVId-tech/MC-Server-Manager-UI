@@ -18,19 +18,12 @@ import {
 } from '.';
 import { ClientServerConfig, FileAnalysis, AnalyzedFile } from '@/lib/server/minecraft';
 import VersionWarningModal from './VersionWarningModal';
-import { 
-  extractVersionFromAnalysis, 
-  compareVersions, 
-  isVersionChangeSafe 
+import {
+  extractVersionFromAnalysis,
+  compareVersions,
+  isVersionChangeSafe
 } from '@/lib/utils/versionUtils';
-
-// Tab configuration
-const tabs = [
-  { id: 'general', label: 'General', icon: FiServer },
-  { id: 'world', label: 'World Settings', icon: FiGlobe },
-  { id: 'mods', label: 'Plugins & Mods', icon: FiPackage },
-  { id: 'advanced', label: 'Advanced', icon: FiSettings }
-];
+import { IconType } from 'react-icons';
 
 // Property mapping between general/world settings and advanced properties
 const propertyMapping: Record<string, string> = {
@@ -64,7 +57,38 @@ const propertyMapping: Record<string, string> = {
   forceResourcePack: 'require-resource-pack',
   resourcePackUrl: 'resource-pack',
   resourcePackSha1: 'resource-pack-sha1',
-  resourcePackPrompt: 'resource-pack-prompt'
+  resourcePackPrompt: 'resource-pack-prompt',
+  // World Features Mapping - Add these to your database with these exact IDs:
+  allowNether: 'allow-nether',              // Database ID: allowNether
+  allowEnd: 'allow-the-end',                // Database ID: allowEnd
+  hardcore: 'hardcore',                     // Database ID: hardcore
+  enablePlayerList: 'enable-status',        // Database ID: enablePlayerList
+  enableCommandBlock: 'enable-command-block', // Database ID: enableCommandBlock
+  netherPortals: 'allow-nether',           // Database ID: netherPortals (same as allowNether)
+  endPortals: 'allow-the-end',             // Database ID: endPortals (same as allowEnd)
+  weatherCycle: 'do-weather-cycle',        // Database ID: weatherCycle
+  daylightCycle: 'do-daylight-cycle',      // Database ID: daylightCycle
+  mobSpawning: 'spawn-monsters',           // Database ID: mobSpawning (maps to existing)
+  animalSpawning: 'spawn-animals',         // Database ID: animalSpawning (maps to existing)
+  villagerSpawning: 'spawn-npcs',          // Database ID: villagerSpawning (maps to existing)
+  structureGeneration: 'generate-structures', // Database ID: structureGeneration (maps to existing)
+  fireDamage: 'do-fire-tick',              // Database ID: fireDamage
+  mobGriefing: 'do-mob-griefing',          // Database ID: mobGriefing
+  keepInventory: 'keep-inventory',         // Database ID: keepInventory
+  reducedDebugInfo: 'reduced-debug-info',  // Database ID: reducedDebugInfo
+  spectateOtherTeams: 'spectators-generate-chunks', // Database ID: spectateOtherTeams
+  announceAdvancements: 'announce-player-achievements', // Database ID: announceAdvancements
+  commandBlockOutput: 'command-block-output', // Database ID: commandBlockOutput
+  naturalRegeneration: 'natural-regeneration', // Database ID: naturalRegeneration
+  showDeathMessages: 'show-death-messages', // Database ID: showDeathMessages
+  sendCommandFeedback: 'send-command-feedback', // Database ID: sendCommandFeedback
+  doLimitedCrafting: 'do-limited-crafting', // Database ID: doLimitedCrafting
+  maxEntityCramming: 'max-entity-cramming', // Database ID: maxEntityCramming
+  randomTickSpeed: 'random-tick-speed',    // Database ID: randomTickSpeed
+  maxWorldSize: 'max-world-size',          // Database ID: maxWorldSize
+  worldBorder: 'max-world-size',           // Database ID: worldBorder (same as maxWorldSize)
+  spawnRadius: 'spawn-protection',         // Database ID: spawnRadius (maps to existing)
+  pvp: 'pvp'                               // Database ID: pvp (maps to existing)
 };
 
 // Reverse mapping for advanced properties to general/world settings
@@ -133,16 +157,39 @@ export default function ServerGenerator() {
     worldFiles: null,
     customOptions: '',
     serverProperties: {},
-    // Default values for common world features (will be overridden by API)
+    // World Features - Default values (will be overridden by API)
+    // Database IDs should match these property names
+    allowNether: true,              // Database ID: allowNether
+    allowEnd: true,                 // Database ID: allowEnd
+    hardcore: false,                // Database ID: hardcore
+    enablePlayerList: true,         // Database ID: enablePlayerList
+    netherPortals: true,           // Database ID: netherPortals
+    endPortals: true,              // Database ID: endPortals
+    weatherCycle: true,            // Database ID: weatherCycle
+    daylightCycle: true,           // Database ID: daylightCycle
+    mobSpawning: true,             // Database ID: mobSpawning
+    animalSpawning: true,          // Database ID: animalSpawning
+    villagerSpawning: true,        // Database ID: villagerSpawning
+    structureGeneration: true,     // Database ID: structureGeneration
+    fireDamage: true,              // Database ID: fireDamage
+    mobGriefing: true,             // Database ID: mobGriefing
+    keepInventory: false,          // Database ID: keepInventory
+    reducedDebugInfo: false,       // Database ID: reducedDebugInfo
+    spectateOtherTeams: true,      // Database ID: spectateOtherTeams
+    announceAdvancements: true,    // Database ID: announceAdvancements
+    commandBlockOutput: true,      // Database ID: commandBlockOutput
+    naturalRegeneration: true,     // Database ID: naturalRegeneration
+    showDeathMessages: true,       // Database ID: showDeathMessages
+    sendCommandFeedback: true,     // Database ID: sendCommandFeedback
+    doLimitedCrafting: false,      // Database ID: doLimitedCrafting
+    maxEntityCramming: 24,         // Database ID: maxEntityCramming
+    randomTickSpeed: 3,            // Database ID: randomTickSpeed
+    maxWorldSize: 29999984,        // Database ID: maxWorldSize
+    worldBorder: 29999984,         // Database ID: worldBorder
+    spawnRadius: 16,               // Database ID: spawnRadius
+    // Legacy properties (to be removed)
     generateStructures: true,
-    allowNether: true,
-    allowEnd: true,
     pvp: true,
-    hardcore: false,
-    // Default values for common server options (will be overridden by API)
-    via: false,
-    'via-legacy': false,
-    geyser: false
   });
 
   const [fullyLoaded, setFullyLoaded] = useState(false);
@@ -160,6 +207,12 @@ export default function ServerGenerator() {
   const [serverId, setServerId] = useState<string>('');
   const [serverUniqueId, setServerUniqueId] = useState<string>('');
   const [canRetryDeployment, setCanRetryDeployment] = useState(false);
+  const [tabs, setTabs] = useState<Array<{ id: string; label: string; icon: IconType }>>([
+    { id: 'general', label: 'General', icon: FiServer },
+    { id: 'world', label: 'World Settings', icon: FiGlobe },
+    { id: 'mods', label: 'Plugins & Mods', icon: FiPackage },
+    { id: 'advanced', label: 'Advanced', icon: FiSettings }
+  ]);
 
   // Version warning modal state
   const [versionWarning, setVersionWarning] = useState<{
@@ -184,7 +237,7 @@ export default function ServerGenerator() {
   const [gameModes, setGameModes] = useState<{ value: string; label: string }[]>([]);
   const [difficulties, setDifficulties] = useState<{ value: string; label: string }[]>([]);
   const [worldFeatures, setWorldFeatures] = useState<{ name: string; label: string; enabled?: boolean }[]>([]);
-  const [serverOptions, setServerOptions] = useState<{ name: string; label: string }[]>([]);
+  // const [serverOptions, setServerOptions] = useState<{ name: string; label: string }[]>([]);
   const [error, setError] = useState<{
     title?: string;
     message: string;
@@ -226,7 +279,7 @@ export default function ServerGenerator() {
       setGameModes(data.gameModes || []);
       setDifficulties(data.difficulties || []);
       setWorldFeatures(data.worldFeatures || []);
-      setServerOptions(data.serverOptions || []);
+      // setServerOptions(data.serverOptions || []);
 
       // Initialize serverConfig with any missing properties from the fetched options
       setServerConfig(prevConfig => {
@@ -239,12 +292,12 @@ export default function ServerGenerator() {
           }
         });
 
-        // Initialize server options with their default enabled values
-        data.serverOptions?.forEach((option: { name: string; enabled?: boolean }) => {
-          if (!(option.name in newConfig)) {
-            newConfig[option.name] = option.enabled !== undefined ? option.enabled : false;
-          }
-        });
+        // Initialize server options with their default enabled values (commented out for now)
+        // data.serverOptions?.forEach((option: { name: string; enabled?: boolean }) => {
+        //   if (!(option.name in newConfig)) {
+        //     newConfig[option.name] = option.enabled !== undefined ? option.enabled : false;
+        //   }
+        // });
 
         // Initialize server type and version if not set
         if (!newConfig.serverType && data.serverTypes && data.serverTypes.length > 0) {
@@ -253,7 +306,7 @@ export default function ServerGenerator() {
 
         if (!newConfig.version && data.versions && data.versions.length > 0) {
           newConfig.version = data.versions[0]; // Default to first version (latest)
-          
+
           // Load default server properties for the selected version
           if (data.versions[0]) {
             // Import the server properties function to load defaults
@@ -276,6 +329,21 @@ export default function ServerGenerator() {
       console.error('Error fetching server settings:', error);
     }
   };
+
+  useEffect(() => {
+    // Change plugins and mods tab name depending on server type
+    const updateTabNames = () => {
+      setTabs(prevTabs => {
+        return prevTabs.map(tab => {
+          if (tab.id === 'mods' && (serverConfig.serverType === 'spigot' || serverConfig.serverType === 'paper' || serverConfig.serverType === 'bukkit' || serverConfig.serverType === 'purpur')) {
+            return { ...tab, label: 'Plugins' };
+          }
+          return tab;
+        });
+      });
+    };
+    updateTabNames();
+  }, [serverConfig.serverType]);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -336,7 +404,7 @@ export default function ServerGenerator() {
       if (propertyMapping[name]) {
         const advancedProperty = propertyMapping[name];
         let advancedValue = newValue;
-        
+
         // Handle special value transformations
         if (name === 'worldType' && newValue === 'default') {
           advancedValue = 'minecraft:normal';
@@ -347,7 +415,7 @@ export default function ServerGenerator() {
         } else if (name === 'worldType' && newValue === 'amplified') {
           advancedValue = 'minecraft:amplified';
         }
-        
+
         updatedConfig.serverProperties = {
           ...prevConfig.serverProperties,
           [advancedProperty]: advancedValue
@@ -362,18 +430,18 @@ export default function ServerGenerator() {
   const handleWorldFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-      
+
       // Convert to AnalyzedFile and start processing if it's a ZIP
       const analyzedFile: AnalyzedFile = Object.assign(file, {
         isAnalyzing: file.name.endsWith('.zip')
       });
-      
+
       // Set the file first
       setServerConfig({
         ...serverConfig,
         worldFiles: analyzedFile
       });
-      
+
       // Process the world file if it's a ZIP
       if (file.name.endsWith('.zip')) {
         try {
@@ -381,32 +449,32 @@ export default function ServerGenerator() {
           const uploadFormData = new FormData();
           uploadFormData.append('file', file);
           uploadFormData.append('fileType', 'world');
-          
+
           const uploadResponse = await fetch('/api/server/files/upload', {
             method: 'POST',
             body: uploadFormData
           });
-          
+
           let uploadedFileInfo = null;
           if (uploadResponse.ok) {
             const uploadResult = await uploadResponse.json();
             uploadedFileInfo = uploadResult.file;
             console.log('World file uploaded:', uploadedFileInfo);
           }
-          
+
           // Then analyze the file
           const analyzeFormData = new FormData();
           analyzeFormData.append('file', file);
-          
+
           const analyzeResponse = await fetch('/api/server/file/analyze', {
             method: 'POST',
             body: analyzeFormData
           });
-          
+
           if (analyzeResponse.ok) {
             const { analysis }: { analysis: FileAnalysis } = await analyzeResponse.json();
             console.log('World file analysis:', analysis);
-            
+
             // Update the file with analysis results and upload info
             setServerConfig(prevConfig => ({
               ...prevConfig,
@@ -416,18 +484,18 @@ export default function ServerGenerator() {
                 uploadedFileInfo // Store the upload information
               })
             }));
-            
+
             // If it's a world file, potentially update world settings based on analysis
             if (analysis.type === 'world') {
               // Extract version from analysis
               const detectedVersion = extractVersionFromAnalysis(analysis);
               const currentVersion = serverConfig.version;
-              
+
               // Check for version conflicts if both versions are available
               if (detectedVersion && currentVersion && detectedVersion !== currentVersion) {
                 const comparison = compareVersions(currentVersion, detectedVersion);
                 const safety = isVersionChangeSafe(detectedVersion, currentVersion);
-                
+
                 // Show version warning modal for significant version differences
                 if (!comparison.isSame && (safety.riskLevel === 'medium' || safety.riskLevel === 'high' || safety.riskLevel === 'extreme')) {
                   setVersionWarning({
@@ -507,16 +575,16 @@ export default function ServerGenerator() {
           const uploadFormData = new FormData();
           uploadFormData.append('file', file);
           uploadFormData.append('fileType', 'world');
-          
+
           const uploadResponse = await fetch('/api/server/files/upload', {
             method: 'POST',
             body: uploadFormData
           });
-          
+
           if (uploadResponse.ok) {
             const uploadResult = await uploadResponse.json();
             console.log('World file uploaded:', uploadResult.file);
-            
+
             setServerConfig(prevConfig => ({
               ...prevConfig,
               worldFiles: Object.assign(prevConfig.worldFiles!, {
@@ -536,7 +604,7 @@ export default function ServerGenerator() {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
       const analyzedFiles: AnalyzedFile[] = [];
-      
+
       // Convert files to AnalyzedFile and start processing
       for (const file of newFiles) {
         const analyzedFile: AnalyzedFile = Object.assign(file, {
@@ -544,13 +612,13 @@ export default function ServerGenerator() {
         });
         analyzedFiles.push(analyzedFile);
       }
-      
+
       // Update state with analyzing files
       setServerConfig({
         ...serverConfig,
         plugins: [...serverConfig.plugins, ...analyzedFiles]
       });
-      
+
       // Process each file (upload and analyze)
       for (let i = 0; i < analyzedFiles.length; i++) {
         const file = analyzedFiles[i];
@@ -559,38 +627,38 @@ export default function ServerGenerator() {
           const uploadFormData = new FormData();
           uploadFormData.append('file', file);
           uploadFormData.append('fileType', 'plugin');
-          
+
           const uploadResponse = await fetch('/api/server/files/upload', {
             method: 'POST',
             body: uploadFormData
           });
-          
+
           let uploadedFileInfo = null;
           if (uploadResponse.ok) {
             const uploadResult = await uploadResponse.json();
             uploadedFileInfo = uploadResult.file;
             console.log('Plugin uploaded:', uploadedFileInfo);
           }
-          
+
           // Then analyze the file
           const analyzeFormData = new FormData();
           analyzeFormData.append('file', file);
-          
+
           const analyzeResponse = await fetch('/api/server/file/analyze', {
             method: 'POST',
             body: analyzeFormData
           });
-          
+
           if (analyzeResponse.ok) {
             const analysis: FileAnalysis = await analyzeResponse.json();
-            
+
             // Update the file with analysis results and upload info
             setServerConfig(prevConfig => {
               const updatedPlugins = [...prevConfig.plugins];
-              const fileIndex = updatedPlugins.findIndex(f => 
+              const fileIndex = updatedPlugins.findIndex(f =>
                 f.name === file.name && f.size === file.size && f.lastModified === file.lastModified
               );
-              
+
               if (fileIndex !== -1) {
                 updatedPlugins[fileIndex] = Object.assign(updatedPlugins[fileIndex], {
                   analysis,
@@ -598,21 +666,21 @@ export default function ServerGenerator() {
                   uploadedFileInfo // Store the upload information
                 });
               }
-              
+
               return {
                 ...prevConfig,
                 plugins: updatedPlugins
               };
             });
-            
+
           } else {
             // Handle analysis failure
             setServerConfig(prevConfig => {
               const updatedPlugins = [...prevConfig.plugins];
-              const fileIndex = updatedPlugins.findIndex(f => 
+              const fileIndex = updatedPlugins.findIndex(f =>
                 f.name === file.name && f.size === file.size && f.lastModified === file.lastModified
               );
-              
+
               if (fileIndex !== -1) {
                 updatedPlugins[fileIndex] = Object.assign(updatedPlugins[fileIndex], {
                   isAnalyzing: false,
@@ -620,31 +688,31 @@ export default function ServerGenerator() {
                   uploadedFileInfo
                 });
               }
-              
+
               return {
                 ...prevConfig,
                 plugins: updatedPlugins
               };
             });
           }
-          
+
         } catch (error) {
           console.error('Error processing plugin file:', error);
-          
+
           // Update file with error state
           setServerConfig(prevConfig => {
             const updatedPlugins = [...prevConfig.plugins];
-            const fileIndex = updatedPlugins.findIndex(f => 
+            const fileIndex = updatedPlugins.findIndex(f =>
               f.name === file.name && f.size === file.size && f.lastModified === file.lastModified
             );
-            
+
             if (fileIndex !== -1) {
               updatedPlugins[fileIndex] = Object.assign(updatedPlugins[fileIndex], {
                 isAnalyzing: false,
                 analysisError: (error as Error)?.message || 'Unknown error occurred'
               });
             }
-            
+
             return {
               ...prevConfig,
               plugins: updatedPlugins
@@ -652,7 +720,7 @@ export default function ServerGenerator() {
           });
         }
       }
-      
+
       // Clear the input
       e.target.value = '';
     }
@@ -663,7 +731,7 @@ export default function ServerGenerator() {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
       const analyzedFiles: AnalyzedFile[] = [];
-      
+
       // Convert files to AnalyzedFile and start processing
       for (const file of newFiles) {
         const analyzedFile: AnalyzedFile = Object.assign(file, {
@@ -671,13 +739,13 @@ export default function ServerGenerator() {
         });
         analyzedFiles.push(analyzedFile);
       }
-      
+
       // Update state with analyzing files
       setServerConfig({
         ...serverConfig,
         mods: [...serverConfig.mods, ...analyzedFiles]
       });
-      
+
       // Process each file (upload and analyze)
       for (let i = 0; i < analyzedFiles.length; i++) {
         const file = analyzedFiles[i];
@@ -686,38 +754,38 @@ export default function ServerGenerator() {
           const uploadFormData = new FormData();
           uploadFormData.append('file', file);
           uploadFormData.append('fileType', 'mod');
-          
+
           const uploadResponse = await fetch('/api/server/files/upload', {
             method: 'POST',
             body: uploadFormData
           });
-          
+
           let uploadedFileInfo = null;
           if (uploadResponse.ok) {
             const uploadResult = await uploadResponse.json();
             uploadedFileInfo = uploadResult.file;
             console.log('Mod uploaded:', uploadedFileInfo);
           }
-          
+
           // Then analyze the file
           const analyzeFormData = new FormData();
           analyzeFormData.append('file', file);
-          
+
           const analyzeResponse = await fetch('/api/server/file/analyze', {
             method: 'POST',
             body: analyzeFormData
           });
-          
+
           if (analyzeResponse.ok) {
             const analysis: FileAnalysis = await analyzeResponse.json();
-            
+
             // Update the file with analysis results and upload info
             setServerConfig(prevConfig => {
               const updatedMods = [...prevConfig.mods];
-              const fileIndex = updatedMods.findIndex(f => 
+              const fileIndex = updatedMods.findIndex(f =>
                 f.name === file.name && f.size === file.size && f.lastModified === file.lastModified
               );
-              
+
               if (fileIndex !== -1) {
                 updatedMods[fileIndex] = Object.assign(updatedMods[fileIndex], {
                   analysis,
@@ -725,21 +793,21 @@ export default function ServerGenerator() {
                   uploadedFileInfo // Store the upload information
                 });
               }
-              
+
               return {
                 ...prevConfig,
                 mods: updatedMods
               };
             });
-            
+
           } else {
             // Handle analysis failure
             setServerConfig(prevConfig => {
               const updatedMods = [...prevConfig.mods];
-              const fileIndex = updatedMods.findIndex(f => 
+              const fileIndex = updatedMods.findIndex(f =>
                 f.name === file.name && f.size === file.size && f.lastModified === file.lastModified
               );
-              
+
               if (fileIndex !== -1) {
                 updatedMods[fileIndex] = Object.assign(updatedMods[fileIndex], {
                   isAnalyzing: false,
@@ -747,31 +815,31 @@ export default function ServerGenerator() {
                   uploadedFileInfo
                 });
               }
-              
+
               return {
                 ...prevConfig,
                 mods: updatedMods
               };
             });
           }
-          
+
         } catch (error) {
           console.error('Error processing mod file:', error);
-          
+
           // Update file with error state
           setServerConfig(prevConfig => {
             const updatedMods = [...prevConfig.mods];
-            const fileIndex = updatedMods.findIndex(f => 
+            const fileIndex = updatedMods.findIndex(f =>
               f.name === file.name && f.size === file.size && f.lastModified === file.lastModified
             );
-            
+
             if (fileIndex !== -1) {
               updatedMods[fileIndex] = Object.assign(updatedMods[fileIndex], {
                 isAnalyzing: false,
                 analysisError: (error as Error)?.message || 'Unknown error occurred'
               });
             }
-            
+
             return {
               ...prevConfig,
               mods: updatedMods
@@ -779,7 +847,7 @@ export default function ServerGenerator() {
           });
         }
       }
-      
+
       // Clear the input
       e.target.value = '';
     }
@@ -799,7 +867,7 @@ export default function ServerGenerator() {
         if (reversePropertyMapping[advancedProperty]) {
           const generalProperty = reversePropertyMapping[advancedProperty];
           let generalValue = value;
-          
+
           // Handle special value transformations
           if (advancedProperty === 'level-type') {
             if (value === 'minecraft:normal') {
@@ -812,7 +880,7 @@ export default function ServerGenerator() {
               generalValue = 'amplified';
             }
           }
-          
+
           // Update the general property safely
           switch (generalProperty) {
             case 'maxPlayers':
@@ -908,6 +976,107 @@ export default function ServerGenerator() {
             case 'resourcePackPrompt':
               updatedConfig.resourcePackPrompt = generalValue as string;
               break;
+            // World Features - Database IDs are in comments above
+            case 'allowNether':
+              updatedConfig.allowNether = generalValue as boolean;
+              break;
+            case 'allowEnd':
+              updatedConfig.allowEnd = generalValue as boolean;
+              break;
+            case 'hardcore':
+              updatedConfig.hardcore = generalValue as boolean;
+              break;
+            case 'enablePlayerList':
+              updatedConfig.enablePlayerList = generalValue as boolean;
+              break;
+            case 'netherPortals':
+              updatedConfig.netherPortals = generalValue as boolean;
+              // Also sync with allowNether since they map to the same property
+              updatedConfig.allowNether = generalValue as boolean;
+              break;
+            case 'endPortals':
+              updatedConfig.endPortals = generalValue as boolean;
+              // Also sync with allowEnd since they map to the same property
+              updatedConfig.allowEnd = generalValue as boolean;
+              break;
+            case 'weatherCycle':
+              updatedConfig.weatherCycle = generalValue as boolean;
+              break;
+            case 'daylightCycle':
+              updatedConfig.daylightCycle = generalValue as boolean;
+              break;
+            case 'mobSpawning':
+              updatedConfig.mobSpawning = generalValue as boolean;
+              // Also sync with spawnMonstersEnabled since they map to the same property
+              updatedConfig.spawnMonstersEnabled = generalValue as boolean;
+              break;
+            case 'animalSpawning':
+              updatedConfig.animalSpawning = generalValue as boolean;
+              // Also sync with spawnAnimalsEnabled since they map to the same property
+              updatedConfig.spawnAnimalsEnabled = generalValue as boolean;
+              break;
+            case 'villagerSpawning':
+              updatedConfig.villagerSpawning = generalValue as boolean;
+              // Also sync with spawnNpcsEnabled since they map to the same property
+              updatedConfig.spawnNpcsEnabled = generalValue as boolean;
+              break;
+            case 'structureGeneration':
+              updatedConfig.structureGeneration = generalValue as boolean;
+              // Also sync with generateStructuresEnabled since they map to the same property
+              updatedConfig.generateStructuresEnabled = generalValue as boolean;
+              break;
+            case 'fireDamage':
+              updatedConfig.fireDamage = generalValue as boolean;
+              break;
+            case 'mobGriefing':
+              updatedConfig.mobGriefing = generalValue as boolean;
+              break;
+            case 'keepInventory':
+              updatedConfig.keepInventory = generalValue as boolean;
+              break;
+            case 'reducedDebugInfo':
+              updatedConfig.reducedDebugInfo = generalValue as boolean;
+              break;
+            case 'spectateOtherTeams':
+              updatedConfig.spectateOtherTeams = generalValue as boolean;
+              break;
+            case 'announceAdvancements':
+              updatedConfig.announceAdvancements = generalValue as boolean;
+              break;
+            case 'commandBlockOutput':
+              updatedConfig.commandBlockOutput = generalValue as boolean;
+              break;
+            case 'naturalRegeneration':
+              updatedConfig.naturalRegeneration = generalValue as boolean;
+              break;
+            case 'showDeathMessages':
+              updatedConfig.showDeathMessages = generalValue as boolean;
+              break;
+            case 'sendCommandFeedback':
+              updatedConfig.sendCommandFeedback = generalValue as boolean;
+              break;
+            case 'doLimitedCrafting':
+              updatedConfig.doLimitedCrafting = generalValue as boolean;
+              break;
+            case 'maxEntityCramming':
+              updatedConfig.maxEntityCramming = generalValue as number;
+              break;
+            case 'randomTickSpeed':
+              updatedConfig.randomTickSpeed = generalValue as number;
+              break;
+            case 'maxWorldSize':
+              updatedConfig.maxWorldSize = generalValue as number;
+              break;
+            case 'worldBorder':
+              updatedConfig.worldBorder = generalValue as number;
+              // Also sync with maxWorldSize since they map to the same property
+              updatedConfig.maxWorldSize = generalValue as number;
+              break;
+            case 'spawnRadius':
+              updatedConfig.spawnRadius = generalValue as number;
+              // Also sync with spawnProtection since they map to the same property
+              updatedConfig.spawnProtection = generalValue as number;
+              break;
           }
         }
       });
@@ -954,10 +1123,10 @@ export default function ServerGenerator() {
     console.log('Submitting server configuration:', serverConfig);
 
     // Validate analyzed files before submission
-    const invalidPlugins = serverConfig.plugins.filter(file => 
+    const invalidPlugins = serverConfig.plugins.filter(file =>
       file.isAnalyzing || file.analysisError || (file.analysis?.errors?.length ?? 0) > 0
     );
-    const invalidMods = serverConfig.mods.filter(file => 
+    const invalidMods = serverConfig.mods.filter(file =>
       file.isAnalyzing || file.analysisError || (file.analysis?.errors?.length ?? 0) > 0
     );
 
@@ -1051,8 +1220,8 @@ export default function ServerGenerator() {
           if (errorData.details.includes('email_1')) {
             setError({
               title: 'Multiple Servers Detected',
-              message: 'You already have a server with this email address. Our system is being updated to support multiple servers per account.',
-              details: 'This is a temporary limitation. Please contact support if you need multiple servers immediately.',
+              message: 'You already have a server with this email address.',
+              details: 'This suggests that there is an issue on the server side with handling multiple servers for the same user. Please contact the dev team for this error.',
               type: 'info'
             });
           } else if (errorData.details.includes('subdomain')) {
@@ -1146,13 +1315,13 @@ export default function ServerGenerator() {
         if (status.status === 'completed') {
           // Step 4: Upload files after deployment completes
           await uploadFilesToServer(serverId);
-          
+
           setCreationSuccess(true);
 
           // Redirect after 5 seconds
           setTimeout(() => {
             router.push('/manager/dashboard');
-          }, 5000);
+          }, 10000);
           return;
         }
 
@@ -1242,7 +1411,7 @@ export default function ServerGenerator() {
       // Upload files sequentially to avoid overwhelming the server
       for (let i = 0; i < filesToUpload.length; i++) {
         const { file, type, name } = filesToUpload[i];
-        
+
         setCurrentStep(`Uploading ${name}...`);
         setCreationProgress(85 + (i / filesToUpload.length) * 10);
 
@@ -1250,7 +1419,7 @@ export default function ServerGenerator() {
         formData.append('serverId', serverId);
         formData.append('fileType', type);
         formData.append('file', file);
-        
+
         // Include analysis data if available
         if (file.analysis) {
           formData.append('analysis', JSON.stringify(file.analysis));
@@ -1264,7 +1433,7 @@ export default function ServerGenerator() {
         if (!uploadResponse.ok) {
           const uploadError = await uploadResponse.json();
           console.error(`Failed to upload ${name}:`, uploadError);
-          
+
           // For now, we'll continue with other files even if one fails
           // In the future, we might want to show warnings to the user
           setDeploymentSteps(prev => [...prev, {
@@ -1392,8 +1561,8 @@ export default function ServerGenerator() {
                       <div
                         key={step.id}
                         className={`${styles.step} ${step.status === 'completed' ? styles.completed :
-                            step.status === 'running' ? styles.running :
-                              step.status === 'failed' ? styles.failed : ''
+                          step.status === 'running' ? styles.running :
+                            step.status === 'failed' ? styles.failed : ''
                           }`}
                       >
                         <span className={styles.stepIcon}>
@@ -1451,20 +1620,14 @@ export default function ServerGenerator() {
                   <div className={styles.serverDetails}>
                     <h3>Server Information</h3>
                     <p><strong>Server Name:</strong> {serverConfig.name}</p>
-                    <p><strong>Server Type:</strong> {serverConfig.serverType}</p>
+                    <p><strong>Server Type:</strong> {serverConfig.serverType.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>
                     <p><strong>Minecraft Version:</strong> {serverConfig.version}</p>
-                    <p><strong>Server ID:</strong> {serverUniqueId}</p>
-                    <p><strong>Connection:</strong> {serverConfig.subdomain}.etran.dev:{serverConfig.port}</p>
+                    <p><strong>Connection:</strong> {serverConfig.subdomain}.mc.etran.dev</p>
                   </div>
                 )}
                 <p className={styles.redirectMessage}>
                   You will be redirected to your server dashboard in a few seconds where you can manage, start, and monitor your server.
                 </p>
-                <div className={styles.serverDetails}>
-                  <p><strong>Server IP:</strong> {serverConfig.subdomain}</p>
-                  <p><strong>Version:</strong> {serverConfig.version}</p>
-                  <p><strong>Type:</strong> {serverTypes.find(t => t.id === serverConfig.serverType)?.name}</p>
-                </div>
                 <p className={styles.redirectMessage}>
                   Redirecting to server dashboard in 5 seconds...
                 </p>
@@ -1575,16 +1738,23 @@ export default function ServerGenerator() {
               </div>
 
               <div className={styles.formGroup}>
-                <label htmlFor="subdomain">Server IP</label>
-                <input
-                  type="text"
-                  id="subdomain"
-                  name="subdomain"
-                  value={serverConfig.subdomain}
-                  onChange={handleChange}
-                  required
-                  placeholder="Enter a custom server IP"
-                />
+                <label htmlFor="subdomain">Server IP / Address</label>
+                <div className={styles.subdomain}>
+                  <input
+                    type="text"
+                    id="subdomain"
+                    name="subdomain"
+                    value={serverConfig.subdomain}
+                    onChange={handleChange}
+                    required
+                    placeholder="Choose a subdomain (e.g. myserver)"
+                    maxLength={50}
+                  />
+                  <span>.mc.etran.dev</span>
+                </div>
+                <div className={styles.fullAddress}>
+                  <strong>Full Address:</strong> <span>{serverConfig.subdomain || <em>subdomain</em>}.mc.etran.dev</span>
+                </div>
               </div>
 
               <RadioGroup
@@ -1601,13 +1771,6 @@ export default function ServerGenerator() {
                 selectedValue={serverConfig.difficulty}
                 onChange={handleChange}
                 label="Difficulty"
-              />
-
-              <CheckboxGroup
-                serverConfig={serverConfig}
-                onChange={handleChange}
-                label="Server Options"
-                options={serverOptions}
               />
             </div>
           )}
@@ -1723,7 +1886,11 @@ export default function ServerGenerator() {
           {/* Plugins & Mods Tab */}
           {activeTab === 'mods' && (
             <div className={styles.formSection}>
-              <h2 className={styles.sectionTitle}>Plugins & Mods</h2>
+              <h2 className={styles.sectionTitle}>{
+                serverConfig.serverType === 'spigot' || serverConfig.serverType === 'paper' || serverConfig.serverType === 'bukkit' || serverConfig.serverType === 'purpur'
+                  ? 'Plugins'
+                  : 'Mods'
+              }</h2>
 
               {(serverConfig.serverType === 'spigot' || serverConfig.serverType === 'paper' || serverConfig.serverType === 'bukkit' || serverConfig.serverType === 'purpur') && (
                 <FileUploadSection

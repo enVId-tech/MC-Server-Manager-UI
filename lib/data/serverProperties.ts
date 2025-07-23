@@ -32,7 +32,7 @@ const commonProperties: PropertyDefinition[] = [
   // General Server Settings
   {
     key: 'motd',
-    displayName: 'Server Description (MOTD)',
+    displayName: 'MOTD (Message of the Day)',
     description: 'The message displayed in the server list',
     type: 'string',
     defaultValue: 'A Minecraft Server',
@@ -47,6 +47,8 @@ const commonProperties: PropertyDefinition[] = [
     defaultValue: 25565,
     min: 1024,
     max: 65535,
+    serverManaged: true,
+    clientEditable: false,
     category: 'network'
   },
   {
@@ -67,7 +69,7 @@ const commonProperties: PropertyDefinition[] = [
     max: 100,
     category: 'general'
   },
-  
+
   // World Settings
   {
     key: 'gamemode',
@@ -106,14 +108,6 @@ const commonProperties: PropertyDefinition[] = [
     category: 'world'
   },
   {
-    key: 'level-name',
-    displayName: 'World Name',
-    description: 'Name of the main world folder',
-    type: 'string',
-    defaultValue: 'world',
-    category: 'world'
-  },
-  {
     key: 'generate-structures',
     displayName: 'Generate Structures',
     description: 'Generate villages, dungeons, etc.',
@@ -121,7 +115,7 @@ const commonProperties: PropertyDefinition[] = [
     defaultValue: true,
     category: 'world'
   },
-  
+
   // Gameplay Settings
   {
     key: 'pvp',
@@ -171,7 +165,7 @@ const commonProperties: PropertyDefinition[] = [
     defaultValue: false,
     category: 'gameplay'
   },
-  
+
   // Performance Settings
   {
     key: 'view-distance',
@@ -213,16 +207,18 @@ const commonProperties: PropertyDefinition[] = [
     max: 1000,
     category: 'performance'
   },
-  
+
   // Network Settings
   {
     key: 'server-ip',
     displayName: 'Server IP',
-    description: 'IP address to bind to (leave empty for all)',
+    description: 'IP address to bind to (leave empty for all). Will be: [yourname].mc.etran.dev',
     type: 'string',
     defaultValue: '',
-    placeholder: 'Leave empty to bind to all IPs',
-    category: 'network'
+    placeholder: 'Enter subdomain (will become [yourname].mc.etran.dev)',
+    serverManaged: true,
+    clientEditable: false,
+    category: 'network',
   },
   {
     key: 'network-compression-threshold',
@@ -244,7 +240,7 @@ const commonProperties: PropertyDefinition[] = [
     max: 9223372036854775807,
     category: 'performance'
   },
-  
+
   // Advanced Settings
   {
     key: 'white-list',
@@ -268,6 +264,8 @@ const commonProperties: PropertyDefinition[] = [
     description: 'Enable remote console access',
     type: 'boolean',
     defaultValue: false,
+    serverManaged: true,
+    clientEditable: false,
     category: 'advanced'
   },
   {
@@ -278,6 +276,8 @@ const commonProperties: PropertyDefinition[] = [
     defaultValue: 25575,
     min: 1024,
     max: 65535,
+    serverManaged: true,
+    clientEditable: false,
     category: 'advanced'
   },
   {
@@ -287,6 +287,8 @@ const commonProperties: PropertyDefinition[] = [
     type: 'string',
     defaultValue: '',
     placeholder: 'Enter a secure password',
+    serverManaged: true,
+    clientEditable: false,
     category: 'advanced'
   },
   {
@@ -295,6 +297,8 @@ const commonProperties: PropertyDefinition[] = [
     description: 'Send RCON commands to online operators',
     type: 'boolean',
     defaultValue: true,
+    serverManaged: true,
+    clientEditable: false,
     category: 'advanced'
   },
   {
@@ -303,6 +307,8 @@ const commonProperties: PropertyDefinition[] = [
     description: 'Send console messages to online operators',
     type: 'boolean',
     defaultValue: true,
+    serverManaged: true,
+    clientEditable: false,
     category: 'advanced'
   },
   {
@@ -319,6 +325,8 @@ const commonProperties: PropertyDefinition[] = [
     description: 'Force synchronous chunk writing',
     type: 'boolean',
     defaultValue: true,
+    serverManaged: true,
+    clientEditable: false,
     category: 'advanced'
   },
   {
@@ -327,6 +335,8 @@ const commonProperties: PropertyDefinition[] = [
     description: 'Prevent connections through proxies',
     type: 'boolean',
     defaultValue: false,
+    serverManaged: true,
+    clientEditable: false,
     category: 'advanced'
   },
   {
@@ -337,12 +347,12 @@ const commonProperties: PropertyDefinition[] = [
     defaultValue: false,
     category: 'advanced'
   },
-  
+
   // Server-managed properties (filled server-side only)
   {
     key: 'server-ip',
     displayName: 'Server IP Address',
-    description: 'IP address the server binds to (managed by server)',
+    description: 'IP address the server binds to. Will be: [yourname].mc.etran.dev (managed by server)',
     type: 'string',
     defaultValue: '',
     serverManaged: true,
@@ -403,7 +413,7 @@ const commonProperties: PropertyDefinition[] = [
   },
   {
     key: 'op-permission-level',
-    displayName: 'Operator Permission Level', 
+    displayName: 'Operator Permission Level',
     description: 'Default permission level for operators',
     type: 'number',
     defaultValue: 4,
@@ -488,7 +498,7 @@ const versionSpecificProperties: Record<string, PropertyDefinition[]> = {
 // Supported Minecraft versions
 export const supportedVersions = [
   '1.21.3',
-  '1.21.2', 
+  '1.21.2',
   '1.21.1',
   '1.21',
   '1.20.6',
@@ -516,10 +526,10 @@ function parseVersion(version: string): { major: number; minor: number; patch: n
   if (version === 'latest') {
     return { major: 999, minor: 999, patch: 999 };
   }
-  
+
   const cleanVersion = version.replace(/[^\d.]/g, '');
   const parts = cleanVersion.split('.').map(part => parseInt(part, 10) || 0);
-  
+
   return {
     major: parts[0] || 1,
     minor: parts[1] || 0,
@@ -533,7 +543,7 @@ function parseVersion(version: string): { major: number; minor: number; patch: n
 function isVersionGreaterOrEqual(version: string, targetVersion: string): boolean {
   const v1 = parseVersion(version);
   const v2 = parseVersion(targetVersion);
-  
+
   if (v1.major !== v2.major) return v1.major >= v2.major;
   if (v1.minor !== v2.minor) return v1.minor >= v2.minor;
   return v1.patch >= v2.patch;
@@ -544,50 +554,50 @@ function isVersionGreaterOrEqual(version: string, targetVersion: string): boolea
  */
 export function getServerPropertiesForVersion(version: string): PropertyDefinition[] {
   let properties = [...commonProperties];
-  
+
   // Add version-specific properties based on version
   const versionNumber = parseFloat(version.replace(/[^\d.]/g, ''));
-  
+
   if (versionNumber >= 1.19 || version === 'latest') {
     properties = properties.concat(versionSpecificProperties['1.19'] || []);
   }
-  
+
   if (versionNumber >= 1.20 || version === 'latest') {
     properties = properties.concat(versionSpecificProperties['1.20'] || []);
   }
-  
+
   if (versionNumber >= 1.21 || version === 'latest') {
     properties = properties.concat(versionSpecificProperties['1.21'] || []);
   }
-  
+
   // Filter properties based on version requirements
   properties = properties.filter(prop => {
     // Check if property was introduced after the current version
     if (prop.versionIntroduced && !isVersionGreaterOrEqual(version, prop.versionIntroduced)) {
       return false;
     }
-    
+
     // Check if property was removed before the current version
     if (prop.versionRemoved && isVersionGreaterOrEqual(version, prop.versionRemoved)) {
       return false;
     }
-    
+
     return true;
   });
-  
+
   // Sort properties by category for better organization
   const categoryOrder = ['general', 'world', 'gameplay', 'performance', 'network', 'advanced'];
   properties.sort((a, b) => {
     const aCategoryIndex = categoryOrder.indexOf(a.category);
     const bCategoryIndex = categoryOrder.indexOf(b.category);
-    
+
     if (aCategoryIndex !== bCategoryIndex) {
       return aCategoryIndex - bCategoryIndex;
     }
-    
+
     return a.displayName.localeCompare(b.displayName);
   });
-  
+
   return properties;
 }
 
@@ -597,14 +607,14 @@ export function getServerPropertiesForVersion(version: string): PropertyDefiniti
 export function getServerPropertiesByCategory(version: string): Record<string, PropertyDefinition[]> {
   const properties = getServerPropertiesForVersion(version);
   const grouped: Record<string, PropertyDefinition[]> = {};
-  
+
   properties.forEach(prop => {
     if (!grouped[prop.category]) {
       grouped[prop.category] = [];
     }
     grouped[prop.category].push(prop);
   });
-  
+
   return grouped;
 }
 
@@ -613,13 +623,13 @@ export function getServerPropertiesByCategory(version: string): Record<string, P
  */
 export function convertToServerPropertiesFormat(properties: Record<string, string | number | boolean>): string {
   const lines: string[] = [];
-  
+
   Object.entries(properties).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       lines.push(`${key}=${value}`);
     }
   });
-  
+
   return lines.join('\n');
 }
 
@@ -630,7 +640,7 @@ export function validatePropertyValue(property: PropertyDefinition, value: strin
   if (value === null || value === undefined || value === '') {
     return null; // Allow empty values for optional properties
   }
-  
+
   switch (property.type) {
     case 'number':
       const numValue = Number(value);
@@ -644,20 +654,20 @@ export function validatePropertyValue(property: PropertyDefinition, value: strin
         return `${property.displayName} must be at most ${property.max}`;
       }
       break;
-      
+
     case 'select':
       if (property.validValues && !property.validValues.includes(value as string | number)) {
         return `${property.displayName} must be one of: ${property.validValues.join(', ')}`;
       }
       break;
-      
+
     case 'boolean':
       if (typeof value !== 'boolean' && value !== 'true' && value !== 'false') {
         return `${property.displayName} must be true or false`;
       }
       break;
   }
-  
+
   return null;
 }
 
@@ -667,11 +677,11 @@ export function validatePropertyValue(property: PropertyDefinition, value: strin
 export function getDefaultPropertiesForVersion(version: string): Record<string, string | number | boolean> {
   const propertiesByCategory = getServerPropertiesByCategory(version);
   const defaultProperties: Record<string, string | number | boolean> = {};
-  
+
   // Collect all properties from all categories
   Object.values(propertiesByCategory).flat().forEach(property => {
     defaultProperties[property.key] = property.defaultValue;
   });
-  
+
   return defaultProperties;
 }

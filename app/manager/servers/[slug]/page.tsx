@@ -845,6 +845,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     // Update server stats every 10 seconds with real data
     const interval = setInterval(() => {
       fetchServerStats();
+
     }, 10000);
 
     return () => clearInterval(interval);

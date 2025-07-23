@@ -134,6 +134,40 @@ export interface ClientServerConfig {
     worldFiles?: AnalyzedFile | null;
     customOptions?: string;
     serverProperties?: Record<string, string | number | boolean>;
+    
+    // World Features (optional, used for checkbox UI synchronization)
+    // Database IDs should match the property names below
+    allowNether?: boolean;              // Database ID: allowNether
+    allowEnd?: boolean;                 // Database ID: allowEnd
+    hardcore?: boolean;                 // Database ID: hardcore
+    enablePlayerList?: boolean;         // Database ID: enablePlayerList
+    enableCommandBlock?: boolean;      // Database ID: enableCommandBlock
+    netherPortals?: boolean;           // Database ID: netherPortals
+    endPortals?: boolean;              // Database ID: endPortals
+    weatherCycle?: boolean;            // Database ID: weatherCycle
+    daylightCycle?: boolean;           // Database ID: daylightCycle
+    mobSpawning?: boolean;             // Database ID: mobSpawning
+    animalSpawning?: boolean;          // Database ID: animalSpawning
+    villagerSpawning?: boolean;        // Database ID: villagerSpawning
+    structureGeneration?: boolean;     // Database ID: structureGeneration
+    fireDamage?: boolean;              // Database ID: fireDamage
+    mobGriefing?: boolean;             // Database ID: mobGriefing
+    keepInventory?: boolean;           // Database ID: keepInventory
+    reducedDebugInfo?: boolean;        // Database ID: reducedDebugInfo
+    spectateOtherTeams?: boolean;      // Database ID: spectateOtherTeams
+    announceAdvancements?: boolean;    // Database ID: announceAdvancements
+    commandBlockOutput?: boolean;      // Database ID: commandBlockOutput
+    naturalRegeneration?: boolean;     // Database ID: naturalRegeneration
+    showDeathMessages?: boolean;       // Database ID: showDeathMessages
+    sendCommandFeedback?: boolean;     // Database ID: sendCommandFeedback
+    doLimitedCrafting?: boolean;       // Database ID: doLimitedCrafting
+    pvp?: boolean;                     // Database ID: pvp
+    maxEntityCramming?: number;        // Database ID: maxEntityCramming
+    randomTickSpeed?: number;          // Database ID: randomTickSpeed
+    maxWorldSize?: number;             // Database ID: maxWorldSize
+    worldBorder?: number;              // Database ID: worldBorder
+    spawnRadius?: number;              // Database ID: spawnRadius
+    
     [key: string]: unknown;
 }
 
@@ -289,6 +323,8 @@ import yaml from 'js-yaml';
 import extractZip from 'extract-zip';
 import * as path from 'path';
 import { promises as fs } from 'fs';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import * as os from 'os';
 
 /**
@@ -478,6 +514,18 @@ export class MinecraftServer {
                         MEMORY: this.config.MEMORY || '2G',
                         JVM_OPTS: '-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200',
                         USE_AIKAR_FLAGS: 'true',
+                        UID: '1000', // Set user ID for file permissions
+                        GID: '1000', // Set group ID for file permissions
+                        INIT_MEMORY: this.config.MEMORY || '2G',
+                        MAX_MEMORY: this.config.MEMORY || '2G',
+                        ENABLE_ROLLING_LOGS: 'true', // Enable log rotation to prevent disk fill
+                        USE_FLARE_FLAGS: 'true', // Use optimized JVM flags
+                        EXEC_DIRECTLY: 'true', // Run Minecraft directly to avoid permission issues
+                        OVERRIDE_SERVER_PROPERTIES: 'true', // Allow server.properties override
+                        SETUP_ONLY: 'false', // Don't exit after setup
+                        FORCE_REDOWNLOAD: 'false', // Don't force redownload
+                        FIX_PERMISSIONS: 'true', // Auto-fix file permissions on startup
+                        SPIGET_RESOURCES: '', // Clear any plugin downloads that might cause issues
                         ...Object.fromEntries(
                             Object.entries(versionSpecificProps).map(([key, value]) => [
                                 key.toUpperCase().replace(/-/g, '_'),
@@ -616,6 +664,74 @@ export class MinecraftServer {
     }
 
     /**
+     * Ensure server directory exists with proper permissions
+     */
+    async ensureServerDirectory(): Promise<void> {
+        const minecraftPath: string = process.env.MINECRAFT_PATH || '/minecraft-data';
+        const userEmail = this.getUserEmail();
+        const serverBasePath = `${minecraftPath}/${userEmail}`;
+        const serverDir = `${serverBasePath}/${this.uniqueId}`;
+
+        try {
+            const execAsync = promisify(exec);
+            
+            // Create directory structure recursively
+            await fs.mkdir(serverDir, { recursive: true, mode: 0o755 });
+            
+            // Create subdirectories
+            const subdirs = ['plugins', 'mods', 'world', 'backups', 'config'];
+            for (const subdir of subdirs) {
+                const subdirPath = path.join(serverDir, subdir);
+                await fs.mkdir(subdirPath, { recursive: true, mode: 0o755 });
+                
+                // For config directory, ensure it's writable by the minecraft server user
+                if (subdir === 'config') {
+                    try {
+                        await fs.chmod(subdirPath, 0o777); // More permissive for config files
+                        console.log(`✅ Set config directory permissions to 777`);
+                    } catch (configChmodError) {
+                        console.warn(`⚠️ Could not set config directory permissions: ${configChmodError}`);
+                    }
+                }
+            }
+
+            // For Paper servers, create additional required directories
+            if (this.config.TYPE === 'PAPER') {
+                const paperDirs = ['config/paper', 'cache', 'libraries'];
+                for (const paperDir of paperDirs) {
+                    const paperDirPath = path.join(serverDir, paperDir);
+                    try {
+                        await fs.mkdir(paperDirPath, { recursive: true, mode: 0o777 });
+                        console.log(`✅ Created Paper directory: ${paperDir}`);
+                    } catch (paperDirError) {
+                        console.warn(`⚠️ Could not create Paper directory ${paperDir}: ${paperDirError}`);
+                    }
+                }
+            }
+
+            // Try to set ownership to 1000:1000 if we have permissions (Docker environment)
+            try {
+                await execAsync(`chown -R 1000:1000 "${serverDir}"`);
+                console.log(`✅ Set ownership of ${serverDir} to 1000:1000`);
+            } catch (chownError) {
+                console.warn(`⚠️ Could not set ownership (this is normal in some environments): ${chownError}`);
+                // Try alternative approach - set permissions to be more permissive
+                try {
+                    await execAsync(`chmod -R 777 "${serverDir}"`);
+                    console.log(`✅ Set permissive permissions on ${serverDir}`);
+                } catch (chmodError) {
+                    console.warn(`⚠️ Could not set permissions: ${chmodError}`);
+                }
+            }
+            
+            console.log(`✅ Server directory structure created: ${serverDir}`);
+        } catch (error) {
+            console.error(`❌ Failed to create server directory: ${error}`);
+            throw new Error(`Failed to create server directory: ${error}`);
+        }
+    }
+
+    /**
      * Deploy server to Portainer as a stack
      */
     async deployToPortainer(): Promise<{
@@ -627,10 +743,14 @@ export class MinecraftServer {
         error?: string
     }> {
         try {
+            console.log('🚀 Starting Portainer deployment process...');
+
+            // Ensure server directory exists with proper permissions
+            await this.ensureServerDirectory();
+
             const composeContent = this.generateDockerComposeYaml();
             const stackName = `minecraft-${this.uniqueId}`;
 
-            console.log('🚀 Starting Portainer deployment process...');
             console.log(`📋 Stack name: ${stackName}`);
             console.log('🐳 Generated Docker Compose content:');
             console.log(composeContent);
@@ -766,6 +886,9 @@ export class MinecraftServer {
      */
     async deployToDockerCompose(userEmail?: string): Promise<{ success: boolean; composeFile?: string; error?: string }> {
         try {
+            // Ensure server directory exists with proper permissions
+            await this.ensureServerDirectory();
+
             const composeContent = this.generateDockerComposeYaml();
 
             console.log('Generated Docker Compose content for direct deployment:');
