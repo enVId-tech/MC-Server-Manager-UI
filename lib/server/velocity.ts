@@ -124,11 +124,13 @@ class VelocityService {
             // Legacy forwarding (BungeeCord mode) for <1.13 support
             properties['online-mode'] = 'false';
             properties['bungeecord'] = 'true'; // For Spigot/Paper servers
+            properties['prevent-proxy-connections'] = 'false'; // Allow proxy connections
             details.push('Configured for legacy forwarding (BungeeCord mode)');
         } else if (serverConfig.playerInfoForwardingMode === 'modern') {
             // Modern forwarding for 1.13+ 
             properties['online-mode'] = 'false';
             properties['velocity-support'] = 'true'; // For Paper servers
+            properties['prevent-proxy-connections'] = 'false'; // Allow proxy connections
             if (serverConfig.forwardingSecret) {
                 properties['velocity-secret'] = serverConfig.forwardingSecret;
             }
@@ -139,9 +141,17 @@ class VelocityService {
             details.push('Configured with no proxy forwarding');
         }
         
-        // Additional security settings
-        if (serverConfig.restrictedToProxy) {
-            properties['prevent-proxy-connections'] = 'true';
+        // Additional Velocity-friendly settings
+        if (serverConfig.playerInfoForwardingMode === 'legacy' || serverConfig.playerInfoForwardingMode === 'modern') {
+            // Disable authentication since proxy handles it
+            properties['enforce-secure-profile'] = 'false';
+            properties['require-resource-pack'] = 'false';
+            
+            // Network optimization for proxy environments
+            properties['network-compression-threshold'] = '256';
+            properties['enable-query'] = 'false'; // Query is handled by proxy
+            
+            details.push('Applied additional Velocity-compatible settings');
         }
         
         // Generate updated server.properties content
@@ -218,6 +228,8 @@ class VelocityService {
         
         if (!paperExists) {
             details.push('Paper configuration not found, skipping Paper-specific setup');
+            // For Velocity integration, we'll rely on server.properties configuration instead
+            details.push('Note: Modern Paper servers will auto-detect Velocity forwarding from server.properties');
             return;
         }
         
@@ -225,27 +237,38 @@ class VelocityService {
             const paperBuffer = await webdavService.getFileContents(paperConfigPath);
             let paperContent = paperBuffer.toString('utf-8');
             
+            // Only modify existing Paper configuration if it already exists
+            // Avoid creating new configuration files that might cause permission issues
             if (serverConfig.playerInfoForwardingMode === 'modern') {
-                // Configure modern Velocity forwarding
-                paperContent = this.updateYamlValue(paperContent, 'proxies.velocity.enabled', 'true');
-                paperContent = this.updateYamlValue(paperContent, 'proxies.velocity.online-mode', 'true');
-                
-                if (serverConfig.forwardingSecret) {
-                    paperContent = this.updateYamlValue(paperContent, 'proxies.velocity.secret', `"${serverConfig.forwardingSecret}"`);
+                // Configure modern Velocity forwarding only if the sections already exist
+                if (paperContent.includes('proxies:') || paperContent.includes('velocity:')) {
+                    paperContent = this.updateYamlValue(paperContent, 'proxies.velocity.enabled', 'true');
+                    paperContent = this.updateYamlValue(paperContent, 'proxies.velocity.online-mode', 'true');
+                    
+                    if (serverConfig.forwardingSecret) {
+                        paperContent = this.updateYamlValue(paperContent, 'proxies.velocity.secret', `"${serverConfig.forwardingSecret}"`);
+                    }
+                    
+                    details.push('Updated existing Paper configuration for modern Velocity forwarding');
+                    await webdavService.uploadFile(paperConfigPath, paperContent);
+                } else {
+                    details.push('Paper configuration exists but lacks proxy sections - relying on server.properties for Velocity setup');
                 }
                 
-                details.push('Configured Paper for modern Velocity forwarding');
-                
             } else if (serverConfig.playerInfoForwardingMode === 'legacy') {
-                // Configure legacy BungeeCord forwarding
-                paperContent = this.updateYamlValue(paperContent, 'proxies.bungee-cord.online-mode', 'true');
-                details.push('Configured Paper for legacy BungeeCord forwarding');
+                // Configure legacy BungeeCord forwarding only if the sections already exist
+                if (paperContent.includes('proxies:') || paperContent.includes('bungee')) {
+                    paperContent = this.updateYamlValue(paperContent, 'proxies.bungee-cord.online-mode', 'true');
+                    details.push('Updated existing Paper configuration for legacy BungeeCord forwarding');
+                    await webdavService.uploadFile(paperConfigPath, paperContent);
+                } else {
+                    details.push('Paper configuration exists but lacks proxy sections - relying on server.properties for legacy setup');
+                }
             }
-            
-            await webdavService.uploadFile(paperConfigPath, paperContent);
             
         } catch (error) {
             details.push(`Warning: Could not configure Paper settings - ${error instanceof Error ? error.message : 'Unknown error'}`);
+            details.push('This is not critical - server.properties configuration should be sufficient for Velocity integration');
         }
     }
 

@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
 
             // Remove port ranges (by start port)
             if (portRanges && Array.isArray(portRanges)) {
-                const rangesToRemove = portRanges.map((r: PortReservationRange) => r.start);
+                const rangesToRemove = portRanges.map((r: { start: number }) => r.start);
                 targetUser.reservedPortRanges = (targetUser.reservedPortRanges || []).filter(
                     (range: PortReservationRange) => !rangesToRemove.includes(range.start)
                 );

@@ -3,13 +3,10 @@ import User from '@/lib/objects/User';
 import portainer from './portainer';
 import webdavService from './webdav';
 import dbConnect from '@/lib/db/dbConnect';
+import PortManager from '@/lib/server/portManager';
+import type { PortAllocationResult } from '@/lib/server/portManager';
 
-export interface PortAllocationResult {
-    success: boolean;
-    port?: number;
-    rconPort?: number;
-    error?: string;
-}
+export type { PortAllocationResult };
 
 export interface ServerCreationResult {
     success: boolean;
@@ -101,96 +98,10 @@ export class MinecraftServerManager {
 
     /**
      * Find available port for a user, considering their reserved ports and global port usage
+     * Now uses the advanced PortManager for comprehensive conflict checking
      */
     static async allocatePort(userEmail: string, needsRcon: boolean = false, environmentId: number = 1): Promise<PortAllocationResult> {
-        try {
-            await dbConnect();
-
-            // Get user's reserved ports
-            const user = await User.findOne({ email: userEmail });
-            if (!user) {
-                return { success: false, error: 'User not found' };
-            }
-
-            // Get all used ports from Portainer - this is required
-            const portainerUsedPorts = await portainer.getUsedPorts(environmentId);
-
-            // Get all used ports from MongoDB
-            const serversWithPorts = await Server.find({}, { port: 1, rconPort: 1 });
-            const databaseUsedPorts = serversWithPorts.flatMap(server =>
-                [server.port, server.rconPort].filter(port => port !== undefined && port !== null)
-            );
-
-            // Combine all used ports
-            const allUsedPorts = [...new Set([...portainerUsedPorts, ...databaseUsedPorts])];
-
-            // If user has reserved ports, try to use them first
-            if (user.reservedPorts && user.reservedPorts.length > 0) {
-                for (const reservedPort of user.reservedPorts) {
-                    if (!allUsedPorts.includes(reservedPort)) {
-                        let rconPort: number | undefined;
-
-                        if (needsRcon) {
-                            // Find available RCON port (usually +10 from main port)
-                            const potentialRconPort = reservedPort + 10;
-                            if (potentialRconPort <= 25595 && !allUsedPorts.includes(potentialRconPort)) {
-                                rconPort = potentialRconPort;
-                            } else {
-                                // Find any available port for RCON
-                                for (let port = 25565; port <= 25595; port++) {
-                                    if (!allUsedPorts.includes(port) && port !== reservedPort) {
-                                        rconPort = port;
-                                        break;
-                                    }
-                                }
-                            }
-
-                            if (!rconPort) {
-                                continue; // Try next reserved port if we can't find RCON port
-                            }
-                        }
-
-                        return { success: true, port: reservedPort, rconPort };
-                    }
-                }
-            }
-
-            // If no reserved ports available, find any available port in the range
-            for (let port = 25565; port <= 25595; port++) {
-                if (!allUsedPorts.includes(port)) {
-                    let rconPort: number | undefined;
-
-                    if (needsRcon) {
-                        // Try port + 10 for RCON
-                        const potentialRconPort = port + 10;
-                        if (potentialRconPort <= 25595 && !allUsedPorts.includes(potentialRconPort)) {
-                            rconPort = potentialRconPort;
-                        } else {
-                            // Find any other available port for RCON
-                            for (let rp = port + 1; rp <= 25595; rp++) {
-                                if (!allUsedPorts.includes(rp)) {
-                                    rconPort = rp;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (!rconPort) {
-                            continue; // Try next port if we can't find RCON port
-                        }
-                    }
-
-                    return { success: true, port, rconPort };
-                }
-            }
-
-            return { success: false, error: 'No available ports in the range 25565-25595' };
-        } catch (error) {
-            return {
-                success: false,
-                error: `Error allocating port: ${error instanceof Error ? error.message : 'Unknown error'}`
-            };
-        }
+        return await PortManager.allocatePort(userEmail, needsRcon, environmentId);
     }
 
     /**
