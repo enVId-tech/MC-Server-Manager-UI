@@ -526,6 +526,13 @@ export class MinecraftServer {
                         FORCE_REDOWNLOAD: 'false', // Don't force redownload
                         FIX_PERMISSIONS: 'true', // Auto-fix file permissions on startup
                         SPIGET_RESOURCES: '', // Clear any plugin downloads that might cause issues
+                        SKIP_JAVA_VERSION_CHECK: 'true', // Skip Java version validation that can cause issues
+                        ENABLE_AUTOPAUSE: 'false', // Disable autopause which can cause permission issues
+                        EXISTING_EULA_FILE: 'SKIP', // Skip EULA file creation if it exists
+                        FORCE_WORLD_COPY: 'false', // Don't force world copy which can cause permission issues
+                        SETUP_EULA_ONLY: 'false', // Don't only setup EULA
+                        REMOVE_OLD_MODS: 'false', // Don't remove old mods automatically
+                        CLEANUP_ON_EXIT: 'false', // Don't cleanup on exit to avoid permission issues
                         ...Object.fromEntries(
                             Object.entries(versionSpecificProps).map(([key, value]) => [
                                 key.toUpperCase().replace(/-/g, '_'),
@@ -552,6 +559,7 @@ export class MinecraftServer {
                     restart: 'unless-stopped',
                     stdin_open: true,
                     tty: true,
+                    user: '1000:1000', // Explicitly set the user and group
                     networks: [
                         'minecraft-network',
                         ...(process.env.VELOCITY_NETWORK_NAME ? [process.env.VELOCITY_NETWORK_NAME] : [])
@@ -696,13 +704,23 @@ export class MinecraftServer {
             }
 
             // For Paper servers, create additional required directories
-            if (this.config.TYPE === 'PAPER') {
-                const paperDirs = ['config/paper', 'cache', 'libraries'];
+            if (this.config.TYPE === 'PAPER' || this.config.TYPE === 'PURPUR') {
+                const paperDirs = [
+                    'config/paper', 
+                    'cache', 
+                    'libraries',
+                    'logs',
+                    'versions',
+                    'config/paper/data',
+                    'config/paper/global'
+                ];
                 for (const paperDir of paperDirs) {
                     const paperDirPath = path.join(serverDir, paperDir);
                     try {
                         await fs.mkdir(paperDirPath, { recursive: true, mode: 0o777 });
-                        console.log(`✅ Created Paper directory: ${paperDir}`);
+                        // Set explicit permissions on each directory
+                        await fs.chmod(paperDirPath, 0o777);
+                        console.log(`✅ Created Paper directory with 777 permissions: ${paperDir}`);
                     } catch (paperDirError) {
                         console.warn(`⚠️ Could not create Paper directory ${paperDir}: ${paperDirError}`);
                     }

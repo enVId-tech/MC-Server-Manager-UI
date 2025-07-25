@@ -10,6 +10,7 @@ export interface VelocityServerConfig {
     restrictedToProxy?: boolean;
     playerInfoForwardingMode?: 'none' | 'legacy' | 'modern';
     forwardingSecret?: string;
+    subdomain?: string; // User-chosen subdomain for forced host mapping
 }
 
 export interface VelocityBackendServer {
@@ -298,6 +299,22 @@ class VelocityService {
             // Add to try list if not already present
             if (!velocityConfig.try.includes(serverConfig.serverName)) {
                 velocityConfig.try.push(serverConfig.serverName);
+            }
+            
+            // Add forced host mapping if subdomain is provided
+            if (serverConfig.subdomain) {
+                // Create the full domain name (e.g., "myserver.mc.etran.dev")
+                const forcedHostDomain = `${serverConfig.subdomain}.mc.etran.dev`;
+                
+                // Add or update the forced host entry
+                if (!velocityConfig['forced-hosts']) {
+                    velocityConfig['forced-hosts'] = {};
+                }
+                
+                // Set the forced host to point to this server
+                velocityConfig['forced-hosts'][forcedHostDomain] = [serverConfig.serverName];
+                
+                details.push(`Added forced host mapping: ${forcedHostDomain} -> ${serverConfig.serverName}`);
             }
             
             // Write updated configuration back to WebDAV

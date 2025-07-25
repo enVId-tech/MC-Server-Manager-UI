@@ -839,7 +839,8 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                             motd: server.serverConfig?.motd || server.serverName,
                             restrictedToProxy: true,
                             playerInfoForwardingMode: 'legacy' as const,
-                            forwardingSecret: process.env.VELOCITY_FORWARDING_SECRET || 'velocity-secret'
+                            forwardingSecret: process.env.VELOCITY_FORWARDING_SECRET || 'velocity-secret',
+                            subdomain: server.serverConfig?.subdomain // Add subdomain for forced host mapping
                         };
 
                         const configResult = await velocityService.configureServerForVelocity(

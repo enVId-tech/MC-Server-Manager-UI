@@ -76,6 +76,9 @@ export interface IServerConfig extends Document {
     // Memory and performance
     serverMemory: number;
 
+    // Network configuration
+    subdomain: string; // User-chosen subdomain for server address
+
     // Server properties (from advanced section)
     serverProperties?: Record<string, string | number | boolean>;
 
