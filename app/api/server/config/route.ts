@@ -210,6 +210,7 @@ export async function POST(request: NextRequest) {
 
             // Network settings - use allocated ports
             port: allocatedPort,
+            subdomain: config.subdomain,
 
             // Performance settings
             viewDistance: config.viewDistance || 10,

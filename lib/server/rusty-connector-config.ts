@@ -59,7 +59,7 @@ export function parseRustyConnectorConfig(): RustyConnectorEnvironmentConfig {
         enabled: process.env.RUSTY_CONNECTOR_ENABLED === 'true',
         fallbackToVelocity: process.env.RUSTY_CONNECTOR_FALLBACK_TO_VELOCITY !== 'false',
         defaultFamily: process.env.RUSTY_CONNECTOR_DEFAULT_FAMILY || 'minecraft-servers',
-        loadBalancingStrategy: (process.env.RUSTY_CONNECTOR_LOAD_BALANCING as any) || 'LEAST_CONNECTION',
+        loadBalancingStrategy: (process.env.RUSTY_CONNECTOR_LOAD_BALANCING as unknown as 'ROUND_ROBIN' | 'LEAST_CONNECTION' | 'MOST_CONNECTION') || 'LEAST_CONNECTION',
         autoCreateFamilies: process.env.RUSTY_CONNECTOR_AUTO_CREATE_FAMILIES !== 'false',
         enablePlayerDataSync: process.env.RUSTY_CONNECTOR_PLAYER_DATA_SYNC !== 'false',
         pluginPath: process.env.RUSTY_CONNECTOR_PLUGIN_PATH || '/velocity/plugins/RustyConnector',

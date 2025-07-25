@@ -36,9 +36,7 @@ export class RustyConnectorIntegration {
      */
     async deployServerWithRustyConnector(
         serverConfig: VelocityServerConfig,
-        serverType: 'PAPER' | 'PURPUR' | 'NEOFORGE' | 'FORGE' | 'FABRIC',
-        userEmail: string,
-        serverId: string
+        serverType: 'PAPER' | 'PURPUR' | 'NEOFORGE' | 'FORGE' | 'FABRIC'
     ): Promise<{ success: boolean; error?: string; details: string[] }> {
         const details: string[] = [];
         
@@ -224,7 +222,7 @@ export class RustyConnectorIntegration {
         error?: string;
         details: string[];
     }> {
-        const details: string[] = [];
+        // ...existing code...
         
         if (!this.config.enabled) {
             return {

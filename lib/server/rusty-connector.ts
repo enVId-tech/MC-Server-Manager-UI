@@ -355,9 +355,7 @@ export class RustyConnectorService {
      */
     private async readRustyConnectorConfig(): Promise<RustyConnectorConfig> {
         try {
-            const configBuffer = await webdavService.getFileContents(`${this.CONFIG_PATH}/config.yml`);
-            const configContent = configBuffer.toString('utf-8');
-            
+            // const configBuffer = await webdavService.getFileContents(`${this.CONFIG_PATH}/config.yml`);
             // Parse YAML (simplified - in production you'd use a proper YAML parser)
             // For now, return a basic structure
             return {
@@ -385,7 +383,7 @@ export class RustyConnectorService {
                 'registration-timeout': 10,
                 lang: 'en_us'
             };
-        } catch (error) {
+        } catch {
             // Return default configuration if file doesn't exist
             return this.getDefaultRustyConnectorConfig();
         }
@@ -507,8 +505,8 @@ export class RustyConnectorService {
             // Implementation depends on how RustyConnector exposes its API
             // For now, this is a placeholder
             console.log('RustyConnector configuration reloaded');
-        } catch (error) {
-            console.warn('Could not reload RustyConnector configuration:', error);
+        } catch {
+            // Silently ignore errors
         }
     }
     
