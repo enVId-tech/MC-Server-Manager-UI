@@ -1,0 +1,212 @@
+@import '../_variables.scss';
+
+.container {
+  min-height: 100vh;
+  background-color: $dark-bg;
+  color: $text-primary;
+}
+
+.header {
+  background: linear-gradient(135deg, rgba($accent-blue, 0.1), rgba($accent-purple, 0.1));
+  border-bottom: 2px solid $border-color;
+  padding: 3rem 2rem 2rem 2rem;
+  text-align: center;
+
+  h1 {
+    color: $accent-blue;
+    font-size: 3rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+
+    &::before {
+      content: '👑';
+      font-size: 2.5rem;
+    }
+
+    @media (max-width: 768px) {
+      font-size: 2rem;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+  }
+}
+
+.subtitle {
+  color: $text-secondary;
+  font-size: 1.2rem;
+  margin: 0;
+  font-weight: 400;
+
+  @media (max-width: 768px) {
+    font-size: 1rem;
+  }
+}
+
+.tabNavigation {
+  display: flex;
+  background-color: $dark-card;
+  border-bottom: 1px solid $border-color;
+  overflow-x: auto;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
+}
+
+.tab {
+  background: none;
+  border: none;
+  padding: 1.5rem 2rem;
+  color: $text-secondary;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-bottom: 3px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  white-space: nowrap;
+  flex: 1;
+  justify-content: center;
+
+  &:hover {
+    background-color: rgba($accent-blue, 0.1);
+    color: $text-primary;
+  }
+
+  &.active {
+    color: $accent-blue;
+    background-color: rgba($accent-blue, 0.1);
+    border-bottom-color: $accent-blue;
+  }
+
+  @media (max-width: 768px) {
+    padding: 1rem;
+    justify-content: flex-start;
+  }
+}
+
+.tabIcon {
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tabContent {
+  // The content will be styled by the individual components
+  // This container provides the base structure
+  min-height: 60vh;
+}
+
+.settingsPanel {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+
+  h2 {
+    color: $accent-orange;
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0 0 1rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+
+    &::before {
+      content: '⚙️';
+      font-size: 2rem;
+    }
+  }
+
+  p {
+    color: $text-secondary;
+    font-size: 1.1rem;
+    margin: 0 0 2rem 0;
+  }
+
+  @media (max-width: 768px) {
+    padding: 1rem;
+
+    h2 {
+      font-size: 2rem;
+    }
+  }
+}
+
+.settingsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+.settingCard {
+  background-color: $dark-card;
+  border: 1px solid $border-color;
+  border-radius: 12px;
+  padding: 2rem;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, $accent-purple, rgba($accent-purple, 0.6));
+  }
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  }
+
+  h3 {
+    color: $text-primary;
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin: 0 0 1rem 0;
+  }
+
+  p {
+    color: $text-secondary;
+    font-size: 0.95rem;
+    margin: 0 0 1.5rem 0;
+    line-height: 1.5;
+  }
+}
+
+.comingSoon {
+  background-color: rgba($text-secondary, 0.2);
+  color: $text-secondary;
+  border: 1px solid rgba($text-secondary, 0.3);
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: not-allowed;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: rgba($text-secondary, 0.3);
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    font-size: 0.9rem;
+  }
+}

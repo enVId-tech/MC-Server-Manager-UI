@@ -45,6 +45,30 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 - **Dynamic Port Allocation**: Automatic port assignment with conflict resolution
 - **File System**: WebDAV integration for server file management
 
+### 🌐 Multi-Proxy Support
+- **Velocity**: High-performance modern proxy with advanced features
+- **BungeeCord**: Traditional proxy server with plugin ecosystem
+- **Waterfall**: BungeeCord fork with performance improvements and fixes
+- **RustyConnector**: Rust-based proxy with configuration management
+- **Unified Management**: Single interface for all proxy types
+- **Auto-Configuration**: Automatic proxy setup and server registration
+
+### 🐳 Docker Management & Updates
+- **Automated Updates**: Scheduled Docker image updates with maintenance windows
+- **Manual Updates**: Admin-triggered updates with progress tracking
+- **Image Cleanup**: Automatic removal of outdated Docker images
+- **Bulk Operations**: Update multiple servers simultaneously
+- **Rollback Support**: Automatic rollback on update failures
+- **Health Monitoring**: Post-update health checks and status reporting
+
+### 👑 Administrative Features
+- **Admin Dashboard**: Comprehensive admin interface with tabbed navigation
+- **Server Overview**: View and manage all servers across all users
+- **Bulk Server Management**: Start, stop, restart, or delete multiple servers
+- **User Management**: View server ownership and user details
+- **System Monitoring**: Docker update status and system health
+- **Advanced Filtering**: Search and filter servers by various criteria
+
 ### 🔧 Developer Tools & Logging
 - **Console Configuration**: File-specific logging controls with blacklist/whitelist modes
 - **REST API Logging**: Toggleable request/response logging with detailed options
