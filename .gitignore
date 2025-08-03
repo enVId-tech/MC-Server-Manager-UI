@@ -50,3 +50,7 @@ test-files/*
 
 uploads
 uploads/*
+
+# json
+*.yaml
+*.yml
