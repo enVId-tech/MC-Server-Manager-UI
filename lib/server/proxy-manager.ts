@@ -241,7 +241,7 @@ export class ProxyManager {
 
         // Filter by requirements
         let candidates = enabledProxies;
-        if (requirements?.length > 0) {
+        if (requirements && requirements.length > 0) {
             candidates = enabledProxies.filter(proxy =>
                 requirements.every(req =>
                     proxy.capabilities.some(cap => cap.name === req && cap.supported)
@@ -364,8 +364,6 @@ export class ProxyManager {
         userEmail: string,
         uniqueId: string
     ): Promise<{ success: boolean; error?: string; details: string[] }> {
-        const details: string[] = [];
-
         try {
             switch (proxy.type) {
                 case 'velocity':
@@ -378,7 +376,7 @@ export class ProxyManager {
                     return await this.deployToWaterfall(proxy, serverConfig, userEmail, uniqueId);
                 
                 case 'rusty-connector':
-                    return await this.deployToRustyConnector(proxy, serverConfig, userEmail, uniqueId);
+                    return await this.deployToRustyConnector(proxy, serverConfig);
                 
                 default:
                     return {
@@ -407,7 +405,11 @@ export class ProxyManager {
     ): Promise<{ success: boolean; error?: string; details: string[] }> {
         // Import and use existing Velocity service
         const { default: velocityService } = await import('./velocity');
-        return await velocityService.configureServerForVelocity(serverConfig, userEmail, uniqueId);
+        const result = await velocityService.configureServerForVelocity(serverConfig, userEmail, uniqueId);
+        return {
+            ...result,
+            details: result.details ?? []
+        };
     }
 
     /**
@@ -420,8 +422,12 @@ export class ProxyManager {
         uniqueId: string
     ): Promise<{ success: boolean; error?: string; details: string[] }> {
         // Import and use BungeeCord service
-        const { default: bungeeCordService } = await import('./bungeecord');
-        return await bungeeCordService.configureServerForBungeeCord(serverConfig, userEmail, uniqueId);
+        const { default: bungeeCordService } = await import('./bungeecord.ts');
+        const result = await bungeeCordService.configureServerForBungeeCord(serverConfig, userEmail, uniqueId);
+        return {
+            ...result,
+            details: result.details ?? []
+        };
     }
 
     /**
@@ -434,8 +440,12 @@ export class ProxyManager {
         uniqueId: string
     ): Promise<{ success: boolean; error?: string; details: string[] }> {
         // Import and use Waterfall service
-        const { default: waterfallService } = await import('./waterfall');
-        return await waterfallService.configureServerForWaterfall(serverConfig, userEmail, uniqueId);
+        const { default: waterfallService } = await import('./waterfall.ts');
+        const result = await waterfallService.configureServerForWaterfall(serverConfig, userEmail, uniqueId);
+        return {
+            ...result,
+            details: result.details ?? []
+        };
     }
 
     /**
@@ -443,9 +453,7 @@ export class ProxyManager {
      */
     private async deployToRustyConnector(
         proxy: ProxyInstanceConfig,
-        serverConfig: ServerProxyConfig,
-        userEmail: string,
-        uniqueId: string
+        serverConfig: ServerProxyConfig
     ): Promise<{ success: boolean; error?: string; details: string[] }> {
         // Import and use RustyConnector integration
         const { rustyConnectorIntegration } = await import('./rusty-connector-integration');
@@ -487,7 +495,7 @@ export class ProxyManager {
             }
             
             // Update proxy status
-            proxy.healthStatus = healthResult.status as any;
+            proxy.healthStatus = healthResult.status as 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
             proxy.lastHealthCheck = new Date();
         }
 

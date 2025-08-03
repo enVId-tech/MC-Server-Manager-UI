@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/dbConnect';
-import User, { IUser } from '@/lib/objects/User';
+import { IUser } from '@/lib/objects/User';
 import verificationService from '@/lib/server/verify';
 import BodyParser from '@/lib/db/bodyParser';
 import dockerImageUpdater, { ImageUpdateConfig } from '@/lib/server/docker-image-updater';

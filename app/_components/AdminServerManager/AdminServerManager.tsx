@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styles from './AdminServerManager.module.scss';
 
 interface User {
@@ -66,7 +66,7 @@ export default function AdminServerManager() {
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [bulkActionResult, setBulkActionResult] = useState<BulkActionResult | null>(null);
 
-  const loadServers = async () => {
+  const loadServers = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -100,7 +100,7 @@ export default function AdminServerManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, searchQuery, statusFilter, userFilter]);
 
   const performBulkAction = async (action: 'start' | 'stop' | 'restart' | 'delete') => {
     if (selectedServers.size === 0) return;
@@ -184,7 +184,7 @@ export default function AdminServerManager() {
 
   useEffect(() => {
     loadServers();
-  }, [currentPage, searchQuery, statusFilter, userFilter]);
+  }, [loadServers]);
 
   if (loading && servers.length === 0) {
     return (

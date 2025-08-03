@@ -44,7 +44,13 @@ interface ProxyStatistics {
 
 interface MultiProxyManagerProps {
     serverId?: string;
-    onProxyDeployment?: (result: any) => void;
+    onProxyDeployment?: (result: {
+        success: boolean;
+        results: Record<string, { success: boolean; error?: string; details: string[] }>;
+        overallDetails: string[];
+        primaryProxy?: string;
+        fallbackProxies: string[];
+    }) => void;
 }
 
 export const MultiProxyManager: React.FC<MultiProxyManagerProps> = ({
@@ -56,7 +62,10 @@ export const MultiProxyManager: React.FC<MultiProxyManagerProps> = ({
     const [selectedProxies, setSelectedProxies] = useState<string[]>([]);
     const [deploymentStrategy, setDeploymentStrategy] = useState<string>('priority');
     const [isLoading, setIsLoading] = useState(false);
-    const [healthStatus, setHealthStatus] = useState<any>(null);
+    const [healthStatus, setHealthStatus] = useState<{
+        overall: 'healthy' | 'degraded' | 'unhealthy';
+        proxies: Record<string, { status: string; details: string[] }>;
+    } | null>(null);
     const [activeTab, setActiveTab] = useState<'overview' | 'deploy' | 'health' | 'config'>('overview');
 
     // Load initial data
@@ -336,7 +345,7 @@ export const MultiProxyManager: React.FC<MultiProxyManagerProps> = ({
                     </div>
                     
                     <div className={styles.healthDetails}>
-                        {Object.entries(healthStatus.proxies || {}).map(([proxyId, health]: [string, any]) => {
+                        {Object.entries(healthStatus.proxies || {}).map(([proxyId, health]: [string, { status: string; details: string[] }]) => {
                             const proxy = proxies.find(p => p.id === proxyId);
                             return (
                                 <div key={proxyId} className={styles.healthCard}>

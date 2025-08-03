@@ -71,7 +71,7 @@ export class DockerImageUpdater {
     private loadConfig(): ImageUpdateConfig {
         return {
             enabled: process.env.DOCKER_UPDATE_ENABLED === 'true',
-            schedule: (process.env.DOCKER_UPDATE_SCHEDULE as any) || 'weekly',
+            schedule: (process.env.DOCKER_UPDATE_SCHEDULE as 'daily' | 'weekly' | 'monthly') || 'weekly',
             maintenanceWindow: {
                 startHour: parseInt(process.env.DOCKER_UPDATE_START_HOUR || '2'),
                 endHour: parseInt(process.env.DOCKER_UPDATE_END_HOUR || '6'),
@@ -185,7 +185,7 @@ export class DockerImageUpdater {
 
                 // Check if update is needed (simplified - could be more sophisticated)
                 const needsUpdate = !currentImage.includes(':latest') || 
-                                   await this.isImageOutdated(currentImage);
+                                   await this.isImageOutdated();
 
                 if (needsUpdate) {
                     updateStatuses.push({
@@ -213,7 +213,7 @@ export class DockerImageUpdater {
     /**
      * Check if an image is outdated
      */
-    private async isImageOutdated(imageName: string): Promise<boolean> {
+    private async isImageOutdated(): Promise<boolean> {
         try {
             // This would typically check against registry or compare creation dates
             // For now, implement simple logic
@@ -603,7 +603,7 @@ export const dockerImageUpdater = new DockerImageUpdater();
 export default dockerImageUpdater;
 
 // Helper function to create MinecraftServer instance
-export function createMinecraftServer(config: any, name: string, uniqueId: string, environmentId: number = 1) {
-    const { MinecraftServer } = require('./minecraft');
+export async function createMinecraftServer(config: Record<string, unknown>, name: string, uniqueId: string, environmentId: number = 1) {
+    const { MinecraftServer } = await import('./minecraft');
     return new MinecraftServer(config, name, uniqueId, environmentId);
 }

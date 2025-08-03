@@ -1,4 +1,4 @@
-@import '../_variables.scss';
+@use '../_variables.scss' as *;
 
 .container {
   min-height: 100vh;
@@ -7,7 +7,7 @@
 }
 
 .header {
-  background: linear-gradient(135deg, rgba($accent-blue, 0.1), rgba($accent-purple, 0.1));
+  background: linear-gradient(135deg, rgba($accent-blue, 0.1), rgba($accent-orange, 0.1));
   border-bottom: 2px solid $border-color;
   padding: 3rem 2rem 2rem 2rem;
   text-align: center;
@@ -166,7 +166,7 @@
     left: 0;
     width: 100%;
     height: 4px;
-    background: linear-gradient(90deg, $accent-purple, rgba($accent-purple, 0.6));
+    background: linear-gradient(90deg, $accent-orange, rgba($accent-orange, 0.6));
   }
 
   &:hover {

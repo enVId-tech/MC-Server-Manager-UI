@@ -314,9 +314,8 @@ class BungeeCordService {
      */
     private async readBungeeCordConfig(): Promise<BungeeCordConfig> {
         try {
-            const configBuffer = await webdavService.getFileContents(this.bungeeCordConfigPath);
-            const configContent = configBuffer.toString('utf-8');
-            return this.parseBungeeCordConfig(configContent);
+            await webdavService.getFileContents(this.bungeeCordConfigPath);
+            return this.parseBungeeCordConfig();
         } catch {
             // Return default configuration if file doesn't exist
             return this.getDefaultBungeeCordConfig();
@@ -373,7 +372,7 @@ class BungeeCordService {
     /**
      * Parse BungeeCord YAML configuration
      */
-    private parseBungeeCordConfig(content: string): BungeeCordConfig {
+    private parseBungeeCordConfig(): BungeeCordConfig {
         // Simplified YAML parsing for BungeeCord config
         // In production, you would use a proper YAML parser
         

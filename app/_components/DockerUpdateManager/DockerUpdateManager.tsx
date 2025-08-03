@@ -278,7 +278,7 @@ export default function DockerUpdateManager() {
                             <label>Update Schedule:</label>
                             <select
                                 value={status?.config.schedule || 'manual'}
-                                onChange={(e) => updateConfig({ schedule: e.target.value as any })}
+                                onChange={(e) => updateConfig({ schedule: e.target.value as 'manual' | 'daily' | 'weekly' | 'monthly' })}
                             >
                                 <option value="manual">Manual only</option>
                                 <option value="daily">Daily</option>

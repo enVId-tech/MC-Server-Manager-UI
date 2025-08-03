@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
         const search = searchParams.get('search');
 
         // Build query
-        const query: any = {};
+        const query: Record<string, unknown> = {};
 
         if (userEmail) {
             query.email = { $regex: userEmail, $options: 'i' };
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
         const totalServers = await Server.countDocuments(query);
 
         // Get servers with pagination
-        let serversQuery = Server.find(query)
+        const serversQuery = Server.find(query)
             .sort({ [sortBy]: sortOrder })
             .skip((page - 1) * limit)
             .limit(limit);
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
         const userMap = users.reduce((acc, user) => {
             acc[user.email] = user;
             return acc;
-        }, {} as any);
+        }, {} as Record<string, typeof users[0]>);
 
         // Enrich servers with user data and container status
         const enrichedServers = await Promise.all(
@@ -196,7 +196,13 @@ export async function POST(request: NextRequest) {
             }, { status: 400 });
         }
 
-        const results: any[] = [];
+        const results: Array<{
+            serverId: string;
+            serverName?: string;
+            success: boolean;
+            error?: string;
+            message?: string;
+        }> = [];
 
         if (action === 'bulk-start') {
             // Start multiple servers
@@ -391,7 +397,7 @@ export async function POST(request: NextRequest) {
                 }
 
                 // Update server configuration
-                const updateData: any = {};
+                const updateData: Record<string, unknown> = {};
                 
                 if (newSettings.serverName) {
                     updateData.serverName = newSettings.serverName;

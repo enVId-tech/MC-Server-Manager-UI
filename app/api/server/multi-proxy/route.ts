@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db/dbConnect";
 import Server from "@/lib/objects/Server";
 import verificationService from "@/lib/server/verify";
-import proxyManager, { ProxyType, ServerProxyConfig } from "@/lib/server/proxy-manager";
+import proxyManager, { ProxyType, ServerProxyConfig, ProxyInstanceConfig } from "@/lib/server/proxy-manager";
 import BodyParser from "@/lib/db/bodyParser";
 import portainer from "@/lib/server/portainer";
 
@@ -20,9 +20,9 @@ export async function GET(request: NextRequest) {
             case 'list-proxies':
                 return handleListProxies(request);
             case 'proxy-statistics':
-                return handleProxyStatistics(request);
+                return handleProxyStatistics();
             case 'health-check':
-                return handleHealthCheck(request);
+                return handleHealthCheck();
             default:
                 return NextResponse.json(
                     { success: false, error: 'Invalid action parameter' },
@@ -96,7 +96,7 @@ async function handleListProxies(request: NextRequest): Promise<NextResponse> {
     }
 }
 
-async function handleProxyStatistics(request: NextRequest): Promise<NextResponse> {
+async function handleProxyStatistics(): Promise<NextResponse> {
     try {
         const statistics = proxyManager.getProxyStatistics();
         
@@ -112,7 +112,7 @@ async function handleProxyStatistics(request: NextRequest): Promise<NextResponse
     }
 }
 
-async function handleHealthCheck(request: NextRequest): Promise<NextResponse> {
+async function handleHealthCheck(): Promise<NextResponse> {
     try {
         const healthResults = await proxyManager.performHealthChecks();
         
@@ -156,8 +156,7 @@ async function handleMultiProxyDeploy(request: NextRequest): Promise<NextRespons
             );
         }
         
-        // Get server (assuming email is the user identifier)
-        const userEmail = user.email;
+        // Get server
         const server = await Server.findOne({ uniqueId: serverId });
         if (!server) {
             return NextResponse.json(
@@ -295,7 +294,7 @@ async function configureServerForMultiProxy(
         targetProxies?: string[];
         loadBalancingStrategy?: string;
         fallbackProxies?: string[];
-        proxySpecificConfig?: Record<string, any>;
+        proxySpecificConfig?: Record<string, Record<string, unknown>>;
     }
 ) {
     try {
@@ -367,7 +366,7 @@ async function configureServerForMultiProxy(
             playerInfoForwardingMode: 'legacy' as const, // Default, can be overridden per proxy
             forwardingSecret: process.env.VELOCITY_FORWARDING_SECRET || 'proxy-secret',
             targetProxies: multiProxyConfig.targetProxies || [],
-            loadBalancingStrategy: multiProxyConfig.loadBalancingStrategy as any || 'priority',
+            loadBalancingStrategy: (multiProxyConfig.loadBalancingStrategy as 'round-robin' | 'priority' | 'least-connections' | 'custom') || 'priority',
             fallbackProxies: multiProxyConfig.fallbackProxies || [],
             proxySpecificConfig: multiProxyConfig.proxySpecificConfig || {}
         };
@@ -398,8 +397,36 @@ async function configureServerForMultiProxy(
 async function testProxyCompatibility(
     server: IServer,
     proxyTypes: ProxyType[]
-): Promise<Record<string, any>> {
-    const compatibility: Record<string, any> = {};
+): Promise<Record<string, {
+    available: boolean;
+    reason?: string;
+    compatible?: boolean;
+    recommendations?: string[];
+    warnings?: string[];
+    proxyCount?: number;
+    availableProxies?: Array<{
+        id: string;
+        name: string;
+        host: string;
+        port: number;
+        healthStatus: 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
+    }>;
+}>> {
+    const compatibility: Record<string, {
+        available: boolean;
+        reason?: string;
+        compatible?: boolean;
+        recommendations?: string[];
+        warnings?: string[];
+        proxyCount?: number;
+        availableProxies?: Array<{
+            id: string;
+            name: string;
+            host: string;
+            port: number;
+            healthStatus: 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
+        }>;
+    }> = {};
     
     for (const proxyType of proxyTypes) {
         const proxies = proxyManager.getProxiesByType(proxyType).filter(p => p.enabled);
@@ -438,7 +465,7 @@ async function testProxyCompatibility(
 
 async function testServerProxyCompatibility(
     server: IServer,
-    proxy: any
+    proxy: ProxyInstanceConfig
 ): Promise<{
     compatible: boolean;
     recommendations: string[];
