@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logApiRequest, logApiResponse } from './lib/utils/api-logger';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
     // Log API requests if the route is an API route
     let apiContext = null;
     if (request.nextUrl.pathname.startsWith('/api/')) {
