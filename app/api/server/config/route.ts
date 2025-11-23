@@ -11,13 +11,9 @@ import { v4 as uuidv4 } from 'uuid';
 import verificationService from "@/lib/server/verify";
 
 // Configure body parsing for this API route
-export const config = {
-    api: {
-        bodyParser: {
-            sizeLimit: '10mb', // Set desired value here
-        },
-    },
-};
+// Note: In Next.js App Router, body size limits are configured in next.config.js or middleware
+// The 'config' export is deprecated for App Router route handlers
+
 
 // Internal function to get create config (not exported)
 async function getCreateConfig() {
@@ -265,7 +261,9 @@ export async function POST(request: NextRequest) {
             createdAt: new Date(),
             port: allocatedPort,
             rconPort: allocatedRconPort,
-            serverConfig: serverConfigData // Embed the configuration directly
+            serverConfig: serverConfigData, // Embed the configuration directly
+            environmentId: config.environmentId || 1,
+            proxyIds: config.proxyIds || []
         });
 
         // Save the server to database

@@ -66,12 +66,18 @@ class BungeeCordService {
     async configureServerForBungeeCord(
         serverConfig: BungeeCordServerConfig,
         userEmail: string,
-        uniqueId: string
+        uniqueId: string,
+        configPath?: string,
+        networkName?: string
     ): Promise<{ success: boolean; error?: string; details?: string[] }> {
         const details: string[] = [];
         
+        // Use provided config path or fall back to instance default
+        const targetConfigPath = configPath || this.bungeeCordConfigPath;
+        const targetNetworkName = networkName || this.bungeeCordNetworkName;
+
         try {
-            details.push('Starting BungeeCord server configuration...');
+            details.push(`Starting BungeeCord server configuration (Config: ${targetConfigPath})...`);
             
             // Get server path
             const serverBasePath = `/servers/${userEmail}/${uniqueId}`;
@@ -83,7 +89,7 @@ class BungeeCordService {
             await this.configurePluginSettings(serverBasePath, serverConfig, details);
             
             // Add server to BungeeCord configuration
-            await this.addServerToBungeeCordConfig(serverConfig, details);
+            await this.addServerToBungeeCordConfig(serverConfig, details, targetConfigPath);
             
             return { success: true, details };
             
@@ -246,13 +252,14 @@ class BungeeCordService {
      */
     private async addServerToBungeeCordConfig(
         serverConfig: BungeeCordServerConfig,
-        details: string[]
+        details: string[],
+        configPath: string = this.bungeeCordConfigPath
     ): Promise<void> {
         details.push('Adding server to BungeeCord configuration...');
         
         try {
             // Read existing BungeeCord configuration
-            const bungeeCordConfig = await this.readBungeeCordConfig();
+            const bungeeCordConfig = await this.readBungeeCordConfig(configPath);
             
             // Add server to the configuration
             const serverEntry = {
@@ -287,7 +294,7 @@ class BungeeCordService {
             }
             
             // Write updated configuration back to WebDAV
-            await this.writeBungeeCordConfig(bungeeCordConfig);
+            await this.writeBungeeCordConfig(bungeeCordConfig, configPath);
             
             details.push(`Server added to BungeeCord configuration: ${serverConfig.serverName}`);
             details.push(`Server address: ${serverConfig.address}`);
@@ -312,9 +319,9 @@ class BungeeCordService {
     /**
      * Read BungeeCord configuration
      */
-    private async readBungeeCordConfig(): Promise<BungeeCordConfig> {
+    private async readBungeeCordConfig(configPath: string = this.bungeeCordConfigPath): Promise<BungeeCordConfig> {
         try {
-            await webdavService.getFileContents(this.bungeeCordConfigPath);
+            await webdavService.getFileContents(configPath);
             return this.parseBungeeCordConfig();
         } catch {
             // Return default configuration if file doesn't exist
@@ -325,10 +332,10 @@ class BungeeCordService {
     /**
      * Write BungeeCord configuration
      */
-    private async writeBungeeCordConfig(config: BungeeCordConfig): Promise<void> {
+    private async writeBungeeCordConfig(config: BungeeCordConfig, configPath: string = this.bungeeCordConfigPath): Promise<void> {
         try {
             const yamlContent = this.serializeBungeeCordConfig(config);
-            await webdavService.uploadFile(this.bungeeCordConfigPath, yamlContent);
+            await webdavService.uploadFile(configPath, yamlContent);
         } catch (error) {
             throw new Error(`Failed to write BungeeCord configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }

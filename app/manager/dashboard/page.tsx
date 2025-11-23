@@ -137,34 +137,35 @@ export default function Dashboard() {
         setIsDownloading(true);
 
         try {
-            // TODO: Create API endpoint for server download
-            // const response = await fetch(`/api/server/download/${serverToDelete.id}`, {
-            //     method: 'GET',
-            //     headers: {
-            //         'Content-Type': 'application/json',
-            //     },
-            // });
+            // Prepare download
+            const response = await fetch('/api/server/manage/download', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ uniqueId: serverToDelete.uniqueId }),
+            });
 
-            // if (!response.ok) {
-            //     throw new Error('Failed to download server');
-            // }
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to prepare download');
+            }
 
-            // const blob = await response.blob();
-            // const url = window.URL.createObjectURL(blob);
-            // const a = document.createElement('a');
-            // a.href = url;
-            // a.download = `${serverToDelete.name}-backup.zip`;
-            // document.body.appendChild(a);
-            // a.click();
-            // window.URL.revokeObjectURL(url);
-            // document.body.removeChild(a);
+            const data = await response.json();
+            const downloadUrl = data.downloadInfo.downloadUrl;
 
-            // Simulate download process for now
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Trigger download
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = `${serverToDelete.serverName}-${serverToDelete.uniqueId}.tar`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
             showNotification({
-                type: 'info',
-                title: 'Download Notice',
-                message: 'Server download would start here. TODO: Implement server download API endpoint.'
+                type: 'success',
+                title: 'Download Started',
+                message: 'Your server files are being downloaded.'
             });
 
         } catch (error) {

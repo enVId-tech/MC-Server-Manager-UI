@@ -3,8 +3,9 @@ import dbConnect from '@/lib/db/dbConnect';
 import jwt from 'jsonwebtoken';
 import User, { IUser } from '@/lib/objects/User';
 import Server from '@/lib/objects/Server';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 import verificationService from '@/lib/server/verify';
+import { deleteServer } from "@/lib/server/deleteServer";
 
 // PUT request to update user information based on provided email and password
 // Email or password may not be provided at the same time, but at least one must be provided.
@@ -121,30 +122,49 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
     await dbConnect();
     try {
-        // Get the user from the request cookies
-        const token = request.cookies.get('sessionToken')?.value;
-        if (!token) {
-            return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
+        const { email, password } = await request.json();
+
+        if (!email || !password) {
+            return NextResponse.json({ message: 'Email and password are required.' }, { status: 400 });
         }
 
-        // Verify the token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default');
-        if (!decoded) {
-            return NextResponse.json({ message: 'Invalid session token.' }, { status: 401 });
-        }
-
-        // Find the user by ID from the decoded token
-        const userId = (decoded as { id: string }).id;
-        const user = await User.findById(userId);
+        const user: IUser | null = await verificationService.getUserFromToken(request);
+        
         if (!user) {
             return NextResponse.json({ message: 'User not found.' }, { status: 404 });
         }
 
-        // Delete the user and their servers
-        await User.deleteOne({ _id: userId });
-        await Server.deleteMany({ owner: userId });
-        return NextResponse.json({ message: 'Account deleted successfully.' }, { status: 200 });
+        if (user.email !== email) {
+             return NextResponse.json({ message: 'Email mismatch.' }, { status: 403 });
+        }
+
+        // Verify password
+        const isPasswordCorrect = await bcrypt.compare(password, user.password);
+        if (!isPasswordCorrect) {
+            return NextResponse.json({ message: 'Incorrect password.' }, { status: 403 });
+        }
+
+        // Find all servers owned by user
+        const servers = await Server.find({ owner: user._id });
+        
+        // Delete all servers
+        for (const server of servers) {
+            // We need to cast server to any or the expected type for deleteServer
+            // deleteServer expects serverId, server object, user object
+            await deleteServer(server.uniqueId, server.toObject(), user, 'account-deletion');
+        }
+
+        // Delete user
+        await User.deleteOne({ _id: user._id });
+
+        // Clear session cookie
+        const response = NextResponse.json({ message: 'Account deleted successfully.' }, { status: 200 });
+        response.cookies.delete('sessionToken');
+        
+        return response;
+
     } catch (error) {
-        return NextResponse.json({ message: 'An error occurred.', error }, { status: 500 });
+        console.error('Account deletion error:', error);
+        return NextResponse.json({ message: 'An error occurred during account deletion.', error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
     }
 }

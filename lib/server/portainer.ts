@@ -1361,6 +1361,37 @@ export class PortainerApiClient {
     }
 
     /**
+     * Get a tar archive of a path in the filesystem of a container.
+     * @param containerId - The ID of the container
+     * @param path - The path to the file or directory to archive
+     * @param environmentId - The ID of the Portainer environment
+     * @returns Promise resolving to the archive stream
+     */
+    async getContainerArchive(
+        containerId: string,
+        path: string,
+        environmentId: number | null = this.defaultEnvironmentId
+    ): Promise<NodeJS.ReadableStream> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to get container archive.');
+        }
+
+        try {
+            const response = await this.axiosInstance.get(
+                `/api/endpoints/${environmentId}/docker/containers/${containerId}/archive`,
+                {
+                    params: { path },
+                    responseType: 'stream'
+                }
+            );
+            return response.data;
+        } catch (error) {
+            console.error(`❌ Failed to get archive from container ${containerId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
      * Get Minecraft server info via server.properties and status query
      * This is a simpler, more reliable method for getting basic server info
      */

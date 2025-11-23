@@ -8,6 +8,7 @@ export interface PortReservationRange {
 }
 
 export interface IUser extends Document {
+    _id: pkg.Types.ObjectId;
     email: string;
     password: string;
     isActive: boolean;
@@ -114,15 +115,14 @@ const UserSchema: pkg.Schema = new pkg.Schema({
 });
 
 // Hash password before saving
-UserSchema.pre('save', async function (next) {
-    if (!this.isModified('password')) return next();
+UserSchema.pre('save', async function () {
+    if (!this.isModified('password')) return;
 
     try {
         const salt = await bcrypt.genSalt(10);
         this.password = await bcrypt.hash(this.password as string, salt);
-        next();
     } catch (error: unknown) {
-        return next(error as Error);
+        throw error;
     }
 });
 

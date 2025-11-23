@@ -318,7 +318,7 @@ export type MinecraftPropertiesV1_21 = MinecraftPropertiesV1_20_2;
 
 import portainer from './portainer';
 import { PortainerContainer } from './portainer';
-import { ProxyManager } from './proxy-manager';
+import { proxyManager } from './proxy-manager';
 import webdavService from './webdav';
 import yaml from 'js-yaml';
 import extractZip from 'extract-zip';
@@ -486,23 +486,44 @@ export class MinecraftServer {
      * Generate complete Docker Compose configuration
      */
     generateDockerComposeConfig(): object {
-        if (!this.validateConfig()) {
-            throw new Error('Invalid Minecraft server configuration.');
-        }
-
-        const versionSpecificProps = this.generateVersionSpecificProperties();
-
-        // Determine the server type and image configuration
+        // Get server type specific configuration
         const serverTypeConfig = this.getServerTypeConfig();
-
-        // Get the minecraft environment variable from the local env file
-        const minecraftPath: string = process.env.MINECRAFT_PATH || '/minecraft-data';
+        const minecraftPath = process.env.MINECRAFT_PATH || '/minecraft';
 
         // Get email from the server config
         const userEmail = this.getUserEmail();
 
         // Create the folder structure: env/email/uniqueId
         const serverBasePath = `${minecraftPath}/${userEmail}`;
+
+        // Resolve networks from proxy IDs
+        const proxyNetworks: { [key: string]: { external: boolean; name: string } } = {};
+        const proxyNetworkNames: string[] = [];
+
+        if (this.proxyIds && this.proxyIds.length > 0) {
+            for (const proxyId of this.proxyIds) {
+                const proxy = proxyManager.getProxy(proxyId);
+                if (proxy && proxy.networkName) {
+                    proxyNetworks[proxy.networkName] = {
+                        external: true,
+                        name: proxy.networkName
+                    };
+                    if (!proxyNetworkNames.includes(proxy.networkName)) {
+                        proxyNetworkNames.push(proxy.networkName);
+                    }
+                }
+            }
+        } else if (process.env.VELOCITY_NETWORK_NAME) {
+            // Fallback to legacy environment variable
+            const networkName = process.env.VELOCITY_NETWORK_NAME;
+            proxyNetworks[networkName] = {
+                external: true,
+                name: networkName
+            };
+            proxyNetworkNames.push(networkName);
+        }
+
+        const versionSpecificProps = {};
 
         const composeConfig = {
             version: '3.8',
@@ -565,7 +586,7 @@ export class MinecraftServer {
                     user: '1000:1000', // Explicitly set the user and group
                     networks: [
                         'minecraft-network',
-                        ...(process.env.VELOCITY_NETWORK_NAME ? [process.env.VELOCITY_NETWORK_NAME] : [])
+                        ...proxyNetworkNames
                     ],
                     labels: {
                         'minecraft.server.id': this.uniqueId,
@@ -579,12 +600,7 @@ export class MinecraftServer {
                 'minecraft-network': {
                     driver: 'bridge'
                 },
-                ...(process.env.VELOCITY_NETWORK_NAME ? {
-                    [process.env.VELOCITY_NETWORK_NAME]: {
-                        external: true,
-                        name: process.env.VELOCITY_NETWORK_NAME
-                    }
-                } : {})
+                ...proxyNetworks
             },
             volumes: {
                 [`${this.uniqueId}-data`]: {},
@@ -1603,7 +1619,7 @@ export class MinecraftServer {
      * Get the server base path with the env/email/id structure
      */
     getServerBasePath(): string {
-        const minecraftPath = process.env.MINECRAFT_PATH || '/minecraft-data';
+        const minecraftPath = process.env.MINECRAFT_PATH || '/minecraft';
         const userEmail = this.getUserEmail();
 
         return `${minecraftPath}/${userEmail}/${this.uniqueId}`;
@@ -1742,9 +1758,10 @@ export function createMinecraftServer(
     serverName: string,
     uniqueId: string,
     environmentId: number = 1,
-    userEmail: string
+    userEmail: string,
+    proxyIds: string[] = []
 ): MinecraftServer {
-    const server = new MinecraftServer(config, serverName, uniqueId, environmentId);
+    const server = new MinecraftServer(config, serverName, uniqueId, environmentId, proxyIds);
 
     // Set user email if provided
     if (userEmail) {

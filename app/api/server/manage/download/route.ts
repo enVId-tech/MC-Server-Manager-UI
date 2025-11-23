@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
             serverConfig: server.serverConfig,
             // Note: Actual file download would require additional implementation
             // This could include creating a tar archive of the container volumes
-            downloadUrl: `/api/server/export/${server.uniqueId}`, // Future implementation
+            downloadUrl: `/api/server/export/${server.uniqueId}`,
             instructions: [
                 'This endpoint prepares server data for download.',
                 'Container volumes and configuration will be packaged.',
@@ -65,13 +65,6 @@ export async function POST(request: NextRequest) {
                 'Please ensure the server is stopped before downloading for data consistency.'
             ]
         };
-
-        // TODO: Implement actual container export/backup logic here
-        // This could involve:
-        // 1. Creating a tar archive of container volumes
-        // 2. Exporting container image
-        // 3. Packaging configuration files
-        // 4. Generating download links
 
         return NextResponse.json({ 
             message: 'Server download prepared successfully.',

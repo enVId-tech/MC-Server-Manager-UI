@@ -48,12 +48,18 @@ class WaterfallService {
     async configureServerForWaterfall(
         serverConfig: WaterfallServerConfig,
         userEmail: string,
-        uniqueId: string
+        uniqueId: string,
+        configPath?: string,
+        networkName?: string
     ): Promise<{ success: boolean; error?: string; details?: string[] }> {
         const details: string[] = [];
         
+        // Use provided config path or fall back to instance default
+        const targetConfigPath = configPath || this.waterfallConfigPath;
+        const targetNetworkName = networkName || this.waterfallNetworkName;
+
         try {
-            details.push('Starting Waterfall server configuration...');
+            details.push(`Starting Waterfall server configuration (Config: ${targetConfigPath})...`);
             
             // Get server path
             const serverBasePath = `/servers/${userEmail}/${uniqueId}`;
@@ -65,7 +71,7 @@ class WaterfallService {
             await this.configurePluginSettings(serverBasePath, serverConfig, details);
             
             // Add server to Waterfall configuration
-            await this.addServerToWaterfallConfig(serverConfig, details);
+            await this.addServerToWaterfallConfig(serverConfig, details, targetConfigPath);
             
             return { success: true, details };
             
@@ -252,13 +258,14 @@ class WaterfallService {
      */
     private async addServerToWaterfallConfig(
         serverConfig: WaterfallServerConfig,
-        details: string[]
+        details: string[],
+        configPath: string = this.waterfallConfigPath
     ): Promise<void> {
         details.push('Adding server to Waterfall configuration...');
         
         try {
             // Read existing Waterfall configuration
-            const waterfallConfig = await this.readWaterfallConfig();
+            const waterfallConfig = await this.readWaterfallConfig(configPath);
             
             // Add server to the configuration (same as BungeeCord)
             const serverEntry = {
@@ -300,16 +307,11 @@ class WaterfallService {
                 }
             }
             
-            if (serverConfig.compressionLevel !== undefined) {
-                waterfallConfig.waterfall.compression_level = serverConfig.compressionLevel;
-            }
-            
             // Write updated configuration back to WebDAV
-            await this.writeWaterfallConfig(waterfallConfig);
+            await this.writeWaterfallConfig(waterfallConfig, configPath);
             
             details.push(`Server added to Waterfall configuration: ${serverConfig.serverName}`);
             details.push(`Server address: ${serverConfig.address}`);
-            details.push(`Forwarding mode: ${serverConfig.modernForwarding ? 'modern' : 'legacy'}`);
             
         } catch (error) {
             // Fallback: create configuration snippet for manual integration
@@ -331,9 +333,9 @@ class WaterfallService {
     /**
      * Read Waterfall configuration
      */
-    private async readWaterfallConfig(): Promise<WaterfallConfig> {
+    private async readWaterfallConfig(configPath: string = this.waterfallConfigPath): Promise<WaterfallConfig> {
         try {
-            await webdavService.getFileContents(this.waterfallConfigPath);
+            await webdavService.getFileContents(configPath);
             return this.parseWaterfallConfig();
         } catch {
             // Return default configuration if file doesn't exist
@@ -344,10 +346,10 @@ class WaterfallService {
     /**
      * Write Waterfall configuration
      */
-    private async writeWaterfallConfig(config: WaterfallConfig): Promise<void> {
+    private async writeWaterfallConfig(config: WaterfallConfig, configPath: string = this.waterfallConfigPath): Promise<void> {
         try {
             const yamlContent = this.serializeWaterfallConfig(config);
-            await webdavService.uploadFile(this.waterfallConfigPath, yamlContent);
+            await webdavService.uploadFile(configPath, yamlContent);
         } catch (error) {
             throw new Error(`Failed to write Waterfall configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }

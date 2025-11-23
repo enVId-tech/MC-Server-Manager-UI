@@ -10,6 +10,8 @@ export interface IServer extends Document {
     serverName: string;
     port: number;
     rconPort?: number;
+    environmentId?: number;
+    proxyIds?: string[];
     createdAt: Date;
     serverConfig: ServerConfigData;
 }
@@ -62,6 +64,16 @@ const ServerSchema: pkg.Schema = new pkg.Schema({
         required: false,
         min: [25565, 'RCON port must be at least 25565.'],
         max: [25595, 'RCON port must be at most 25595.'],
+    },
+    environmentId: {
+        type: Number,
+        required: false,
+        default: 1
+    },
+    proxyIds: {
+        type: [String],
+        required: false,
+        default: []
     },
     createdAt: {
         type: Date,

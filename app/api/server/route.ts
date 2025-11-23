@@ -19,8 +19,9 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ message: 'User not found.' }, { status: 404 });
         }
         const servers = await Server.find({ email: user.email }).select("-__v -createdAt -updatedAt");
+        
         if (!servers || servers.length === 0) {
-            return NextResponse.json({ message: "No servers found for this user." }, { status: 404 });
+            return NextResponse.json({ servers: [] }, { status: 200 });
         }
 
         // Format the server data
