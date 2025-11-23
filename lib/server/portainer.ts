@@ -257,6 +257,29 @@ export class PortainerApiClient {
     }
 
     /**
+     * Fetches details of a specific Portainer environment.
+     * @param environmentId - The ID of the environment to fetch.
+     * @returns {Promise<PortainerEnvironment>} A promise that resolves to the environment object.
+     */
+    async getEnvironment(environmentId: number): Promise<PortainerEnvironment> {
+        try {
+            // Ensure we're authenticated before making API calls
+            if (this.username && this.password && !this.authToken) {
+                const authSuccess = await this.authenticate();
+                if (!authSuccess) {
+                    throw new Error('Authentication failed, cannot get environment');
+                }
+            }
+
+            const response = await this.axiosInstance.get<PortainerEnvironment>(`/api/endpoints/${environmentId}`);
+            return response.data;
+        } catch (error) {
+            console.error(`Failed to fetch environment ${environmentId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
      * Fetches a list of all Portainer environments (endpoints).
      * @returns {Promise<PortainerEnvironment[]>} A promise that resolves to an array of environment objects.
      */

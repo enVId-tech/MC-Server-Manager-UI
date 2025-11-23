@@ -56,16 +56,24 @@ class VelocityService {
      * @param serverConfig - The server configuration to set up for Velocity
      * @param userEmail - User email for file path construction
      * @param uniqueId - Server unique identifier
+     * @param configPath - Optional: Path to velocity.toml (overrides env var)
+     * @param networkName - Optional: Docker network name (overrides env var)
      */
     async configureServerForVelocity(
         serverConfig: VelocityServerConfig,
         userEmail: string,
-        uniqueId: string
+        uniqueId: string,
+        configPath?: string,
+        networkName?: string
     ): Promise<{ success: boolean; error?: string; details?: string[] }> {
         const details: string[] = [];
         
+        // Use provided config path or fall back to instance default
+        const targetConfigPath = configPath || this.velocityConfigPath;
+        const targetNetworkName = networkName || this.velocityNetworkName;
+        
         try {
-            details.push('Starting Velocity server configuration...');
+            details.push(`Starting Velocity server configuration (Config: ${targetConfigPath})...`);
             
             // Get server path
             const userFolder = userEmail.split('@')[0];
@@ -78,7 +86,7 @@ class VelocityService {
             await this.configurePluginSettings(serverBasePath, serverConfig, details);
             
             // Add server to Velocity configuration
-            await this.addServerToVelocityConfig(serverConfig, details);
+            await this.addServerToVelocityConfig(serverConfig, details, targetConfigPath);
             
             details.push('Velocity configuration completed successfully');
             
@@ -274,74 +282,107 @@ class VelocityService {
     }
 
     /**
-     * Add server to Velocity configuration
+     * Add server to Velocity configuration (velocity.toml)
      */
     private async addServerToVelocityConfig(
-        serverConfig: VelocityServerConfig,
+        serverConfig: VelocityServerConfig, 
+        details: string[],
+        configPath: string = this.velocityConfigPath
+    ): Promise<void> {
+        try {
+            // Check if config file exists
+            const exists = await webdavService.exists(configPath);
+            if (!exists) {
+                throw new Error(`Velocity configuration file not found at ${configPath}`);
+            }
+
+            // Read current config
+            const configBuffer = await webdavService.getFileContents(configPath);
+            const configContent = configBuffer.toString('utf-8');
+            
+            // Parse TOML (simple parsing for now, ideally use a TOML library)
+            // Note: For robustness, we should use a proper TOML parser/stringifier
+            // But for this implementation, we'll use regex replacement to preserve comments/structure
+            
+            // 1. Add to [servers] section
+            const serversSectionRegex = /\[servers\]([\s\S]*?)(?=\[|\Z)/;
+            const match = configContent.match(serversSectionRegex);
+            
+            if (!match) {
+                throw new Error('Could not find [servers] section in velocity.toml');
+            }
+
+            const serversContent = match[1];
+            const serverEntry = `${serverConfig.serverName} = "${serverConfig.address}:${serverConfig.port}"`;
+            
+            // Check if server already exists
+            if (serversContent.includes(`${serverConfig.serverName} =`)) {
+                details.push(`Server ${serverConfig.serverName} already exists in velocity.toml, updating...`);
+                // Update existing entry
+                const updatedServersContent = serversContent.replace(
+                    new RegExp(`${serverConfig.serverName}\\s*=\\s*".*?"`),
+                    serverEntry
+                );
+                const newConfigContent = configContent.replace(serversContent, updatedServersContent);
+                await webdavService.uploadFile(configPath, newConfigContent);
+            } else {
+                details.push(`Adding server ${serverConfig.serverName} to velocity.toml...`);
+                // Add new entry
+                const newServersContent = serversContent.trimEnd() + '\n' + serverEntry + '\n\n';
+                const newConfigContent = configContent.replace(serversContent, newServersContent);
+                await webdavService.uploadFile(configPath, newConfigContent);
+            }
+
+            // 2. Add to [forced-hosts] if subdomain is provided
+            if (serverConfig.subdomain) {
+                await this.addForcedHost(serverConfig, configPath, details);
+            }
+
+        } catch (error) {
+            throw new Error(`Failed to update velocity.toml: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    /**
+     * Add forced host mapping
+     */
+    private async addForcedHost(
+        serverConfig: VelocityServerConfig, 
+        configPath: string,
         details: string[]
     ): Promise<void> {
-        details.push('Adding server to Velocity configuration...');
-        
         try {
-            // Read existing Velocity configuration
-            const velocityConfig = await this.readVelocityConfig();
-            
-            // Add server to the configuration
-            const serverEntry = {
-                address: serverConfig.address,
-                restricted: serverConfig.restrictedToProxy || false,
-                'player-info-forwarding-mode': serverConfig.playerInfoForwardingMode || 'legacy',
-                ...(serverConfig.forwardingSecret && { 'forwarding-secret': serverConfig.forwardingSecret })
-            };
-            
-            velocityConfig.servers[serverConfig.serverName] = serverEntry;
-            
-            // Add to try list if not already present
-            if (!velocityConfig.try.includes(serverConfig.serverName)) {
-                velocityConfig.try.push(serverConfig.serverName);
+            const configBuffer = await webdavService.getFileContents(configPath);
+            const configContent = configBuffer.toString('utf-8');
+            const forcedHostsSectionRegex = /\[forced-hosts\]([\s\S]*?)(?=\[|\Z)/;
+            const match = configContent.match(forcedHostsSectionRegex);
+
+            if (!match) {
+                // If section doesn't exist, we might need to create it, but usually it exists
+                details.push('Warning: [forced-hosts] section not found, skipping subdomain mapping');
+                return;
             }
-            
-            // Add forced host mapping if subdomain is provided
-            if (serverConfig.subdomain) {
-                // Create the full domain name (e.g., "myserver.mc.etran.dev")
-                const forcedHostDomain = `${serverConfig.subdomain}.mc.etran.dev`;
-                
-                // Add or update the forced host entry
-                if (!velocityConfig['forced-hosts']) {
-                    velocityConfig['forced-hosts'] = {};
-                }
-                
-                // Set the forced host to point to this server
-                velocityConfig['forced-hosts'][forcedHostDomain] = [serverConfig.serverName];
-                
-                details.push(`Added forced host mapping: ${forcedHostDomain} -> ${serverConfig.serverName}`);
+
+            const sectionContent = match[1];
+            const domain = process.env.ROOT_DOMAIN || 'example.com';
+            const hostEntry = `"${serverConfig.subdomain}.${domain}" = ["${serverConfig.serverName}"]`;
+
+            if (sectionContent.includes(`"${serverConfig.subdomain}.${domain}"`)) {
+                details.push(`Forced host for ${serverConfig.subdomain} already exists, updating...`);
+                const updatedSection = sectionContent.replace(
+                    new RegExp(`"${serverConfig.subdomain}\\.${domain}"\\s*=\\s*\\[.*?\\]`),
+                    hostEntry
+                );
+                const newConfigContent = configContent.replace(sectionContent, updatedSection);
+                await webdavService.uploadFile(configPath, newConfigContent);
+            } else {
+                details.push(`Adding forced host for ${serverConfig.subdomain}...`);
+                const newSection = sectionContent.trimEnd() + '\n' + hostEntry + '\n\n';
+                const newConfigContent = configContent.replace(sectionContent, newSection);
+                await webdavService.uploadFile(configPath, newConfigContent);
             }
-            
-            // Write updated configuration back to WebDAV
-            await this.writeVelocityConfig(velocityConfig);
-            
-            details.push(`Server added to Velocity configuration: ${serverConfig.serverName}`);
-            details.push(`Server address: ${serverConfig.address}`);
-            details.push(`Forwarding mode: ${serverConfig.playerInfoForwardingMode}`);
-            
         } catch (error) {
-            // Fallback: create configuration snippet for manual integration
-            details.push(`Warning: Could not update Velocity config directly: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            
-            const velocityServerEntry = {
-                [serverConfig.serverName]: {
-                    address: serverConfig.address,
-                    restricted: serverConfig.restrictedToProxy || false,
-                    'player-info-forwarding-mode': serverConfig.playerInfoForwardingMode || 'legacy',
-                    ...(serverConfig.forwardingSecret && { 'forwarding-secret': serverConfig.forwardingSecret })
-                }
-            };
-            
-            // Save configuration snippet for manual integration
-            const configPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/velocity-configs/${serverConfig.serverId}.json`;
-            await webdavService.uploadFile(configPath, JSON.stringify(velocityServerEntry, null, 2));
-            
-            details.push(`Velocity configuration snippet saved for manual integration`);
+            details.push(`Warning: Failed to add forced host: ${error}`);
         }
     }
 

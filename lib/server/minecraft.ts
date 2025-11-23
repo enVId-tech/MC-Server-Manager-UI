@@ -318,6 +318,7 @@ export type MinecraftPropertiesV1_21 = MinecraftPropertiesV1_20_2;
 
 import portainer from './portainer';
 import { PortainerContainer } from './portainer';
+import { ProxyManager } from './proxy-manager';
 import webdavService from './webdav';
 import yaml from 'js-yaml';
 import extractZip from 'extract-zip';
@@ -336,12 +337,14 @@ export class MinecraftServer {
     private serverName: string;
     private uniqueId: string;
     private environmentId: number;
+    private proxyIds: string[];
 
-    constructor(config: MinecraftServerConfig, serverName: string, uniqueId: string, environmentId: number = 1) {
+    constructor(config: MinecraftServerConfig, serverName: string, uniqueId: string, environmentId: number = 1, proxyIds: string[] = []) {
         this.config = config;
         this.serverName = serverName;
         this.uniqueId = uniqueId;
         this.environmentId = environmentId;
+        this.proxyIds = proxyIds;
     }
 
     /**

@@ -405,7 +405,13 @@ export class ProxyManager {
     ): Promise<{ success: boolean; error?: string; details: string[] }> {
         // Import and use existing Velocity service
         const { default: velocityService } = await import('./velocity');
-        const result = await velocityService.configureServerForVelocity(serverConfig, userEmail, uniqueId);
+        const result = await velocityService.configureServerForVelocity(
+            serverConfig, 
+            userEmail, 
+            uniqueId,
+            proxy.configPath,
+            proxy.networkName
+        );
         return {
             ...result,
             details: result.details ?? []
