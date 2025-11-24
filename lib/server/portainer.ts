@@ -345,6 +345,31 @@ export class PortainerApiClient {
             const response = await this.axiosInstance.get<PortainerContainer[]>(`/api/endpoints/${environmentId}/docker/containers/json`, { params });
             return response.data;
         } catch (error) {
+            // If we get a 404, it might be that the environment ID is invalid/stale.
+            // We try to auto-discover a valid environment ID and retry.
+            if (axios.isAxiosError(error) && error.response?.status === 404) {
+                console.warn(`Environment ${environmentId} not found (404). Attempting to discover a valid environment...`);
+                
+                try {
+                    const newEnvId = await this.getFirstEnvironmentId();
+                    if (newEnvId !== null && newEnvId !== environmentId) {
+                        console.log(`Found valid environment ${newEnvId}. Retrying getContainers...`);
+                        const params = { all: includeAll };
+                        const response = await this.axiosInstance.get<PortainerContainer[]>(`/api/endpoints/${newEnvId}/docker/containers/json`, { params });
+                        
+                        // If successful, update the defaultEnvironmentId for this instance if it was using the default
+                        if (this.defaultEnvironmentId === environmentId) {
+                            console.log(`Updating default environment ID from ${this.defaultEnvironmentId} to ${newEnvId}`);
+                            this.defaultEnvironmentId = newEnvId;
+                        }
+                        
+                        return response.data;
+                    }
+                } catch (retryError) {
+                    console.error('Retry with new environment ID failed:', retryError);
+                }
+            }
+
             console.error(`Failed to fetch containers for environment ${environmentId}:`, error);
             throw error;
         }
@@ -1234,6 +1259,32 @@ export class PortainerApiClient {
             );
             return response.data;
         } catch (error) {
+            // If we get a 404, it might be that the environment ID is invalid/stale.
+            // We try to auto-discover a valid environment ID and retry.
+            if (axios.isAxiosError(error) && error.response?.status === 404) {
+                console.warn(`Failed to get logs for container ${containerId} on environment ${environmentId} (404). Attempting to discover a valid environment...`);
+                
+                try {
+                    const newEnvId = await this.getFirstEnvironmentId();
+                    if (newEnvId !== null && newEnvId !== environmentId) {
+                        console.log(`Found valid environment ${newEnvId}. Retrying getContainerLogs...`);
+                        const response = await this.axiosInstance.get(
+                            `/api/endpoints/${newEnvId}/docker/containers/${containerId}/logs?stdout=1&stderr=1&tail=${tail}&timestamps=1`
+                        );
+                        
+                        // If successful, update the defaultEnvironmentId for this instance if it was using the default
+                        if (this.defaultEnvironmentId === environmentId) {
+                            console.log(`Updating default environment ID from ${this.defaultEnvironmentId} to ${newEnvId}`);
+                            this.defaultEnvironmentId = newEnvId;
+                        }
+                        
+                        return response.data;
+                    }
+                } catch (retryError) {
+                    console.error('Retry with new environment ID failed:', retryError);
+                }
+            }
+
             console.error(`❌ Failed to get logs for container ${containerId}:`, error);
             throw error;
         }
@@ -1401,6 +1452,53 @@ export class PortainerApiClient {
                 exitCode: 0
             };
         } catch (error) {
+            // If we get a 404, it might be that the environment ID is invalid/stale.
+            // We try to auto-discover a valid environment ID and retry.
+            if (axios.isAxiosError(error) && error.response?.status === 404) {
+                console.warn(`Failed to execute command in container ${containerId} on environment ${environmentId} (404). Attempting to discover a valid environment...`);
+                
+                try {
+                    const newEnvId = await this.getFirstEnvironmentId();
+                    if (newEnvId !== null && newEnvId !== environmentId) {
+                        console.log(`Found valid environment ${newEnvId}. Retrying executeCommand...`);
+                        
+                        // Create exec instance
+                        const execResponse = await this.axiosInstance.post(
+                            `/api/endpoints/${newEnvId}/docker/containers/${containerId}/exec`,
+                            {
+                                AttachStdout: true,
+                                AttachStderr: true,
+                                Cmd: ["/bin/sh", "-c", command]
+                            }
+                        );
+
+                        const execId = execResponse.data.Id;
+
+                        // Start the exec instance
+                        const startResponse = await this.axiosInstance.post(
+                            `/api/endpoints/${newEnvId}/docker/exec/${execId}/start`,
+                            {
+                                Detach: false,
+                                Tty: false
+                            }
+                        );
+                        
+                        // If successful, update the defaultEnvironmentId for this instance if it was using the default
+                        if (this.defaultEnvironmentId === environmentId) {
+                            console.log(`Updating default environment ID from ${this.defaultEnvironmentId} to ${newEnvId}`);
+                            this.defaultEnvironmentId = newEnvId;
+                        }
+
+                        return {
+                            output: startResponse.data,
+                            exitCode: 0
+                        };
+                    }
+                } catch (retryError) {
+                    console.error('Retry with new environment ID failed:', retryError);
+                }
+            }
+
             console.error(`❌ Failed to execute command in container ${containerId}:`, error);
             throw error;
         }

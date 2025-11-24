@@ -15,7 +15,11 @@ import {
   FaCircle,
   FaSlash,
   FaExclamationTriangle,
-  FaCheckCircle
+  FaCheckCircle,
+  FaTerminal,
+  FaListAlt,
+  FaSync,
+  FaSpinner
 } from 'react-icons/fa';
 import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
@@ -72,6 +76,10 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   const [newItemName, setNewItemName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [uniqueId, setUniqueId] = useState<string>('');
+  const [logs, setLogs] = useState<string>('');
+  const [consoleInput, setConsoleInput] = useState('');
+  const [isSendingCommand, setIsSendingCommand] = useState(false);
+  const [logsLoading, setLogsLoading] = useState(false);
 
   // Utility function to format file size
   const formatFileSize = (bytes: number): string => {
@@ -173,7 +181,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     }
   }, [resolvedParams.slug]);
 
-  const [activeTab, setActiveTab] = useState<'files' | 'info' | 'notes'>('files');
+  const [activeTab, setActiveTab] = useState<'files' | 'info' | 'notes' | 'logs' | 'console'>('files');
 
   // Fetch files from WebDAV
   const fetchFiles = useCallback(async (path: string) => {
@@ -205,6 +213,77 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
       setLoading(false);
     }
   }, [resolvedParams.slug, showNotification]);
+
+  // Fetch server logs
+  const fetchLogs = useCallback(async () => {
+    if (!uniqueId) return;
+    
+    setLogsLoading(true);
+    try {
+      const response = await fetch(`/api/server/logs?uniqueId=${encodeURIComponent(uniqueId)}&tail=100`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch logs');
+      }
+
+      const data = await response.json();
+      setLogs(data.logs || '');
+    } catch (error) {
+      console.error('Error fetching logs:', error);
+      showNotification({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to fetch server logs'
+      });
+    } finally {
+      setLogsLoading(false);
+    }
+  }, [uniqueId, showNotification]);
+
+  // Send command to server console
+  const handleSendCommand = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!consoleInput.trim() || !uniqueId) return;
+
+    setIsSendingCommand(true);
+    try {
+      const response = await fetch('/api/server/command', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uniqueId,
+          command: consoleInput
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send command');
+      }
+
+      const data = await response.json();
+      
+      showNotification({
+        type: 'success',
+        title: 'Command Sent',
+        message: `Command executed: ${data.output || 'Success'}`
+      });
+      
+      setConsoleInput('');
+      // Refresh logs after sending command
+      setTimeout(fetchLogs, 1000);
+    } catch (error) {
+      console.error('Error sending command:', error);
+      showNotification({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to send command'
+      });
+    } finally {
+      setIsSendingCommand(false);
+    }
+  };
 
   // Fetch file content from WebDAV
   const fetchFileContent = async (filePath: string) => {
@@ -885,6 +964,15 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     };
   }, [router]);
 
+  // Poll for logs when logs or console tab is active
+  useEffect(() => {
+    if ((activeTab === 'logs' || activeTab === 'console') && uniqueId) {
+      fetchLogs();
+      const interval = setInterval(fetchLogs, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, uniqueId, fetchLogs]);
+
   const handleFileClick = (file: FileItem) => {
     if (file.type === 'folder') {
       setCurrentPath(file.path);
@@ -1241,6 +1329,18 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                 <FaFolder /> Files
               </button>
               <button
+                className={`${styles.tabButton} ${activeTab === 'logs' ? styles.active : ''}`}
+                onClick={() => setActiveTab('logs')}
+              >
+                <FaListAlt /> Logs
+              </button>
+              <button
+                className={`${styles.tabButton} ${activeTab === 'console' ? styles.active : ''}`}
+                onClick={() => setActiveTab('console')}
+              >
+                <FaTerminal /> Console
+              </button>
+              <button
                 className={`${styles.tabButton} ${activeTab === 'info' ? styles.active : ''}`}
                 onClick={() => setActiveTab('info')}
               >
@@ -1309,6 +1409,59 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                       <p>Select a file to view or edit</p>
                     </div>
                   )}
+                </div>
+              )}
+
+              {activeTab === 'logs' && (
+                <div className={styles.logsContainer}>
+                  <div className={styles.logsHeader}>
+                    <h3>Server Logs</h3>
+                    <button 
+                      className={styles.refreshButton}
+                      onClick={fetchLogs}
+                      disabled={logsLoading}
+                    >
+                      {logsLoading ? <FaSpinner className={styles.spinning} /> : <FaSync />} Refresh
+                    </button>
+                  </div>
+                  <div className={styles.logsContent}>
+                    <pre>{logs || 'No logs available'}</pre>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'console' && (
+                <div className={styles.consoleContainer}>
+                  <div className={styles.consoleHeader}>
+                    <h3>Server Console</h3>
+                    <div className={styles.statusBadge}>
+                      <span className={`${styles.statusDot} ${serverStats.status === 'online' ? styles.online : styles.offline}`}></span>
+                      {serverStats.status}
+                    </div>
+                  </div>
+                  <div className={styles.consoleOutput}>
+                    <pre>{logs || 'No console output available'}</pre>
+                  </div>
+                  <form onSubmit={handleSendCommand} className={styles.consoleInputForm}>
+                    <div className={styles.inputWrapper}>
+                      <span className={styles.prompt}>{'>'}</span>
+                      <input
+                        type="text"
+                        value={consoleInput}
+                        onChange={(e) => setConsoleInput(e.target.value)}
+                        placeholder="Type a command..."
+                        disabled={isSendingCommand || serverStats.status !== 'online'}
+                        className={styles.consoleInput}
+                      />
+                    </div>
+                    <button 
+                      type="submit" 
+                      disabled={isSendingCommand || !consoleInput.trim() || serverStats.status !== 'online'}
+                      className={styles.sendButton}
+                    >
+                      {isSendingCommand ? <FaSpinner className={styles.spinning} /> : 'Send'}
+                    </button>
+                  </form>
                 </div>
               )}
 
@@ -1528,6 +1681,152 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                       <div className={styles.note}>
                         <strong>Download Backup:</strong> Create a backup of your server files for safekeeping.
                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'logs' && (
+                <div className={styles.serverLogs}>
+                  <h3>Server Logs</h3>
+
+                  <div className={styles.logsContent}>
+                    {logsLoading ? (
+                      <div className={styles.loadingState}>
+                        <FaCircle className={styles.loadingSpinner} />
+                        <p>Loading logs...</p>
+                      </div>
+                    ) : (
+                      <>
+                        {logs ? (
+                          <pre className={styles.logsViewer}>{logs}</pre>
+                        ) : (
+                          <div className={styles.emptyState}>
+                            <FaFolder className={styles.emptyIcon} />
+                            <p>No logs found</p>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  <div className={styles.logsActions}>
+                    <button
+                      className={styles.refreshButton}
+                      onClick={async () => {
+                        setLogsLoading(true);
+                        try {
+                          const response = await fetch(`/api/server/logs?uniqueId=${encodeURIComponent(resolvedParams.slug)}`);
+                          
+                          if (!response.ok) {
+                            throw new Error('Failed to fetch logs');
+                          }
+      
+                          const data = await response.json();
+                          setLogs(data.logs || '');
+                        } catch (error) {
+                          console.error('Error fetching logs:', error);
+                          showNotification({
+                            type: 'error',
+                            title: 'Error',
+                            message: 'Failed to fetch logs: ' + (error instanceof Error ? error.message : 'Unknown error')
+                          });
+                        } finally {
+                          setLogsLoading(false);
+                        }
+                      }}
+                    >
+                      <FaSync /> Refresh Logs
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'console' && (
+                <div className={styles.serverConsole}>
+                  <h3>Server Console</h3>
+
+                  <div className={styles.consoleContent}>
+                    <div className={styles.consoleOutput}>
+                      {logsLoading ? (
+                        <div className={styles.loadingState}>
+                          <FaCircle className={styles.loadingSpinner} />
+                          <p>Loading console output...</p>
+                        </div>
+                      ) : (
+                        <pre className={styles.consoleViewer}>{logs}</pre>
+                      )}
+                    </div>
+
+                    <div className={styles.consoleInputContainer}>
+                      <input
+                        type="text"
+                        placeholder="Enter command..."
+                        value={consoleInput}
+                        onChange={(e) => setConsoleInput(e.target.value)}
+                        className={styles.consoleInput}
+                        disabled={isSendingCommand}
+                      />
+                      <button
+                        className={styles.sendButton}
+                        onClick={async () => {
+                          if (!consoleInput.trim()) return;
+
+                          setIsSendingCommand(true);
+                          showNotification({
+                            type: 'info',
+                            message: 'Sending command...'
+                          });
+
+                          try {
+                            const response = await fetch('/api/server/console', {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({
+                                uniqueId: uniqueId,
+                                command: consoleInput.trim()
+                              })
+                            });
+
+                            const data = await response.json();
+
+                            if (!response.ok) {
+                              throw new Error(data.message || 'Failed to send command');
+                            }
+
+                            setConsoleInput('');
+                            showNotification({
+                              type: 'success',
+                              title: 'Command Sent',
+                              message: 'Your command has been sent to the server.'
+                            });
+
+                            // Optionally, refresh logs or console output here
+                            setLogsLoading(true);
+                            const logsResponse = await fetch(`/api/server/logs?uniqueId=${encodeURIComponent(resolvedParams.slug)}`);
+                            const logsData = await logsResponse.json();
+                            setLogs(logsData.logs || '');
+                          } catch (error) {
+                            showNotification({
+                              type: 'error',
+                              title: 'Command Error',
+                              message: error instanceof Error ? error.message : 'Failed to send command'
+                            });
+                            console.error('Error sending command:', error);
+                          } finally {
+                            setIsSendingCommand(false);
+                            setLogsLoading(false);
+                          }
+                        }}
+                      >
+                        {isSendingCommand ? (
+                          <FaSpinner className={styles.spinning} />
+                        ) : (
+                          <FaTerminal />
+                        )}
+                      </button>
                     </div>
                   </div>
                 </div>
