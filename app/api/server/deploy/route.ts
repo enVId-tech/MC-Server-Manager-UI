@@ -9,6 +9,7 @@ import { createMinecraftServer, convertClientConfigToServerConfig, ClientServerC
 import verificationService from "@/lib/server/verify";
 import velocityService from "@/lib/server/velocity";
 import { FileInfo } from "@/lib/objects/ServerConfig";
+import { definedProxies } from "@/lib/config/proxies";
 import { promises as fs } from 'fs';
 import path from 'path';
 
@@ -810,7 +811,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
 
         try {
             // Check if Velocity integration is enabled
-            const velocityEnabled = process.env.VELOCITY_NETWORK_NAME && process.env.VELOCITY_NETWORK_NAME.length > 0;
+            const velocityEnabled = definedProxies.length > 0;
             
             if (velocityEnabled) {
                 console.log('Velocity integration enabled, configuring server...');
@@ -856,7 +857,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                             motd: server.serverConfig?.motd || server.serverName,
                             restrictedToProxy: true,
                             playerInfoForwardingMode: 'legacy' as const,
-                            forwardingSecret: process.env.VELOCITY_FORWARDING_SECRET || 'velocity-secret',
+                            forwardingSecret: 'velocity-secret',
                             subdomain: server.serverConfig?.subdomain // Add subdomain for forced host mapping
                         };
 

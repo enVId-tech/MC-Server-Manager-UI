@@ -111,7 +111,7 @@ async function configureServerForVelocity(server: IServer, user: IUser) {
             motd: server.serverConfig?.motd || server.serverName,
             restrictedToProxy: true,
             playerInfoForwardingMode: 'legacy' as const, // For <1.13 support
-            forwardingSecret: process.env.VELOCITY_FORWARDING_SECRET || 'velocity-secret'
+            forwardingSecret: 'velocity-secret'
         };
 
         const configResult = await velocityService.configureServerForVelocity(

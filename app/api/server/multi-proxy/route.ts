@@ -364,7 +364,7 @@ async function configureServerForMultiProxy(
             motd: server.serverConfig?.motd || server.serverName,
             restrictedToProxy: true,
             playerInfoForwardingMode: 'legacy' as const, // Default, can be overridden per proxy
-            forwardingSecret: process.env.VELOCITY_FORWARDING_SECRET || 'proxy-secret',
+            forwardingSecret: 'proxy-secret',
             targetProxies: multiProxyConfig.targetProxies || [],
             loadBalancingStrategy: (multiProxyConfig.loadBalancingStrategy as 'round-robin' | 'priority' | 'least-connections' | 'custom') || 'priority',
             fallbackProxies: multiProxyConfig.fallbackProxies || [],

@@ -514,14 +514,6 @@ export class MinecraftServer {
                     }
                 }
             }
-        } else if (process.env.VELOCITY_NETWORK_NAME) {
-            // Fallback to legacy environment variable
-            const networkName = process.env.VELOCITY_NETWORK_NAME;
-            proxyNetworks[networkName] = {
-                external: true,
-                name: networkName
-            };
-            proxyNetworkNames.push(networkName);
         }
 
         const versionSpecificProps = {};

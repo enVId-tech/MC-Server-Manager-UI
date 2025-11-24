@@ -11,6 +11,12 @@
 import { VelocityServerConfig } from './velocity';
 import { RustyConnectorServerConfig } from './rusty-connector';
 import portainer from './portainer';
+import { definedProxies, ProxyDefinition } from '@/lib/config/proxies';
+import webdavService from './webdav';
+import velocityService from './velocity';
+import path from 'path';
+import Server from '@/lib/objects/Server';
+import { createMinecraftServer, ClientServerConfig, MinecraftServerConfig } from '@/lib/server/minecraft';
 
 export type ProxyType = 'velocity' | 'bungeecord' | 'waterfall' | 'rusty-connector';
 
@@ -76,110 +82,12 @@ export class ProxyManager {
     }
 
     /**
-     * Initialize default proxy configurations from environment
+     * Initialize default proxy configurations from defined proxies
      */
     private initializeDefaultProxies(): void {
-        // Velocity proxy (existing)
-        if (process.env.VELOCITY_ENABLED !== 'false') {
-            this.registerProxy({
-                id: 'velocity-main',
-                name: 'Main Velocity Proxy',
-                type: 'velocity',
-                host: process.env.VELOCITY_HOST || 'velocity',
-                port: parseInt(process.env.VELOCITY_PORT || '25565'),
-                enabled: true,
-                priority: 100,
-                configPath: process.env.VELOCITY_CONFIG_PATH || '/velocity/velocity.toml',
-                networkName: process.env.VELOCITY_NETWORK_NAME || 'velocity-network',
-                description: 'Main Velocity proxy server for modern Minecraft versions',
-                tags: ['modern', 'high-performance', 'primary'],
-                capabilities: [
-                    { name: 'modern-forwarding', supported: true },
-                    { name: 'legacy-forwarding', supported: true },
-                    { name: 'plugin-support', supported: true },
-                    { name: 'forced-hosts', supported: true },
-                    { name: 'dynamic-reload', supported: true }
-                ],
-                healthStatus: 'unknown'
-            });
-        }
-
-        // BungeeCord proxy (new)
-        if (process.env.BUNGEECORD_ENABLED === 'true') {
-            this.registerProxy({
-                id: 'bungeecord-main',
-                name: 'Main BungeeCord Proxy',
-                type: 'bungeecord',
-                host: process.env.BUNGEECORD_HOST || 'bungeecord',
-                port: parseInt(process.env.BUNGEECORD_PORT || '25566'),
-                enabled: true,
-                priority: 80,
-                configPath: process.env.BUNGEECORD_CONFIG_PATH || '/bungeecord/config.yml',
-                networkName: process.env.BUNGEECORD_NETWORK_NAME || 'bungeecord-network',
-                description: 'Legacy BungeeCord proxy for compatibility',
-                tags: ['legacy', 'compatible', 'backup'],
-                capabilities: [
-                    { name: 'modern-forwarding', supported: false },
-                    { name: 'legacy-forwarding', supported: true },
-                    { name: 'plugin-support', supported: true },
-                    { name: 'forced-hosts', supported: true },
-                    { name: 'dynamic-reload', supported: false }
-                ],
-                healthStatus: 'unknown'
-            });
-        }
-
-        // Waterfall proxy (new)
-        if (process.env.WATERFALL_ENABLED === 'true') {
-            this.registerProxy({
-                id: 'waterfall-main',
-                name: 'Main Waterfall Proxy',
-                type: 'waterfall',
-                host: process.env.WATERFALL_HOST || 'waterfall',
-                port: parseInt(process.env.WATERFALL_PORT || '25567'),
-                enabled: true,
-                priority: 90,
-                configPath: process.env.WATERFALL_CONFIG_PATH || '/waterfall/config.yml',
-                networkName: process.env.WATERFALL_NETWORK_NAME || 'waterfall-network',
-                description: 'Improved BungeeCord fork with better performance',
-                tags: ['improved-legacy', 'performance', 'secondary'],
-                capabilities: [
-                    { name: 'modern-forwarding', supported: true },
-                    { name: 'legacy-forwarding', supported: true },
-                    { name: 'plugin-support', supported: true },
-                    { name: 'forced-hosts', supported: true },
-                    { name: 'dynamic-reload', supported: true }
-                ],
-                healthStatus: 'unknown'
-            });
-        }
-
-        // RustyConnector integration
-        if (process.env.RUSTY_CONNECTOR_ENABLED === 'true') {
-            this.registerProxy({
-                id: 'rusty-connector',
-                name: 'RustyConnector Dynamic Management',
-                type: 'rusty-connector',
-                host: process.env.VELOCITY_HOST || 'velocity',
-                port: parseInt(process.env.VELOCITY_PORT || '25565'),
-                enabled: true,
-                priority: 110,
-                configPath: '/velocity/plugins/RustyConnector/config.yml',
-                networkName: 'rusty-connector-network',
-                description: 'Dynamic server management with RustyConnector',
-                tags: ['dynamic', 'advanced', 'auto-scaling'],
-                capabilities: [
-                    { name: 'modern-forwarding', supported: true },
-                    { name: 'legacy-forwarding', supported: true },
-                    { name: 'plugin-support', supported: true },
-                    { name: 'forced-hosts', supported: true },
-                    { name: 'dynamic-reload', supported: true },
-                    { name: 'auto-scaling', supported: true },
-                    { name: 'load-balancing', supported: true },
-                    { name: 'server-families', supported: true }
-                ],
-                healthStatus: 'unknown'
-            });
+        // Register proxies from definition file
+        for (const def of definedProxies) {
+            this.registerProxyFromDefinition(def);
         }
     }
 
@@ -276,11 +184,10 @@ export class ProxyManager {
                     .map(id => this.proxies.get(id))
                     .filter(proxy => proxy?.enabled) as ProxyInstanceConfig[];
             } else {
-                // Auto-select proxies based on strategy
-                const primary = this.getBestProxyForServer(serverConfig);
-                if (primary) {
-                    targetProxies = [primary];
-                }
+                // Default: Deploy to ALL enabled proxies (High Availability)
+                targetProxies = Array.from(this.proxies.values())
+                    .filter(proxy => proxy.enabled && proxy.type === 'velocity') // Focus on Velocity for now
+                    .sort((a, b) => b.priority - a.priority);
             }
 
             if (targetProxies.length === 0) {
@@ -621,6 +528,11 @@ export class ProxyManager {
         const results: MultiProxyDeploymentResult['results'] = {};
         
         try {
+            // First, ensure defined proxies exist
+            details.push('Ensuring defined proxies exist...');
+            const ensureDetails = await this.ensureProxies(environmentId);
+            details.push(...ensureDetails);
+
             details.push(`Scanning for Velocity proxies in environment ${environmentId}...`);
             
             // Find containers with 'velocity' in their image name
@@ -684,6 +596,261 @@ export class ProxyManager {
                 fallbackProxies: []
             };
         }
+    }
+
+    /**
+     * Ensure all defined proxies exist and are running
+     */
+    async ensureProxies(environmentId: number = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1): Promise<string[]> {
+        const details: string[] = [];
+        
+        for (const def of definedProxies) {
+            try {
+                await this.ensureProxyExists(def, environmentId, details);
+            } catch (error) {
+                details.push(`Failed to ensure proxy ${def.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+        }
+
+        // Sync servers after ensuring proxies
+        try {
+            const syncDetails = await this.syncServers(environmentId);
+            details.push(...syncDetails);
+        } catch (error) {
+            details.push(`Failed to sync servers: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+        
+        return details;
+    }
+
+    /**
+     * Synchronize servers between Database and Portainer
+     */
+    async syncServers(environmentId: number): Promise<string[]> {
+        const details: string[] = [];
+        details.push('Starting server synchronization...');
+
+        try {
+            // 1. Get all containers
+            const containers = await portainer.getContainers(environmentId);
+            const serverContainers = containers.filter(c => 
+                c.Names.some(n => n.match(/^\/?(mc-|minecraft-)/))
+            );
+
+            // 2. Get all DB servers
+            const dbServers = await Server.find({});
+            const dbServerIds = new Set(dbServers.map(s => s.uniqueId));
+
+            // 3. Handle Orphans (Container exists, DB missing)
+            for (const container of serverContainers) {
+                // Extract ID from name (e.g., /mc-123abc -> 123abc)
+                const name = container.Names[0].replace(/^\//, '');
+                const idMatch = name.match(/^(?:mc-|minecraft-)(.+)$/);
+                if (idMatch) {
+                    const serverId = idMatch[1];
+                    if (!dbServerIds.has(serverId)) {
+                        details.push(`Found orphaned server container: ${name} (${serverId}). Stopping...`);
+                        // Stop the container
+                        if (container.State === 'running') {
+                            try {
+                                await portainer.stopContainer(container.Id, environmentId);
+                                details.push(`Stopped orphaned container ${name}`);
+                            } catch (e) {
+                                details.push(`Failed to stop orphaned container ${name}: ${e}`);
+                            }
+                        }
+                        // We don't delete the file as requested
+                    }
+                }
+            }
+
+            // 4. Handle Missing (DB exists, Container missing)
+            for (const server of dbServers) {
+                const containerName = `mc-${server.uniqueId}`;
+                const exists = serverContainers.some(c => c.Names.some(n => n.includes(containerName)));
+                
+                if (!exists) {
+                    details.push(`Server ${server.serverName} (${server.uniqueId}) missing in Portainer. Recreating...`);
+                    
+                    try {
+                        // Construct config from DB
+                        // We assume server.serverConfig matches ClientServerConfig structure roughly
+                        // We might need to map fields if they differ significantly
+                        const config = server.serverConfig as unknown as MinecraftServerConfig;
+                        
+                        // Create server instance
+                        const minecraftServer = createMinecraftServer(
+                            config,
+                            server.serverName,
+                            server.uniqueId,
+                            environmentId,
+                            server.email || 'default-user'
+                        );
+
+                        // Deploy
+                        await minecraftServer.deployToPortainer();
+                        details.push(`Successfully recreated server ${server.serverName}`);
+                    } catch (e) {
+                        details.push(`Failed to recreate server ${server.serverName}: ${e}`);
+                    }
+                }
+            }
+
+        } catch (error) {
+            details.push(`Server synchronization failed: ${error}`);
+        }
+
+        return details;
+    }
+
+    /**
+     * Ensure a single proxy exists
+     */
+    private async ensureProxyExists(def: ProxyDefinition, environmentId: number, details: string[]): Promise<void> {
+        // 1. Check if container exists
+        const container = await portainer.getContainerByIdentifier(def.host, environmentId);
+
+        if (container) {
+            details.push(`Proxy ${def.name} already exists.`);
+            // Register it
+            this.registerProxyFromDefinition(def);
+            return;
+        }
+
+        details.push(`Proxy ${def.name} not found. Creating...`);
+
+        // 2. Ensure configuration exists
+        const configDir = path.dirname(def.configPath);
+        
+        // Create directory
+        try {
+            await webdavService.createDirectory(configDir);
+        } catch (e) {
+            // Ignore if exists
+        }
+
+        // Check if config file exists, if not create default
+        try {
+            await webdavService.getFileContents(def.configPath);
+        } catch {
+            details.push(`Creating default configuration for ${def.name}...`);
+            
+            // Get base config object
+            const velocityConfig = velocityService.getDefaultVelocityConfig();
+            
+            // Check for other existing proxies to mirror
+            const otherProxies = definedProxies.filter(p => p.id !== def.id);
+            let mirrored = false;
+            
+            for (const other of otherProxies) {
+                try {
+                    // Try to read config from other proxy
+                    const otherConfig = await velocityService.readVelocityConfig(other.configPath);
+                    
+                    if (otherConfig && otherConfig.servers && Object.keys(otherConfig.servers).length > 0) {
+                        velocityConfig.servers = { ...otherConfig.servers };
+                        velocityConfig['forced-hosts'] = { ...otherConfig['forced-hosts'] };
+                        velocityConfig['try'] = [...otherConfig['try']];
+                        details.push(`Mirrored configuration from ${other.name}`);
+                        mirrored = true;
+                        break; 
+                    }
+                } catch (e) {
+                    // Ignore and try next
+                }
+            }
+            
+            if (!mirrored) {
+                // First instance logic: Populate from DB
+                details.push(`First proxy instance. Populating from database...`);
+                try {
+                    const allServers = await Server.find({});
+                    for (const server of allServers) {
+                        if (server.uniqueId && server.serverName) {
+                            const serverAddress = `mc-${server.uniqueId}:25565`;
+                            velocityConfig.servers[server.serverName] = { address: serverAddress };
+                            
+                            // Add forced host if subdomain exists
+                            if (server.subdomainName) {
+                                const domain = process.env.ROOT_DOMAIN || 'example.com';
+                                const host = `${server.subdomainName}.${domain}`;
+                                if (!velocityConfig['forced-hosts']) velocityConfig['forced-hosts'] = {};
+                                velocityConfig['forced-hosts'][host] = [server.serverName];
+                            }
+                        }
+                    }
+                    details.push(`Populated ${allServers.length} servers from database.`);
+                } catch (dbError) {
+                    details.push(`Warning: Failed to populate from DB: ${dbError}`);
+                }
+            }
+
+            const configContent = velocityService.generateVelocityConfig(velocityConfig);
+            await webdavService.uploadFile(def.configPath, configContent);
+            
+            // Also create forwarding.secret
+            const secretPath = path.join(configDir, 'forwarding.secret').replace(/\\/g, '/');
+            const secret = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+            await webdavService.uploadFile(secretPath, secret);
+        }
+
+        // 3. Create Stack/Container
+        // We'll use a simple stack definition
+        const stackName = def.name;
+        const stackContent = `version: '3'
+services:
+  ${def.host}:
+    image: envidtech/velocity:latest
+    container_name: ${def.host}
+    restart: on-failure:5
+    ports:
+      - "${def.port}:25565"
+    volumes:
+      - ${configDir}:/velocity
+    networks:
+      - ${def.networkName}
+    environment:
+      - VELOCITY_MEMORY=${def.memory}
+
+networks:
+  ${def.networkName}:
+    external: true
+`;
+
+        // Deploy stack
+        details.push(`Deploying stack for ${def.name}...`);
+        await portainer.createStack(
+            {
+                Name: stackName,
+                ComposeFile: stackContent,
+                Env: []
+            },
+            environmentId
+        );
+        
+        details.push(`Proxy ${def.name} deployed successfully.`);
+        this.registerProxyFromDefinition(def);
+    }
+
+    private registerProxyFromDefinition(def: ProxyDefinition) {
+        this.registerProxy({
+            id: def.id,
+            name: def.name,
+            type: def.type,
+            host: def.host,
+            port: def.port,
+            enabled: true,
+            priority: 100,
+            configPath: def.configPath,
+            networkName: def.networkName,
+            description: `Managed Proxy: ${def.name}`,
+            tags: ['managed', def.type],
+            capabilities: [
+                { name: 'modern-forwarding', supported: true },
+                { name: 'dynamic-reload', supported: true }
+            ],
+            healthStatus: 'healthy'
+        });
     }
 }
 

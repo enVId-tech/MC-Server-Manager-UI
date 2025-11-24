@@ -159,7 +159,8 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
             details.push('Cleaning up Velocity configuration...');
             
             // Check if Velocity integration is enabled
-            if (process.env.VELOCITY_CONFIG_PATH && process.env.VELOCITY_NETWORK_NAME) {
+            // We now assume it is enabled if the service is available, or we could check definedProxies
+            if (true) {
                 const velocityService = await import('@/lib/server/velocity');
                 
                 // Try to remove the server from Velocity configuration
