@@ -340,8 +340,20 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                 throw new Error('No Portainer environments found');
             }
 
-            // Use the first available environment
-            const availableEnvironment = environments[0];
+            // Use configured environment or fallback to first available
+            const configuredEnvId = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null;
+            
+            let availableEnvironment;
+            if (configuredEnvId) {
+                availableEnvironment = environments.find(e => e.Id === configuredEnvId);
+                if (!availableEnvironment) {
+                    console.warn(`Configured environment ID ${configuredEnvId} not found, falling back to first available.`);
+                    availableEnvironment = environments[0];
+                }
+            } else {
+                availableEnvironment = environments[0];
+            }
+
             portainer.DefaultEnvironmentId = availableEnvironment.Id;
             portainerEnvironmentId = availableEnvironment.Id;
             console.log(`Deploy using Portainer environment: ${availableEnvironment.Id} (${availableEnvironment.Name})`);
@@ -516,12 +528,17 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
         };
 
         const minecraftConfig = convertClientConfigToServerConfig(updatedClientConfig);
+        
+        // Ensure SUBDOMAIN is set in the config for proxy routing
+        minecraftConfig.SUBDOMAIN = server.subdomainName.replace('.etran.dev', '');
+
         const updatedMinecraftServer = createMinecraftServer(
             minecraftConfig,
             server.serverName,
             server.uniqueId,
             portainerEnvironmentId,
-            user.email
+            user.email,
+            server.proxyIds || []
         );
 
         await new Promise(resolve => setTimeout(resolve, 800));

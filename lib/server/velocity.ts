@@ -338,8 +338,56 @@ class VelocityService {
                 await this.addForcedHost(serverConfig, configPath, details);
             }
 
+            // 3. Add to try servers list (optional, but good for fallback)
+            await this.addTryServer(serverConfig, configPath, details);
+
         } catch (error) {
             throw new Error(`Failed to update velocity.toml: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    /**
+     * Add server to try list in velocity.toml
+     */
+    private async addTryServer(
+        serverConfig: VelocityServerConfig,
+        configPath: string,
+        details: string[]
+    ): Promise<void> {
+        try {
+            const configBuffer = await webdavService.getFileContents(configPath);
+            let configContent = configBuffer.toString('utf-8');
+            
+            // Look for try = [...]
+            const tryRegex = /try\s*=\s*\[([\s\S]*?)\]/;
+            const match = configContent.match(tryRegex);
+
+            if (match) {
+                const currentList = match[1];
+                // Check if server is already in the list
+                if (!currentList.includes(`"${serverConfig.serverName}"`)) {
+                    details.push(`Adding ${serverConfig.serverName} to try servers list...`);
+                    
+                    // Add to the end of the list
+                    // If list is empty or just whitespace
+                    const cleanList = currentList.trim();
+                    let newList = '';
+                    
+                    if (cleanList.length === 0) {
+                        newList = `\n  "${serverConfig.serverName}"\n`;
+                    } else {
+                        // Add comma if needed
+                        const lastChar = cleanList.charAt(cleanList.length - 1);
+                        const separator = lastChar === '"' || lastChar === "'" ? ',' : '';
+                        newList = `${currentList}${separator}\n  "${serverConfig.serverName}"`;
+                    }
+                    
+                    configContent = configContent.replace(tryRegex, `try = [${newList}]`);
+                    await webdavService.uploadFile(configPath, configContent);
+                }
+            }
+        } catch (error) {
+            details.push(`Warning: Failed to add server to try list: ${error}`);
         }
     }
 
@@ -878,6 +926,22 @@ class VelocityService {
                 error: errorMessage,
                 details
             };
+        }
+    }
+
+    /**
+     * Reload Velocity configuration
+     * @param containerId - The ID of the Velocity container
+     * @param environmentId - The ID of the Portainer environment
+     */
+    async reloadVelocity(containerId: string, environmentId: number = 1): Promise<void> {
+        try {
+            // Execute 'velocity reload' command in the container
+            await portainer.executeCommand(containerId, 'velocity reload', environmentId);
+            console.log(`Velocity configuration reloaded for container ${containerId}`);
+        } catch (error) {
+            console.error(`Failed to reload Velocity for container ${containerId}:`, error);
+            // Don't throw, as this is often a non-critical operation (config might auto-reload)
         }
     }
 }

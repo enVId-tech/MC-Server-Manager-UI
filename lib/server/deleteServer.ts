@@ -71,12 +71,12 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
                 details.push(`Using Portainer environment: ${availableEnvironment.Id} (${availableEnvironment.Name})`);
             } else {
                 details.push('No Portainer environments found - skipping container cleanup');
-                portainerEnvironmentId = 1; // Default fallback
+                portainerEnvironmentId = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1; // Default fallback
             }
         } catch (portainerError) {
             details.push(`Warning: Could not connect to Portainer - ${portainerError instanceof Error ? portainerError.message : 'Unknown error'}`);
             hasErrors = true;
-            portainerEnvironmentId = 1; // Default fallback
+            portainerEnvironmentId = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1; // Default fallback
         }
 
         // 1. Clean up Portainer deployment (containers and stacks)

@@ -221,6 +221,7 @@ export interface MinecraftServerConfig {
 
     // User Management
     userEmail?: string; // Email address for organizing server files
+    SUBDOMAIN?: string; // Subdomain for proxy routing
 }
 
 /**
@@ -339,7 +340,7 @@ export class MinecraftServer {
     private environmentId: number;
     private proxyIds: string[];
 
-    constructor(config: MinecraftServerConfig, serverName: string, uniqueId: string, environmentId: number = 1, proxyIds: string[] = []) {
+    constructor(config: MinecraftServerConfig, serverName: string, uniqueId: string, environmentId: number = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1, proxyIds: string[] = []) {
         this.config = config;
         this.serverName = serverName;
         this.uniqueId = uniqueId;
@@ -845,6 +846,38 @@ export class MinecraftServer {
 
             if (deploymentExists) {
                 console.log(`🎉 Successfully deployed Minecraft server ${this.serverName} to Portainer as ${deploymentMethod}: ${stackName}`);
+
+                // === MULTI-PROXY REGISTRATION ===
+                // Register this server with all configured proxies
+                if (this.proxyIds && this.proxyIds.length > 0) {
+                    console.log(`🔗 Registering server with ${this.proxyIds.length} proxies...`);
+                    
+                    // Create server config for proxies
+                    const serverProxyConfig = {
+                        serverId: this.uniqueId,
+                        serverName: this.serverName,
+                        address: `mc-${this.uniqueId}`, // Docker container name
+                        port: 25565, // Internal port
+                        motd: this.config.MOTD || 'A Minecraft Server',
+                        restrictedToProxy: true,
+                        targetProxies: this.proxyIds,
+                        subdomain: this.config.SUBDOMAIN // Pass subdomain for forced hosts
+                    };
+
+                    // Deploy to all proxies
+                    const proxyResult = await proxyManager.deployServerToProxies(
+                        serverProxyConfig,
+                        this.getUserEmail(),
+                        this.uniqueId
+                    );
+
+                    console.log('🔗 Proxy registration result:', JSON.stringify(proxyResult, null, 2));
+                    
+                    if (!proxyResult.success) {
+                        console.warn('⚠️ Some proxy registrations failed:', proxyResult.overallDetails);
+                    }
+                }
+                // === END MULTI-PROXY REGISTRATION ===
 
                 if (deploymentMethod === 'container') {
                     // Get the actual container details for confirmation
@@ -1757,7 +1790,7 @@ export function createMinecraftServer(
     config: MinecraftServerConfig,
     serverName: string,
     uniqueId: string,
-    environmentId: number = 1,
+    environmentId: number = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1,
     userEmail: string,
     proxyIds: string[] = []
 ): MinecraftServer {
@@ -1786,7 +1819,7 @@ export async function createMinecraftServerWithAuth(
     config: MinecraftServerConfig,
     serverName: string,
     uniqueId: string,
-    environmentId: number = 1,
+    environmentId: number = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1,
     authToken?: string
 ): Promise<MinecraftServer> {
     let userEmail = 'default-user';
@@ -1813,7 +1846,7 @@ export async function createMinecraftServerFromSession(
     config: MinecraftServerConfig,
     serverName: string,
     uniqueId: string,
-    environmentId: number = 1,
+    environmentId: number = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1,
     req?: Record<string, unknown> // Next.js request object or session data
 ): Promise<MinecraftServer> {
     const userEmail = 'default-user';

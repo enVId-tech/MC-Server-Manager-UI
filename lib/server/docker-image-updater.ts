@@ -603,7 +603,7 @@ export const dockerImageUpdater = new DockerImageUpdater();
 export default dockerImageUpdater;
 
 // Helper function to create MinecraftServer instance
-export async function createMinecraftServer(config: Record<string, unknown>, name: string, uniqueId: string, environmentId: number = 1) {
+export async function createMinecraftServer(config: Record<string, unknown>, name: string, uniqueId: string, environmentId: number = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1) {
     const { MinecraftServer } = await import('./minecraft');
     return new MinecraftServer(config, name, uniqueId, environmentId);
 }

@@ -40,6 +40,13 @@ export interface PortainerContainer {
     FinishedAt?: string;
     ExitCode?: number;
     NetworkSettings?: {
+        Networks?: {
+            [key: string]: {
+                IPAddress?: string;
+                Gateway?: string;
+                MacAddress?: string;
+            };
+        };
         Ports?: {
             [key: string]: Array<{
                 HostIp?: string;
@@ -408,6 +415,45 @@ export class PortainerApiClient {
         } catch (error) {
             console.error(`Failed to get container by name "${containerName}":`, error);
             return null;
+        }
+    }
+
+    /**
+     * Find containers by image name or label
+     * @param environmentId - The ID of the Portainer environment
+     * @param criteria - Search criteria (image name or label)
+     * @returns Promise resolving to array of matching containers
+     */
+    async findContainers(
+        environmentId: number | null = this.defaultEnvironmentId,
+        criteria: { image?: string; label?: string }
+    ): Promise<PortainerContainer[]> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to find containers.');
+        }
+
+        try {
+            const containers = await this.getContainers(environmentId);
+            
+            return containers.filter(container => {
+                let match = true;
+                
+                if (criteria.image) {
+                    // Check if image name contains the search string (case insensitive)
+                    if (!container.Image.toLowerCase().includes(criteria.image.toLowerCase())) {
+                        match = false;
+                    }
+                }
+                
+                // Note: Portainer API container object might not expose labels directly in the list view
+                // We might need to inspect each container if we want to filter by label accurately
+                // For now, we'll rely on image name which is safer for list operations
+                
+                return match;
+            });
+        } catch (error) {
+            console.error('❌ Failed to find containers:', error);
+            throw error;
         }
     }
 
@@ -1904,7 +1950,8 @@ const portainer = new PortainerApiClient(
         {
             username: process.env.PORTAINER_USERNAME || 'admin',
             password: process.env.PORTAINER_PASSWORD || 'password'
-        }
+        },
+    process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null
 );
 
 export default portainer;

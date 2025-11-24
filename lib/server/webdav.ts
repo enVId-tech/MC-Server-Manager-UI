@@ -234,6 +234,30 @@ class WebDavService {
             await this.client.createDirectory(dirPath, { recursive: true });
             console.log(`Directory created successfully at ${dirPath}`);
         } catch (error) {
+            // If recursive creation fails with 403 (Forbidden) or 405 (Method Not Allowed),
+            // it might be due to permission issues on parent folders or the folder already exists.
+            // Try non-recursive creation as a fallback if the error suggests permission issues.
+            if (error instanceof Error && (error.message.includes('403') || error.message.includes('405'))) {
+                try {
+                    console.log(`Recursive creation failed for ${dirPath} (${error.message}). Retrying non-recursive...`);
+                    await this.client.createDirectory(dirPath, { recursive: false });
+                    console.log(`Directory created successfully (non-recursive) at ${dirPath}`);
+                    return;
+                } catch (retryError) {
+                    // If non-recursive also fails, we'll throw the original error (or the new one)
+                    // But first, let's check if it actually exists, which might be why 405 happened
+                    try {
+                        if (await this.exists(dirPath)) {
+                            console.log(`Directory already exists at ${dirPath}`);
+                            return;
+                        }
+                    } catch {
+                        // Ignore exists check failure
+                    }
+                    console.warn(`Non-recursive creation also failed for ${dirPath}:`, retryError);
+                }
+            }
+            
             console.error(`Error creating directory at ${dirPath}:`, error);
             throw error;
         }

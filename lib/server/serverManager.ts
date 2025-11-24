@@ -116,6 +116,7 @@ export class MinecraftServerManager {
         try {
             // Get base server path from environment variable
             const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
+            console.log(`Using WebDAV base path: ${baseServerPath}`);
 
             // Extract user folder name from email (part before @)
             const userFolder = userEmail.split('@')[0];

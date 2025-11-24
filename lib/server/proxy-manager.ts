@@ -10,6 +10,7 @@
 
 import { VelocityServerConfig } from './velocity';
 import { RustyConnectorServerConfig } from './rusty-connector';
+import portainer from './portainer';
 
 export type ProxyType = 'velocity' | 'bungeecord' | 'waterfall' | 'rusty-connector';
 
@@ -412,6 +413,24 @@ export class ProxyManager {
             proxy.configPath,
             proxy.networkName
         );
+
+        // Trigger reload if supported
+        if (result.success && proxy.capabilities.some(c => c.name === 'dynamic-reload' && c.supported)) {
+            try {
+                const { default: portainer } = await import('./portainer');
+                // Find container by name (host) to get ID for reload
+                const containers = await portainer.findContainers(undefined, { image: 'velocity' });
+                const container = containers.find(c => c.Names.some(n => n.includes(proxy.host)));
+                
+                if (container) {
+                    await velocityService.reloadVelocity(container.Id);
+                    result.details?.push(`Triggered reload for Velocity container ${container.Id}`);
+                }
+            } catch (e) {
+                console.warn(`Failed to reload proxy ${proxy.id}:`, e);
+            }
+        }
+
         return {
             ...result,
             details: result.details ?? []
@@ -592,6 +611,79 @@ export class ProxyManager {
      */
     removeProxy(id: string): boolean {
         return this.proxies.delete(id);
+    }
+
+    /**
+     * Scan for Velocity proxies in Portainer and register them
+     */
+    async scanAndRegisterProxies(environmentId: number = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1): Promise<MultiProxyDeploymentResult> {
+        const details: string[] = [];
+        const results: MultiProxyDeploymentResult['results'] = {};
+        
+        try {
+            details.push(`Scanning for Velocity proxies in environment ${environmentId}...`);
+            
+            // Find containers with 'velocity' in their image name
+            const velocityContainers = await portainer.findContainers(environmentId, { image: 'velocity' });
+            
+            details.push(`Found ${velocityContainers.length} potential Velocity containers.`);
+            
+            for (const container of velocityContainers) {
+                const containerId = container.Id;
+                const containerName = container.Names[0].replace(/^\//, ''); // Remove leading slash
+                
+                // Skip if already registered (optional, but good to avoid overwriting custom configs)
+                // For now, we'll update existing ones or create new ones
+                
+                // Determine config path and network
+                // We assume standard paths or try to inspect container (future improvement)
+                const configPath = `/velocity-${containerName}/velocity.toml`; // Convention-based path
+                const networkName = Object.keys(container.NetworkSettings?.Networks || {})[0] || 'velocity-network';
+                
+                // Register or update proxy
+                const proxyId = `velocity-${containerName}`;
+                
+                this.registerProxy({
+                    id: proxyId,
+                    name: `Velocity (${containerName})`,
+                    type: 'velocity',
+                    host: containerName, // Use container name as host in Docker network
+                    port: 25565, // Default port, might need inspection
+                    enabled: true,
+                    priority: 50,
+                    configPath: configPath,
+                    networkName: networkName,
+                    description: `Auto-discovered Velocity proxy: ${containerName}`,
+                    tags: ['auto-discovered', 'velocity'],
+                    capabilities: [
+                        { name: 'modern-forwarding', supported: true },
+                        { name: 'dynamic-reload', supported: true }
+                    ],
+                    healthStatus: 'healthy' // Assume healthy if running
+                });
+                
+                results[proxyId] = {
+                    success: true,
+                    details: [`Registered proxy ${proxyId} from container ${containerName}`]
+                };
+            }
+            
+            return {
+                success: true,
+                results,
+                overallDetails: details,
+                fallbackProxies: []
+            };
+            
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                success: false,
+                results: {},
+                overallDetails: [...details, `Scan failed: ${errorMessage}`],
+                fallbackProxies: []
+            };
+        }
     }
 }
 
