@@ -65,7 +65,7 @@ export interface AnalyzedFile extends File {
  * A comprehensive interface for configuring a Minecraft server 
  * using the itzg/minecraft-server Docker image.
  * 
- * @see https://github.com/itzg/docker-minecraft-server/blob/master/README.md
+ * @see https://github.com/itzg/docker-minecraft-server/blob/main/README.md
  */
 export interface ClientServerConfig {
     // Basic server information
