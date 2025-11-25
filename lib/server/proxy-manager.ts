@@ -11,7 +11,7 @@
 import { VelocityServerConfig } from './velocity';
 import { RustyConnectorServerConfig } from './rusty-connector';
 import portainer from './portainer';
-import { definedProxies, ProxyDefinition } from '@/lib/config/proxies';
+import { getDefinedProxies, reloadProxies, ProxyDefinition } from '@/lib/config/proxies';
 import webdavService from './webdav';
 import velocityService from './velocity';
 import path from 'path';
@@ -76,9 +76,63 @@ export interface MultiProxyDeploymentResult {
 export class ProxyManager {
     private proxies: Map<string, ProxyInstanceConfig> = new Map();
     private defaultLoadBalancingStrategy: string = 'priority';
+    private syncInterval: NodeJS.Timeout | null = null;
 
     constructor() {
         this.initializeDefaultProxies();
+        this.startPeriodicSync();
+    }
+
+    /**
+     * Start periodic synchronization (every 10 minutes)
+     */
+    private startPeriodicSync(): void {
+        // Initial sync on startup
+        this.performSync().catch(error => {
+            console.error('Initial proxy sync failed:', error);
+        });
+
+        // Set up 10-minute interval
+        this.syncInterval = setInterval(() => {
+            this.performSync().catch(error => {
+                console.error('Periodic proxy sync failed:', error);
+            });
+        }, 10 * 60 * 1000); // 10 minutes
+    }
+
+    /**
+     * Perform synchronization of proxies
+     */
+    private async performSync(): Promise<void> {
+        try {
+            console.log('[Proxy Manager] Starting periodic sync...');
+            
+            // Reload proxies from YAML
+            const proxies = reloadProxies();
+            
+            // Get environment ID
+            const environmentId = await portainer.getFirstEnvironmentId();
+            if (!environmentId) {
+                console.warn('[Proxy Manager] No Portainer environment found');
+                return;
+            }
+
+            // Ensure proxies exist
+            const details = await this.ensureProxies(environmentId);
+            console.log('[Proxy Manager] Sync completed:', details.join(', '));
+        } catch (error) {
+            console.error('[Proxy Manager] Sync error:', error);
+        }
+    }
+
+    /**
+     * Stop periodic synchronization
+     */
+    public stopPeriodicSync(): void {
+        if (this.syncInterval) {
+            clearInterval(this.syncInterval);
+            this.syncInterval = null;
+        }
     }
 
     /**
@@ -86,6 +140,7 @@ export class ProxyManager {
      */
     private initializeDefaultProxies(): void {
         // Register proxies from definition file
+        const definedProxies = getDefinedProxies();
         for (const def of definedProxies) {
             this.registerProxyFromDefinition(def);
         }
@@ -604,6 +659,14 @@ export class ProxyManager {
     async ensureProxies(environmentId: number = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1): Promise<string[]> {
         const details: string[] = [];
         
+        // Reload proxies from YAML to get latest configuration
+        const definedProxies = getDefinedProxies();
+        
+        // First, remove any orphaned proxies
+        details.push('Checking for orphaned proxies...');
+        await this.removeOrphanedProxies(environmentId, details);
+        
+        // Then ensure all defined proxies exist
         for (const def of definedProxies) {
             try {
                 await this.ensureProxyExists(def, environmentId, details);
@@ -619,11 +682,9 @@ export class ProxyManager {
         } catch (error) {
             details.push(`Failed to sync servers: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
-        
-        return details;
-    }
 
-    /**
+        return details;
+    }    /**
      * Synchronize servers between Database and Portainer
      */
     async syncServers(environmentId: number): Promise<string[]> {
@@ -704,6 +765,44 @@ export class ProxyManager {
     }
 
     /**
+     * Remove orphaned proxy containers that are no longer in the definition file
+     */
+    private async removeOrphanedProxies(environmentId: number, details: string[]): Promise<void> {
+        try {
+            // Get current defined proxies from YAML
+            const definedProxies = getDefinedProxies();
+            
+            // Get all stacks
+            const stacks = await portainer.getStacks();
+            const definedProxyIds = new Set(definedProxies.map((p: ProxyDefinition) => p.id));
+            
+            for (const stack of stacks) {
+                // Check if this is a proxy stack (matches pattern: velocity, velocity-2, etc.)
+                const isProxyStack = definedProxies.some((p: ProxyDefinition) => p.name === stack.Name);
+                
+                if (isProxyStack) {
+                    // Check if this proxy is still defined
+                    const matchingDef = definedProxies.find((p: ProxyDefinition) => p.name === stack.Name);
+                    
+                    if (!matchingDef) {
+                        details.push(`Found orphaned proxy stack: ${stack.Name}. Removing...`);
+                        
+                        try {
+                            // Stop and remove the stack
+                            await portainer.stopStack(stack.Id, environmentId);
+                            details.push(`✓ Removed orphaned proxy: ${stack.Name}`);
+                        } catch (error) {
+                            details.push(`✗ Failed to remove orphaned proxy ${stack.Name}: ${error}`);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            details.push(`Warning: Failed to check for orphaned proxies: ${error}`);
+        }
+    }
+
+    /**
      * Ensure a single proxy exists
      */
     private async ensureProxyExists(def: ProxyDefinition, environmentId: number, details: string[]): Promise<void> {
@@ -719,19 +818,26 @@ export class ProxyManager {
 
         details.push(`Proxy ${def.name} not found. Creating...`);
 
-        // 2. Ensure configuration exists
-        const configDir = path.dirname(def.configPath);
+        // 2. Ensure configuration exists using absolute server path
+        const { getProxyAbsolutePath, getProxyContainerPath } = await import('@/lib/config/proxies');
+        const absoluteConfigPath = getProxyAbsolutePath(def.configPath);
+        const containerMountPath = getProxyContainerPath(def.configPath);
+        const configDir = path.dirname(absoluteConfigPath);
         
-        // Create directory
+        // Create directory using WebDAV (directory in the actual server filesystem)
+        const webdavConfigDir = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft/velocity-test'}/${def.configPath.split('/')[0]}`;
         try {
-            await webdavService.createDirectory(configDir);
+            await webdavService.createDirectory(webdavConfigDir);
+            details.push(`Created config directory: ${configDir}`);
         } catch (e) {
             // Ignore if exists
         }
 
-        // Check if config file exists, if not create default
+        // Check if config file exists using WebDAV, if not create default
+        const webdavConfigPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft/velocity-test'}/${def.configPath}`;
         try {
-            await webdavService.getFileContents(def.configPath);
+            await webdavService.getFileContents(webdavConfigPath);
+            details.push(`Config file already exists: ${def.configPath}`);
         } catch {
             details.push(`Creating default configuration for ${def.name}...`);
             
@@ -739,13 +845,15 @@ export class ProxyManager {
             const velocityConfig = velocityService.getDefaultVelocityConfig();
             
             // Check for other existing proxies to mirror
-            const otherProxies = definedProxies.filter(p => p.id !== def.id);
+            const definedProxies = getDefinedProxies();
+            const otherProxies = definedProxies.filter((p: ProxyDefinition) => p.id !== def.id);
             let mirrored = false;
             
             for (const other of otherProxies) {
                 try {
-                    // Try to read config from other proxy
-                    const otherConfig = await velocityService.readVelocityConfig(other.configPath);
+                    // Try to read config from other proxy using WebDAV
+                    const otherWebdavPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft/velocity-test'}/${other.configPath}`;
+                    const otherConfig = await velocityService.readVelocityConfig(otherWebdavPath);
                     
                     if (otherConfig && otherConfig.servers && Object.keys(otherConfig.servers).length > 0) {
                         velocityConfig.servers = { ...otherConfig.servers };
@@ -786,17 +894,19 @@ export class ProxyManager {
             }
 
             const configContent = velocityService.generateVelocityConfig(velocityConfig);
-            await webdavService.uploadFile(def.configPath, configContent);
+            await webdavService.uploadFile(webdavConfigPath, configContent);
+            details.push(`Created default config: ${def.configPath}`);
             
             // Also create forwarding.secret
-            const secretPath = path.join(configDir, 'forwarding.secret').replace(/\\/g, '/');
+            const webdavSecretPath = `${webdavConfigDir}/forwarding.secret`;
             const secret = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-            await webdavService.uploadFile(secretPath, secret);
+            await webdavService.uploadFile(webdavSecretPath, secret);
+            details.push(`Created forwarding.secret`);
         }
 
-        // 3. Create Stack/Container
-        // We'll use a simple stack definition
+        // 3. Create Stack/Container using absolute host path
         const stackName = def.name;
+        const hostConfigDir = path.dirname(absoluteConfigPath);
         const stackContent = `version: '3'
 services:
   ${def.host}:
@@ -806,7 +916,7 @@ services:
     ports:
       - "${def.port}:25565"
     volumes:
-      - ${configDir}:/velocity
+      - ${hostConfigDir}:${containerMountPath}
     networks:
       - ${def.networkName}
     environment:
