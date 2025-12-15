@@ -46,7 +46,7 @@
     "@types/bcryptjs": "^3.0.0",
     "@types/body-parser": "^1.19.6",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^24",
+    "@types/node": "^25",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
