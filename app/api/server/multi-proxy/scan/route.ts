@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { proxyManager } from "@/lib/server/proxy-manager";
+import portainer from "@/lib/server/portainer";
 import verificationService from "@/lib/server/verify";
 import { IUser } from "@/lib/objects/User";
 import dbConnect from "@/lib/db/dbConnect";
@@ -13,8 +14,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ message: 'Unauthorized. Admin access required.' }, { status: 403 });
         }
 
-        const { environmentId } = await request.json();
-        const targetEnvId = environmentId || (process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1);
+        const { environmentId: requestedEnvId } = await request.json();
+        // Auto-discover valid environment ID
+        const storedEnvId = requestedEnvId || (process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null);
+        const targetEnvId = await portainer.getValidEnvironmentId(storedEnvId);
 
         // Perform scan
         const result = await proxyManager.scanAndRegisterProxies(targetEnvId);

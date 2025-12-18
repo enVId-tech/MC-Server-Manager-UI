@@ -5,6 +5,7 @@ import Server from "@/lib/objects/Server";
 import dbConnect from "@/lib/db/dbConnect";
 import webdavService from "@/lib/server/webdav";
 import verificationService from "@/lib/server/verify";
+import { isProtectedPath } from "@/lib/config/proxies";
 
 export async function POST(request: NextRequest) {
     await dbConnect();
@@ -142,6 +143,13 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ 
                 message: 'Server slug and path are required.' 
             }, { status: 400 });
+        }
+
+        // Check if the path is protected (RustyConnector files/folders)
+        if (isProtectedPath(path)) {
+            return NextResponse.json({ 
+                message: 'This file or folder is protected and cannot be deleted. RustyConnector is required for server connectivity.' 
+            }, { status: 403 });
         }
 
         // Extract the unique ID from the server slug

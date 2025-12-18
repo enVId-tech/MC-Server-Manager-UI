@@ -457,6 +457,25 @@ class VelocityService {
         maxWaitTime: number = 120000 // 2 minutes
     ): Promise<{ success: boolean; error?: string }> {
         const startTime = Date.now();
+        console.log(`[Velocity] Waiting for server files to be created in container ${containerId} (env: ${environmentId})`);
+        
+        // First, verify the container exists
+        try {
+            const containers = await portainer.getContainers(environmentId);
+            const container = containers.find(c => c.Id === containerId);
+            if (!container) {
+                console.error(`[Velocity] Container ${containerId} not found in environment ${environmentId}`);
+                console.log(`[Velocity] Available containers:`, containers.map(c => ({ id: c.Id.slice(0, 12), names: c.Names })));
+                return {
+                    success: false,
+                    error: `Container ${containerId.slice(0, 12)} not found. It may have been removed or not yet created.`
+                };
+            }
+            console.log(`[Velocity] Container found: ${container.Names.join(', ')} (state: ${container.State})`);
+        } catch (verifyError) {
+            console.error(`[Velocity] Error verifying container exists:`, verifyError);
+            // Continue anyway - the container might still be accessible
+        }
         
         while (Date.now() - startTime < maxWaitTime) {
             try {
@@ -468,18 +487,33 @@ class VelocityService {
                 );
                 
                 if (result.exitCode === 0) {
+                    console.log(`[Velocity] Server files are ready in container ${containerId.slice(0, 12)}`);
                     return { success: true };
                 }
                 
+                console.log(`[Velocity] Server files not yet ready (exit code: ${result.exitCode}), waiting...`);
                 // Wait 5 seconds before checking again
                 await new Promise(resolve => setTimeout(resolve, 5000));
                 
-            } catch {
-                // Continue waiting if command fails
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                
+                // Check if it's a "no such container" error - if so, fail immediately
+                if (errorMessage.includes('No such container') || errorMessage.includes('404')) {
+                    console.error(`[Velocity] Container ${containerId.slice(0, 12)} no longer exists`);
+                    return {
+                        success: false,
+                        error: `Container no longer exists. It may have crashed or been removed.`
+                    };
+                }
+                
+                console.log(`[Velocity] Command execution failed, will retry: ${errorMessage}`);
+                // Continue waiting if command fails for other reasons
                 await new Promise(resolve => setTimeout(resolve, 5000));
             }
         }
         
+        console.error(`[Velocity] Timeout waiting for server files in container ${containerId.slice(0, 12)}`);
         return { 
             success: false, 
             error: 'Timeout waiting for server files to be created' 

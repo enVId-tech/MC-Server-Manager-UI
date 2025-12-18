@@ -85,6 +85,7 @@ export class PortainerApiClient {
     private password: string | null;
     private authToken: string | null;
     private defaultEnvironmentId: number | null;
+    private _environmentIdValidated: boolean = false;
     public axiosInstance: AxiosInstance;
 
     /**
@@ -100,6 +101,7 @@ export class PortainerApiClient {
         this.portainerUrl = portainerUrl.endsWith('/') ? portainerUrl.slice(0, -1) : portainerUrl;
         this.defaultEnvironmentId = defaultEnvironmentId;
         this.authToken = null;
+        this._environmentIdValidated = false;
 
         // Determine authentication method
         if (typeof auth === 'string') {
@@ -215,7 +217,34 @@ export class PortainerApiClient {
     set DefaultEnvironmentId(environmentId: number | null) {
         if (environmentId === null || typeof environmentId === 'number') {
             this.defaultEnvironmentId = environmentId;
+            this._environmentIdValidated = false; // Reset validation when changed
         }
+    }
+
+    /**
+     * Get a valid environment ID, auto-discovering if necessary
+     * This ensures we always use a valid environment ID
+     */
+    async getValidEnvironmentId(requestedId?: number | null): Promise<number> {
+        const envId = requestedId ?? this.defaultEnvironmentId;
+        
+        // If we have no ID or we haven't validated yet, discover one
+        if (envId === null || !this._environmentIdValidated) {
+            const validId = await this.getFirstEnvironmentId();
+            if (validId === null) {
+                throw new Error('No valid Portainer environment found');
+            }
+            
+            // Update the default if it was null or invalid
+            if (this.defaultEnvironmentId === null || this.defaultEnvironmentId !== validId) {
+                console.log(`Updating default environment ID from ${this.defaultEnvironmentId} to ${validId}`);
+                this.defaultEnvironmentId = validId;
+            }
+            this._environmentIdValidated = true;
+            return validId;
+        }
+        
+        return envId;
     }
 
     /**
@@ -2036,6 +2065,151 @@ export class PortainerApiClient {
             console.log('✅ Stack stopped successfully');
         } catch (error) {
             console.error(`❌ Failed to stop stack ${stackId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Update a stack with new compose file content
+     * @param stackId - The ID of the stack to update
+     * @param composeContent - The new docker-compose content
+     * @param environmentId - The ID of the Portainer environment
+     * @param pullImage - Whether to pull the latest image (default: true)
+     * @returns Promise resolving when stack is updated
+     */
+    async updateStack(
+        stackId: number, 
+        composeContent: string, 
+        environmentId: number | null = this.defaultEnvironmentId,
+        pullImage: boolean = true
+    ): Promise<void> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to update a stack.');
+        }
+
+        try {
+            console.log(`🔄 Updating stack ${stackId}...`);
+            await this.axiosInstance.put(
+                `/api/stacks/${stackId}?endpointId=${environmentId}`,
+                {
+                    StackFileContent: composeContent,
+                    Prune: false,
+                    PullImage: pullImage
+                }
+            );
+            console.log('✅ Stack updated successfully');
+        } catch (error) {
+            console.error(`❌ Failed to update stack ${stackId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Redeploy a stack (stop, pull image, start)
+     * @param stackId - The ID of the stack to redeploy
+     * @param environmentId - The ID of the Portainer environment
+     * @returns Promise resolving when stack is redeployed
+     */
+    async redeployStack(stackId: number, environmentId: number | null = this.defaultEnvironmentId): Promise<void> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to redeploy a stack.');
+        }
+
+        try {
+            console.log(`🔄 Redeploying stack ${stackId}...`);
+            
+            // Get current stack details
+            const stacks = await this.getStacks();
+            const stack = stacks.find(s => s.Id === stackId);
+            
+            if (!stack) {
+                throw new Error(`Stack ${stackId} not found`);
+            }
+
+            // Stop the stack first
+            try {
+                await this.stopStack(stackId, environmentId);
+            } catch (e) {
+                console.warn('Stack may already be stopped:', e);
+            }
+
+            // Wait a moment for cleanup
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Start the stack (this will pull the latest image if configured)
+            await this.startStack(stackId, environmentId);
+            
+            console.log('✅ Stack redeployed successfully');
+        } catch (error) {
+            console.error(`❌ Failed to redeploy stack ${stackId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Pull the latest image for a container
+     * @param imageName - The name of the image to pull
+     * @param environmentId - The ID of the Portainer environment
+     * @returns Promise resolving when image is pulled
+     */
+    async pullImage(imageName: string, environmentId: number | null = this.defaultEnvironmentId): Promise<void> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to pull an image.');
+        }
+
+        try {
+            console.log(`📥 Pulling image ${imageName}...`);
+            await this.axiosInstance.post(
+                `/api/endpoints/${environmentId}/docker/images/create?fromImage=${encodeURIComponent(imageName)}`
+            );
+            console.log('✅ Image pulled successfully');
+        } catch (error) {
+            console.error(`❌ Failed to pull image ${imageName}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get the Portainer websocket URL for container console access
+     * @param containerId - The ID of the container
+     * @param environmentId - The ID of the Portainer environment
+     * @returns The websocket URL for console access
+     */
+    getConsoleWebsocketUrl(containerId: string, environmentId: number | null = this.defaultEnvironmentId): string {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required for console access.');
+        }
+
+        const baseUrl = this.portainerUrl.replace('https://', 'wss://').replace('http://', 'ws://');
+        return `${baseUrl}/api/websocket/exec?endpointId=${environmentId}&id=${containerId}`;
+    }
+
+    /**
+     * Get stack by ID
+     * @param stackId - The ID of the stack
+     * @returns Promise resolving to the stack or null
+     */
+    async getStackById(stackId: number): Promise<PortainerStack | null> {
+        try {
+            const response = await this.axiosInstance.get(`/api/stacks/${stackId}`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error getting stack ${stackId}:`, error);
+            return null;
+        }
+    }
+
+    /**
+     * Get stack file content
+     * @param stackId - The ID of the stack
+     * @returns Promise resolving to the compose file content
+     */
+    async getStackFileContent(stackId: number): Promise<string> {
+        try {
+            const response = await this.axiosInstance.get(`/api/stacks/${stackId}/file`);
+            return response.data.StackFileContent || '';
+        } catch (error) {
+            console.error(`Error getting stack file for ${stackId}:`, error);
             throw error;
         }
     }

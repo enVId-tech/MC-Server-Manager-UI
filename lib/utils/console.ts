@@ -1,7 +1,19 @@
 /**
  * Global console override utility
- * Adds timestamps and allows enabling/disabling console logs
+ * Adds timestamps, colors, file logging, and allows enabling/disabling console logs
  */
+
+import * as fs from 'fs';
+import * as path from 'path';
+import * as util from 'util';
+
+// File logging configuration
+const FILE_LOG_CONFIG = {
+    enabled: process.env.LOG_TO_FILE === 'true',
+    directory: path.join(process.cwd(), 'logs'),
+    maxSize: 10 * 1024 * 1024, // 10 MB
+    maxFiles: 5,
+};
 
 // Configuration
 const CONSOLE_CONFIG = {
@@ -124,6 +136,156 @@ const LOG_COLORS = {
     }
 };
 
+// ==========================================
+// File Logging Functions
+// ==========================================
+
+/**
+ * Ensure log directory exists
+ */
+function ensureLogDirectory(): void {
+    if (!FILE_LOG_CONFIG.enabled) return;
+    
+    try {
+        if (!fs.existsSync(FILE_LOG_CONFIG.directory)) {
+            fs.mkdirSync(FILE_LOG_CONFIG.directory, { recursive: true });
+        }
+    } catch {
+        // Ignore errors
+    }
+}
+
+/**
+ * Get current log file name based on date
+ */
+function getLogFileName(): string {
+    const date = new Date();
+    const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
+    return path.join(FILE_LOG_CONFIG.directory, `app-${dateStr}.log`);
+}
+
+/**
+ * Rotate logs if needed
+ */
+function rotateLogsIfNeeded(logFile: string): void {
+    try {
+        if (!fs.existsSync(logFile)) return;
+        
+        const stats = fs.statSync(logFile);
+        if (stats.size < FILE_LOG_CONFIG.maxSize) return;
+        
+        // Rotate the log file
+        const timestamp = Date.now();
+        const rotatedFile = logFile.replace('.log', `-${timestamp}.log`);
+        fs.renameSync(logFile, rotatedFile);
+        
+        // Clean up old log files
+        const logFiles = fs.readdirSync(FILE_LOG_CONFIG.directory)
+            .filter(f => f.endsWith('.log'))
+            .map(f => ({
+                name: f,
+                path: path.join(FILE_LOG_CONFIG.directory, f),
+                mtime: fs.statSync(path.join(FILE_LOG_CONFIG.directory, f)).mtime.getTime()
+            }))
+            .sort((a, b) => b.mtime - a.mtime);
+        
+        // Keep only the most recent files
+        if (logFiles.length > FILE_LOG_CONFIG.maxFiles) {
+            logFiles.slice(FILE_LOG_CONFIG.maxFiles).forEach(f => {
+                fs.unlinkSync(f.path);
+            });
+        }
+    } catch {
+        // Ignore rotation errors
+    }
+}
+
+/**
+ * Format log message for file (no colors)
+ */
+function formatFileLogMessage(level: string, args: unknown[]): string {
+    const timestamp = new Date().toISOString();
+    const message = args.map(arg => {
+        if (typeof arg === 'object') {
+            try {
+                return util.inspect(arg, { depth: 4, colors: false });
+            } catch {
+                return String(arg);
+            }
+        }
+        return String(arg);
+    }).join(' ');
+    
+    return `[${timestamp}] [${level}] ${message}\n`;
+}
+
+/**
+ * Write to log file
+ */
+function writeToLogFile(level: string, args: unknown[]): void {
+    if (!FILE_LOG_CONFIG.enabled) return;
+    
+    ensureLogDirectory();
+    
+    const logFile = getLogFileName();
+    rotateLogsIfNeeded(logFile);
+    
+    const message = formatFileLogMessage(level, args);
+    
+    try {
+        fs.appendFileSync(logFile, message);
+    } catch {
+        // Ignore write errors
+    }
+}
+
+/**
+ * Enable file logging
+ */
+export function enableFileLogging(options?: { directory?: string; maxSize?: number; maxFiles?: number }) {
+    FILE_LOG_CONFIG.enabled = true;
+    if (options?.directory) FILE_LOG_CONFIG.directory = options.directory;
+    if (options?.maxSize) FILE_LOG_CONFIG.maxSize = options.maxSize;
+    if (options?.maxFiles) FILE_LOG_CONFIG.maxFiles = options.maxFiles;
+    ensureLogDirectory();
+}
+
+/**
+ * Disable file logging
+ */
+export function disableFileLogging() {
+    FILE_LOG_CONFIG.enabled = false;
+}
+
+/**
+ * Get current log file path
+ */
+export function getLogFilePath(): string {
+    return getLogFileName();
+}
+
+/**
+ * Clear all log files
+ */
+export function clearLogFiles(): void {
+    try {
+        if (!fs.existsSync(FILE_LOG_CONFIG.directory)) return;
+        
+        const files = fs.readdirSync(FILE_LOG_CONFIG.directory);
+        files.forEach(file => {
+            if (file.endsWith('.log')) {
+                fs.unlinkSync(path.join(FILE_LOG_CONFIG.directory, file));
+            }
+        });
+    } catch {
+        // Ignore errors
+    }
+}
+
+// ==========================================
+// Console Override Functions
+// ==========================================
+
 /**
  * Apply color to text if colors are enabled
  */
@@ -224,6 +386,9 @@ function isLoggingAllowedForFile(): boolean {
  */
 function createConsoleMethod(originalMethod: (...args: unknown[]) => void, level: string) {
     return (...args: unknown[]) => {
+        // Always write to file if file logging is enabled (before checking console logging filter)
+        writeToLogFile(level.toUpperCase(), args);
+        
         if (!isLoggingAllowedForFile()) return;
         
         const timestamp = getTimestamp();
