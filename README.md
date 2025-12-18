@@ -129,3 +129,6 @@ This website and repository/codebase is not an official Minecraft website and is
 - **MongoDB** - Database platform
 - **Next.js Team** - Framework development
 - **React Community** - Component libraries and tools
+
+## Note and Disclaimer
+Partially developed with AI
