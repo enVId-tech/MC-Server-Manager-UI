@@ -5,18 +5,19 @@
  * - Velocity (modern, high-performance)
  * - BungeeCord (legacy compatibility)
  * - Waterfall (improved BungeeCord fork)
- * - RustyConnector (dynamic server management)
+ * - RustyConnector (dynamic server management with Redis)
  */
 
 import { VelocityServerConfig } from './velocity';
 import { RustyConnectorServerConfig } from './rusty-connector';
 import portainer from './portainer';
-import { getDefinedProxies, reloadProxies, ProxyDefinition } from '@/lib/config/proxies';
+import { getDefinedProxies, reloadProxies, ProxyDefinition, getRedisConfig, isRustyConnectorEnabled } from '@/lib/config/proxies';
 import webdavService from './webdav';
 import velocityService from './velocity';
 import path from 'path';
 import Server from '@/lib/objects/Server';
 import { createMinecraftServer, ClientServerConfig, MinecraftServerConfig } from '@/lib/server/minecraft';
+import { redisService } from './redis-service';
 
 export type ProxyType = 'velocity' | 'bungeecord' | 'waterfall' | 'rusty-connector';
 
@@ -106,15 +107,24 @@ export class ProxyManager {
     private async performSync(): Promise<void> {
         try {
             console.log('[Proxy Manager] Starting periodic sync...');
-            
+
             // Reload proxies from YAML
             const proxies = reloadProxies();
-            
+
             // Get environment ID
             const environmentId = await portainer.getFirstEnvironmentId();
             if (!environmentId) {
                 console.warn('[Proxy Manager] No Portainer environment found');
                 return;
+            }
+
+            // First, ensure Redis is running if RustyConnector is enabled
+            if (isRustyConnectorEnabled()) {
+                console.log('[Proxy Manager] RustyConnector enabled, checking Redis...');
+                const redisResult = await redisService.ensureRedis(environmentId, true);
+                if (!redisResult.success) {
+                    console.warn('[Proxy Manager] Redis check failed:', redisResult.error);
+                }
             }
 
             // Ensure proxies exist
@@ -151,6 +161,13 @@ export class ProxyManager {
      */
     registerProxy(config: ProxyInstanceConfig): void {
         this.proxies.set(config.id, config);
+    }
+
+    /**
+     * Unregister a proxy instance
+     */
+    unregisterProxy(proxyId: string): boolean {
+        return this.proxies.delete(proxyId);
     }
 
     /**
@@ -192,7 +209,7 @@ export class ProxyManager {
         requirements?: string[]
     ): ProxyInstanceConfig | undefined {
         const enabledProxies = this.getEnabledProxies();
-        
+
         if (serverConfig.targetProxies?.length > 0) {
             // Use specified target proxies
             for (const proxyId of serverConfig.targetProxies) {
@@ -233,7 +250,7 @@ export class ProxyManager {
         try {
             // Determine target proxies
             let targetProxies: ProxyInstanceConfig[] = [];
-            
+
             if (serverConfig.targetProxies?.length > 0) {
                 targetProxies = serverConfig.targetProxies
                     .map(id => this.proxies.get(id))
@@ -259,7 +276,7 @@ export class ProxyManager {
             // Deploy to each proxy
             for (const proxy of targetProxies) {
                 overallDetails.push(`Deploying to ${proxy.name} (${proxy.type})...`);
-                
+
                 try {
                     const proxySpecificConfig = {
                         ...serverConfig,
@@ -331,16 +348,16 @@ export class ProxyManager {
             switch (proxy.type) {
                 case 'velocity':
                     return await this.deployToVelocity(proxy, serverConfig, userEmail, uniqueId);
-                
+
                 case 'bungeecord':
                     return await this.deployToBungeeCord(proxy, serverConfig, userEmail, uniqueId);
-                
+
                 case 'waterfall':
                     return await this.deployToWaterfall(proxy, serverConfig, userEmail, uniqueId);
-                
+
                 case 'rusty-connector':
                     return await this.deployToRustyConnector(proxy, serverConfig);
-                
+
                 default:
                     return {
                         success: false,
@@ -369,8 +386,8 @@ export class ProxyManager {
         // Import and use existing Velocity service
         const { default: velocityService } = await import('./velocity');
         const result = await velocityService.configureServerForVelocity(
-            serverConfig, 
-            userEmail, 
+            serverConfig,
+            userEmail,
             uniqueId,
             proxy.configPath,
             proxy.networkName
@@ -383,7 +400,7 @@ export class ProxyManager {
                 // Find container by name (host) to get ID for reload
                 const containers = await portainer.findContainers(undefined, { image: 'velocity' });
                 const container = containers.find(c => c.Names.some(n => n.includes(proxy.host)));
-                
+
                 if (container) {
                     await velocityService.reloadVelocity(container.Id);
                     result.details?.push(`Triggered reload for Velocity container ${container.Id}`);
@@ -444,7 +461,7 @@ export class ProxyManager {
     ): Promise<{ success: boolean; error?: string; details: string[] }> {
         // Import and use RustyConnector integration
         const { rustyConnectorIntegration } = await import('./rusty-connector-integration');
-        
+
         // Convert to RustyConnector format
         const rustyConfig: RustyConnectorServerConfig = {
             ...serverConfig,
@@ -472,15 +489,15 @@ export class ProxyManager {
 
         for (const proxy of this.proxies.values()) {
             if (!proxy.enabled) continue;
-            
+
             totalCount++;
             const healthResult = await this.checkProxyHealth(proxy);
             results[proxy.id] = healthResult;
-            
+
             if (healthResult.status === 'healthy') {
                 healthyCount++;
             }
-            
+
             // Update proxy status
             proxy.healthStatus = healthResult.status as 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
             proxy.lastHealthCheck = new Date();
@@ -506,15 +523,15 @@ export class ProxyManager {
         details: string[];
     }> {
         const details: string[] = [];
-        
+
         try {
             // Basic connectivity check
             // This would be implemented with actual health check logic
             details.push(`Checking connectivity to ${proxy.host}:${proxy.port}`);
-            
+
             // For now, simulate health check
             const isHealthy = true; // This would be actual health check result
-            
+
             if (isHealthy) {
                 details.push('Proxy is responding normally');
                 return { status: 'healthy', details };
@@ -539,15 +556,15 @@ export class ProxyManager {
     } {
         const proxies = Array.from(this.proxies.values());
         const enabled = proxies.filter(p => p.enabled);
-        
+
         const proxyTypes: { [type: string]: number } = {};
         const healthStatus: { [status: string]: number } = {};
-        
+
         for (const proxy of proxies) {
             proxyTypes[proxy.type] = (proxyTypes[proxy.type] || 0) + 1;
             healthStatus[proxy.healthStatus] = (healthStatus[proxy.healthStatus] || 0) + 1;
         }
-        
+
         return {
             totalProxies: proxies.length,
             enabledProxies: enabled.length,
@@ -562,7 +579,7 @@ export class ProxyManager {
     updateProxy(id: string, updates: Partial<ProxyInstanceConfig>): boolean {
         const proxy = this.proxies.get(id);
         if (!proxy) return false;
-        
+
         Object.assign(proxy, updates);
         this.proxies.set(id, proxy);
         return true;
@@ -581,7 +598,7 @@ export class ProxyManager {
     async scanAndRegisterProxies(environmentId: number = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1): Promise<MultiProxyDeploymentResult> {
         const details: string[] = [];
         const results: MultiProxyDeploymentResult['results'] = {};
-        
+
         try {
             // First, ensure defined proxies exist
             details.push('Ensuring defined proxies exist...');
@@ -589,27 +606,27 @@ export class ProxyManager {
             details.push(...ensureDetails);
 
             details.push(`Scanning for Velocity proxies in environment ${environmentId}...`);
-            
+
             // Find containers with 'velocity' in their image name
             const velocityContainers = await portainer.findContainers(environmentId, { image: 'velocity' });
-            
+
             details.push(`Found ${velocityContainers.length} potential Velocity containers.`);
-            
+
             for (const container of velocityContainers) {
                 const containerId = container.Id;
                 const containerName = container.Names[0].replace(/^\//, ''); // Remove leading slash
-                
+
                 // Skip if already registered (optional, but good to avoid overwriting custom configs)
                 // For now, we'll update existing ones or create new ones
-                
+
                 // Determine config path and network
                 // We assume standard paths or try to inspect container (future improvement)
                 const configPath = `/velocity-${containerName}/velocity.toml`; // Convention-based path
                 const networkName = Object.keys(container.NetworkSettings?.Networks || {})[0] || 'velocity-network';
-                
+
                 // Register or update proxy
                 const proxyId = `velocity-${containerName}`;
-                
+
                 this.registerProxy({
                     id: proxyId,
                     name: `Velocity (${containerName})`,
@@ -628,20 +645,20 @@ export class ProxyManager {
                     ],
                     healthStatus: 'healthy' // Assume healthy if running
                 });
-                
+
                 results[proxyId] = {
                     success: true,
                     details: [`Registered proxy ${proxyId} from container ${containerName}`]
                 };
             }
-            
+
             return {
                 success: true,
                 results,
                 overallDetails: details,
                 fallbackProxies: []
             };
-            
+
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             return {
@@ -658,14 +675,14 @@ export class ProxyManager {
      */
     async ensureProxies(environmentId: number = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1): Promise<string[]> {
         const details: string[] = [];
-        
+
         // Reload proxies from YAML to get latest configuration
         const definedProxies = getDefinedProxies();
-        
+
         // First, remove any orphaned proxies
         details.push('Checking for orphaned proxies...');
         await this.removeOrphanedProxies(environmentId, details);
-        
+
         // Then ensure all defined proxies exist
         for (const def of definedProxies) {
             try {
@@ -694,7 +711,7 @@ export class ProxyManager {
         try {
             // 1. Get all containers
             const containers = await portainer.getContainers(environmentId);
-            const serverContainers = containers.filter(c => 
+            const serverContainers = containers.filter(c =>
                 c.Names.some(n => n.match(/^\/?(mc-|minecraft-)/))
             );
 
@@ -710,17 +727,9 @@ export class ProxyManager {
                 if (idMatch) {
                     const serverId = idMatch[1];
                     if (!dbServerIds.has(serverId)) {
-                        details.push(`Found orphaned server container: ${name} (${serverId}). Stopping...`);
-                        // Stop the container
-                        if (container.State === 'running') {
-                            try {
-                                await portainer.stopContainer(container.Id, environmentId);
-                                details.push(`Stopped orphaned container ${name}`);
-                            } catch (e) {
-                                details.push(`Failed to stop orphaned container ${name}: ${e}`);
-                            }
-                        }
-                        // We don't delete the file as requested
+                        // Feature removed: Do not stop orphaned containers automatically
+                        // This was causing issues where valid servers were being stopped
+                        details.push(`Found potential orphaned server container: ${name} (${serverId}). Taking no action.`);
                     }
                 }
             }
@@ -729,16 +738,16 @@ export class ProxyManager {
             for (const server of dbServers) {
                 const containerName = `mc-${server.uniqueId}`;
                 const exists = serverContainers.some(c => c.Names.some(n => n.includes(containerName)));
-                
+
                 if (!exists) {
                     details.push(`Server ${server.serverName} (${server.uniqueId}) missing in Portainer. Recreating...`);
-                    
+
                     try {
                         // Construct config from DB
                         // We assume server.serverConfig matches ClientServerConfig structure roughly
                         // We might need to map fields if they differ significantly
                         const config = server.serverConfig as unknown as MinecraftServerConfig;
-                        
+
                         // Create server instance
                         const minecraftServer = createMinecraftServer(
                             config,
@@ -771,22 +780,22 @@ export class ProxyManager {
         try {
             // Get current defined proxies from YAML
             const definedProxies = getDefinedProxies();
-            
+
             // Get all stacks
             const stacks = await portainer.getStacks();
             const definedProxyIds = new Set(definedProxies.map((p: ProxyDefinition) => p.id));
-            
+
             for (const stack of stacks) {
                 // Check if this is a proxy stack (matches pattern: velocity, velocity-2, etc.)
                 const isProxyStack = definedProxies.some((p: ProxyDefinition) => p.name === stack.Name);
-                
+
                 if (isProxyStack) {
                     // Check if this proxy is still defined
                     const matchingDef = definedProxies.find((p: ProxyDefinition) => p.name === stack.Name);
-                    
+
                     if (!matchingDef) {
                         details.push(`Found orphaned proxy stack: ${stack.Name}. Removing...`);
-                        
+
                         try {
                             // Stop and remove the stack
                             await portainer.stopStack(stack.Id, environmentId);
@@ -818,12 +827,21 @@ export class ProxyManager {
 
         details.push(`Proxy ${def.name} not found. Creating...`);
 
+        // For RustyConnector-enabled proxies, configPath may not be required
+        // as configuration is managed dynamically via Redis
+        if (!def.configPath) {
+            details.push(`Proxy ${def.name} uses dynamic configuration (RustyConnector). Skipping file-based config.`);
+            // Create stack without volume mount for config
+            await this.createRustyConnectorProxy(def, environmentId, details);
+            return;
+        }
+
         // 2. Ensure configuration exists using absolute server path
         const { getProxyAbsolutePath, getProxyContainerPath } = await import('@/lib/config/proxies');
         const absoluteConfigPath = getProxyAbsolutePath(def.configPath);
         const containerMountPath = getProxyContainerPath(def.configPath);
         const configDir = path.dirname(absoluteConfigPath);
-        
+
         // Create directory using WebDAV (directory in the actual server filesystem)
         const webdavConfigDir = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft/velocity-test'}/${def.configPath.split('/')[0]}`;
         try {
@@ -840,34 +858,34 @@ export class ProxyManager {
             details.push(`Config file already exists: ${def.configPath}`);
         } catch {
             details.push(`Creating default configuration for ${def.name}...`);
-            
+
             // Get base config object
             const velocityConfig = velocityService.getDefaultVelocityConfig();
-            
+
             // Check for other existing proxies to mirror
             const definedProxies = getDefinedProxies();
             const otherProxies = definedProxies.filter((p: ProxyDefinition) => p.id !== def.id);
             let mirrored = false;
-            
+
             for (const other of otherProxies) {
                 try {
                     // Try to read config from other proxy using WebDAV
                     const otherWebdavPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft/velocity-test'}/${other.configPath}`;
                     const otherConfig = await velocityService.readVelocityConfig(otherWebdavPath);
-                    
+
                     if (otherConfig && otherConfig.servers && Object.keys(otherConfig.servers).length > 0) {
                         velocityConfig.servers = { ...otherConfig.servers };
                         velocityConfig['forced-hosts'] = { ...otherConfig['forced-hosts'] };
                         velocityConfig['try'] = [...otherConfig['try']];
                         details.push(`Mirrored configuration from ${other.name}`);
                         mirrored = true;
-                        break; 
+                        break;
                     }
                 } catch (e) {
                     // Ignore and try next
                 }
             }
-            
+
             if (!mirrored) {
                 // First instance logic: Populate from DB
                 details.push(`First proxy instance. Populating from database...`);
@@ -877,7 +895,7 @@ export class ProxyManager {
                         if (server.uniqueId && server.serverName) {
                             const serverAddress = `mc-${server.uniqueId}:25565`;
                             velocityConfig.servers[server.serverName] = { address: serverAddress };
-                            
+
                             // Add forced host if subdomain exists
                             if (server.subdomainName) {
                                 const domain = process.env.ROOT_DOMAIN || 'example.com';
@@ -896,7 +914,7 @@ export class ProxyManager {
             const configContent = velocityService.generateVelocityConfig(velocityConfig);
             await webdavService.uploadFile(webdavConfigPath, configContent);
             details.push(`Created default config: ${def.configPath}`);
-            
+
             // Also create forwarding.secret
             const webdavSecretPath = `${webdavConfigDir}/forwarding.secret`;
             const secret = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -937,8 +955,37 @@ networks:
             },
             environmentId
         );
-        
+
         details.push(`Proxy ${def.name} deployed successfully.`);
+        
+        // If RustyConnector is enabled globally, install the Velocity plugin
+        if (isRustyConnectorEnabled()) {
+            try {
+                const { installRustyConnectorVelocityPlugin } = await import('./rusty-connector-installer');
+                
+                details.push('RustyConnector enabled, installing Velocity plugin...');
+                
+                // Wait a moment for the container to be ready
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                
+                // Use WebDAV path based on config directory
+                const webdavProxyPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft/velocity-test'}/${def.configPath?.split('/')[0] || def.id}`;
+                
+                const rcInstallResult = await installRustyConnectorVelocityPlugin(
+                    webdavProxyPath,
+                    def.id
+                );
+                
+                if (rcInstallResult.success) {
+                    details.push('✓ RustyConnector Velocity plugin installed');
+                } else {
+                    details.push(`⚠ RustyConnector plugin installation failed: ${rcInstallResult.error}`);
+                }
+            } catch (rcError) {
+                details.push(`⚠ Error installing RustyConnector plugin: ${rcError}`);
+            }
+        }
+        
         this.registerProxyFromDefinition(def);
     }
 
@@ -951,7 +998,7 @@ networks:
             port: def.port,
             enabled: true,
             priority: 100,
-            configPath: def.configPath,
+            configPath: def.configPath || '', // Use empty string if not defined (RustyConnector mode)
             networkName: def.networkName,
             description: `Managed Proxy: ${def.name}`,
             tags: ['managed', def.type],
@@ -961,6 +1008,118 @@ networks:
             ],
             healthStatus: 'healthy'
         });
+    }
+
+    /**
+     * Create a RustyConnector-enabled proxy (uses Redis for dynamic server registration)
+     */
+    private async createRustyConnectorProxy(def: ProxyDefinition, environmentId: number, details: string[]): Promise<void> {
+        const { getRedisConfig } = await import('@/lib/config/proxies');
+        const redisConfig = getRedisConfig();
+        
+        if (!redisConfig) {
+            throw new Error('RustyConnector proxy requires Redis configuration in proxies.yaml');
+        }
+
+        // Get RustyConnector config from the proxy definition (dynamic field)
+        const rcConfig = def.dynamic;
+        
+        const stackName = def.name;
+        
+        // Build environment variables for RustyConnector
+        const envVars: string[] = [
+            `VELOCITY_MEMORY=${def.memory}`,
+        ];
+        
+        // Add RustyConnector configuration if present
+        if (rcConfig) {
+            envVars.push(
+                `RUSTY_CONNECTOR_ENABLED=true`,
+                `RUSTY_CONNECTOR_REDIS_HOST=${rcConfig.connectionDetails.host}`,
+                `RUSTY_CONNECTOR_REDIS_PORT=${rcConfig.connectionDetails.port}`,
+                `RUSTY_CONNECTOR_PROXY_ID=${def.id}`
+            );
+            
+            if (rcConfig.connectionDetails.passwordRef) {
+                envVars.push(`RUSTY_CONNECTOR_REDIS_PASSWORD_FILE=${rcConfig.connectionDetails.passwordRef}`);
+            }
+        }
+
+        // Create a base data directory for velocity data (plugins, etc.)
+        const velocityDataPath = `/minecraft/proxies/${def.id}`;
+        
+        // Ensure the proxy data directory exists via WebDAV
+        const webdavProxyPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft'}/proxies/${def.id}`;
+        try {
+            await webdavService.createDirectory(webdavProxyPath);
+            details.push(`Created proxy data directory: ${webdavProxyPath}`);
+        } catch (e) {
+            // Directory may already exist
+        }
+        
+        const stackContent = `version: '3'
+services:
+  ${def.host}:
+    image: envidtech/velocity:latest
+    container_name: ${def.host}
+    restart: on-failure:5
+    ports:
+      - "${def.port}:25565"
+    volumes:
+      - ${velocityDataPath}:/data
+    networks:
+      - ${def.networkName}
+      - ${redisConfig.networkName}
+    environment:
+${envVars.map(e => `      - ${e}`).join('\n')}
+
+networks:
+  ${def.networkName}:
+    external: true
+  ${redisConfig.networkName}:
+    external: true
+`;
+
+        // Deploy stack
+        details.push(`Deploying RustyConnector-enabled stack for ${def.name}...`);
+        await portainer.createStack(
+            {
+                Name: stackName,
+                ComposeFile: stackContent,
+                Env: []
+            },
+            environmentId
+        );
+
+        details.push(`Proxy ${def.name} deployed successfully.`);
+        
+        // Install RustyConnector Velocity plugin
+        try {
+            const { installRustyConnectorVelocityPlugin } = await import('./rusty-connector-installer');
+            
+            details.push('Installing RustyConnector Velocity plugin...');
+            
+            // Wait a moment for the container to be ready
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            const rcInstallResult = await installRustyConnectorVelocityPlugin(
+                webdavProxyPath,
+                def.id
+            );
+            
+            if (rcInstallResult.success) {
+                details.push('✓ RustyConnector Velocity plugin installed successfully');
+                details.push(...rcInstallResult.details);
+            } else {
+                details.push(`⚠ RustyConnector plugin installation failed: ${rcInstallResult.error}`);
+                details.push('Proxy will work but dynamic server registration may not function');
+            }
+        } catch (rcError) {
+            details.push(`⚠ Error installing RustyConnector plugin: ${rcError}`);
+            details.push('Proxy will work but dynamic server registration may not function');
+        }
+        
+        this.registerProxyFromDefinition(def);
     }
 }
 
