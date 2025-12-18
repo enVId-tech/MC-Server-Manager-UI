@@ -862,12 +862,23 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             const rustyConnectorEnabled = isRustyConnectorEnabled();
             const serverSupportsRC = supportsRustyConnector(serverType);
             
+            console.log(`[Deploy] RustyConnector check:`);
+            console.log(`[Deploy]   Server type: ${serverType}`);
+            console.log(`[Deploy]   RustyConnector enabled globally: ${rustyConnectorEnabled}`);
+            console.log(`[Deploy]   Server supports RustyConnector: ${serverSupportsRC}`);
+            
             if (rustyConnectorEnabled && serverSupportsRC) {
                 await updateStep(serverId, 'rustyconnector', 'running', 25, 'Installing RustyConnector plugin...');
                 
                 // Construct server path for WebDAV
                 const userEmail = user.email.split('@')[0] || 'default-user';
                 const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${serverId}`;
+                
+                console.log(`[Deploy] Installing RustyConnector plugin:`);
+                console.log(`[Deploy]   User email prefix: ${userEmail}`);
+                console.log(`[Deploy]   Server path: ${serverPath}`);
+                console.log(`[Deploy]   Server ID: ${serverId}`);
+                console.log(`[Deploy]   Server name: ${server.serverName}`);
                 
                 const rcInstallResult = await installRustyConnectorPlugin(
                     serverPath,
@@ -879,6 +890,8 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                         playerCap: serverConfig.maxPlayers || 100
                     }
                 );
+                
+                console.log(`[Deploy] RustyConnector install result:`, JSON.stringify(rcInstallResult, null, 2));
                 
                 if (rcInstallResult.success) {
                     await updateStep(serverId, 'rustyconnector', 'completed', 100, 'RustyConnector plugin installed successfully');
@@ -908,18 +921,31 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             const velocityEnabled = definedProxies.length > 0;
             
             if (velocityEnabled) {
-                console.log('Velocity integration enabled, configuring server...');
+                console.log('[Deploy] Velocity integration enabled, configuring server...');
                 
-                // Find the deployed container
+                // Find the deployed container - use multiple patterns to find it
                 const containers = await portainer.getContainers(portainerEnvironmentId);
+                console.log(`[Deploy] Found ${containers.length} containers in environment ${portainerEnvironmentId}`);
+                
+                // Log all container names for debugging
+                console.log('[Deploy] Available containers:', containers.map(c => ({
+                    id: c.Id.slice(0, 12),
+                    names: c.Names,
+                    state: c.State
+                })));
+                
+                // Try multiple name patterns - the stack name is "minecraft-{uniqueId}"
                 const serverContainer = containers.find(container =>
                     container.Names.some(name => 
+                        name.includes(`minecraft-${serverId}`) ||
                         name.includes(`mc-${serverId}`) ||
-                        name.includes(`minecraft-${serverId}`)
+                        name.includes(serverId)
                     )
                 );
-
+                
                 if (serverContainer) {
+                    console.log(`[Deploy] Found server container: ${serverContainer.Names.join(', ')} (ID: ${serverContainer.Id.slice(0, 12)}, State: ${serverContainer.State})`);
+                    
                     // Wait for server files to be created
                     await updateStep(serverId, 'velocity', 'running', 25, 'Waiting for server files to be ready...');
                     
@@ -972,10 +998,14 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                             throw new Error(configResult.error || 'Failed to configure Velocity');
                         }
                     } else {
-                        throw new Error('Timeout waiting for server files to be created');
+                        console.warn(`[Deploy] Velocity file wait failed: ${filesReady.error}`);
+                        // Don't fail - Velocity config will be applied later via WebDAV
+                        await updateStep(serverId, 'velocity', 'completed', 100, `Velocity integration skipped: ${filesReady.error}`);
                     }
                 } else {
-                    throw new Error('Server container not found for Velocity configuration');
+                    console.warn(`[Deploy] Server container not found for Velocity configuration. Looking for patterns: minecraft-${serverId}, mc-${serverId}, or ${serverId}`);
+                    // Don't fail deployment - the server is deployed but Velocity integration will need manual config
+                    await updateStep(serverId, 'velocity', 'completed', 100, 'Server container not found, Velocity integration skipped');
                 }
             } else {
                 await updateStep(serverId, 'velocity', 'completed', 100, 'Velocity integration disabled, skipping...');

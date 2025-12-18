@@ -47,7 +47,9 @@ export async function GET(request: NextRequest) {
             }, { status: 404 });
         }
 
-        const environmentId = server.environmentId || (process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1);
+        // Auto-discover valid environment ID
+        const storedEnvId = server.environmentId || (process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null);
+        const environmentId = await portainer.getValidEnvironmentId(storedEnvId);
         const containerName = `mc-${server.uniqueId}`;
         
         // Find container
@@ -145,7 +147,9 @@ export async function POST(request: NextRequest) {
             }, { status: 404 });
         }
 
-        const environmentId = server.environmentId || (process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1);
+        // Auto-discover valid environment ID for POST
+        const storedEnvIdPost = server.environmentId || (process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null);
+        const environmentId = await portainer.getValidEnvironmentId(storedEnvIdPost);
         const containerName = `mc-${server.uniqueId}`;
         
         // Find container

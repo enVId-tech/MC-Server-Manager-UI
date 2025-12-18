@@ -60,9 +60,16 @@ export async function installRustyConnectorPlugin(
 ): Promise<RustyConnectorInstallResult> {
     const details: string[] = [];
     
+    console.log(`[RustyConnector] Installing plugin for ${serverType} server at ${serverPath}`);
+    console.log(`[RustyConnector] Config:`, JSON.stringify(config, null, 2));
+    
     try {
         // Check if RustyConnector is enabled globally
-        if (!isRustyConnectorEnabled()) {
+        const rcEnabled = isRustyConnectorEnabled();
+        console.log(`[RustyConnector] Global enabled check: ${rcEnabled}`);
+        
+        if (!rcEnabled) {
+            console.log('[RustyConnector] Not enabled in configuration');
             return {
                 success: false,
                 error: 'RustyConnector is not enabled in configuration',
@@ -71,7 +78,10 @@ export async function installRustyConnectorPlugin(
         }
         
         // Check if server type supports RustyConnector
-        if (!supportsRustyConnector(serverType)) {
+        const supported = supportsRustyConnector(serverType);
+        console.log(`[RustyConnector] Server type ${serverType} supported: ${supported}`);
+        
+        if (!supported) {
             return {
                 success: false,
                 error: `Server type ${serverType} does not support RustyConnector`,
@@ -278,8 +288,16 @@ export async function installRustyConnectorVelocityPlugin(
     const details: string[] = [];
     
     try {
+        console.log(`[RustyConnector Velocity] ========================================`);
+        console.log(`[RustyConnector Velocity] Installing plugin for proxy: ${proxyId}`);
+        console.log(`[RustyConnector Velocity] Proxy path: ${proxyPath}`);
+        console.log(`[RustyConnector Velocity] ========================================`);
+        
         // Check if RustyConnector is enabled globally
-        if (!isRustyConnectorEnabled()) {
+        const rcEnabled = isRustyConnectorEnabled();
+        console.log(`[RustyConnector Velocity] RustyConnector enabled: ${rcEnabled}`);
+        if (!rcEnabled) {
+            console.log(`[RustyConnector Velocity] ❌ RustyConnector is NOT enabled - aborting`);
             return {
                 success: false,
                 error: 'RustyConnector is not enabled in configuration',
@@ -291,17 +309,24 @@ export async function installRustyConnectorVelocityPlugin(
         
         // Ensure plugins directory exists
         const pluginsPath = `${proxyPath}/plugins`;
+        console.log(`[RustyConnector Velocity] Creating plugins directory: ${pluginsPath}`);
         try {
             await webdavService.createDirectory(pluginsPath);
             details.push(`Ensured plugins directory exists: ${pluginsPath}`);
+            console.log(`[RustyConnector Velocity] ✓ Plugins directory created/verified`);
         } catch (e) {
             // Directory may already exist
+            console.log(`[RustyConnector Velocity] Plugins directory may already exist: ${e}`);
         }
         
         // Check if plugin already installed
         const pluginPath = `${pluginsPath}/${PLUGIN_FILENAME}`;
-        if (await webdavService.exists(pluginPath)) {
+        console.log(`[RustyConnector Velocity] Checking if plugin exists: ${pluginPath}`);
+        const pluginExists = await webdavService.exists(pluginPath);
+        console.log(`[RustyConnector Velocity] Plugin exists: ${pluginExists}`);
+        if (pluginExists) {
             details.push('RustyConnector Velocity plugin already installed');
+            console.log(`[RustyConnector Velocity] ✓ Plugin already installed, skipping download`);
             return {
                 success: true,
                 details,
@@ -311,39 +336,56 @@ export async function installRustyConnectorVelocityPlugin(
         
         // Download the RustyConnector Velocity plugin
         const pluginUrl = RUSTY_CONNECTOR_URLS.velocity;
+        console.log(`[RustyConnector Velocity] Downloading from: ${pluginUrl}`);
         details.push(`Downloading RustyConnector Velocity from: ${pluginUrl}`);
         
         const response = await fetch(pluginUrl);
+        console.log(`[RustyConnector Velocity] Download response: ${response.status} ${response.statusText}`);
         if (!response.ok) {
+            console.log(`[RustyConnector Velocity] ❌ Download failed!`);
             throw new Error(`Failed to download RustyConnector Velocity: ${response.status} ${response.statusText}`);
         }
         
         const pluginBuffer = Buffer.from(await response.arrayBuffer());
+        console.log(`[RustyConnector Velocity] Downloaded ${Math.round(pluginBuffer.length / 1024)} KB`);
         details.push(`Downloaded RustyConnector Velocity plugin (${Math.round(pluginBuffer.length / 1024)} KB)`);
         
         // Upload the plugin JAR
+        console.log(`[RustyConnector Velocity] Uploading plugin to: ${pluginPath}`);
         await webdavService.uploadFile(pluginPath, pluginBuffer);
+        console.log(`[RustyConnector Velocity] ✓ Plugin uploaded successfully`);
         details.push(`Installed RustyConnector Velocity plugin to: ${pluginPath}`);
         
         // Create RustyConnector configuration directory
         const rcConfigDir = `${pluginsPath}/rustyconnector`;
+        console.log(`[RustyConnector Velocity] Creating config directory: ${rcConfigDir}`);
         try {
             await webdavService.createDirectory(rcConfigDir);
             details.push(`Created RustyConnector config directory`);
+            console.log(`[RustyConnector Velocity] ✓ Config directory created`);
         } catch (e) {
             // Directory may already exist
+            console.log(`[RustyConnector Velocity] Config directory may already exist: ${e}`);
         }
         
         // Generate and upload RustyConnector Velocity configuration
         const redisConfig = getRedisConfig();
+        console.log(`[RustyConnector Velocity] Redis config exists: ${!!redisConfig}`);
         if (!redisConfig) {
+            console.log(`[RustyConnector Velocity] ❌ No Redis configuration found!`);
             throw new Error('Redis configuration not found');
         }
         
         const rcConfig = generateVelocityRustyConnectorConfig(proxyId, redisConfig);
         const configPath = `${rcConfigDir}/config.yml`;
+        console.log(`[RustyConnector Velocity] Uploading config to: ${configPath}`);
         await webdavService.uploadFile(configPath, rcConfig);
+        console.log(`[RustyConnector Velocity] ✓ Config uploaded successfully`);
         details.push(`Created RustyConnector Velocity configuration`);
+        
+        console.log(`[RustyConnector Velocity] ========================================`);
+        console.log(`[RustyConnector Velocity] ✓ INSTALLATION COMPLETE for ${proxyId}`);
+        console.log(`[RustyConnector Velocity] ========================================`);
         
         return {
             success: true,
@@ -352,6 +394,7 @@ export async function installRustyConnectorVelocityPlugin(
         };
         
     } catch (error) {
+        console.log(`[RustyConnector Velocity] ❌ INSTALLATION FAILED: ${error}`);
         return {
             success: false,
             error: error instanceof Error ? error.message : 'Unknown error',

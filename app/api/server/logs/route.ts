@@ -32,7 +32,9 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ message: 'Server not found or access denied.' }, { status: 404 });
         }
 
-        const environmentId = server.environmentId || (process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1);
+        // Use server's stored environment ID, or auto-discover a valid one
+        const storedEnvId = server.environmentId || (process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null);
+        const environmentId = await portainer.getValidEnvironmentId(storedEnvId);
         const containerName = `mc-${server.uniqueId}`;
         
         // Find container ID

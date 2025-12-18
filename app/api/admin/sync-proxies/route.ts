@@ -3,6 +3,7 @@ import dbConnect from '@/lib/db/dbConnect';
 import { IUser } from '@/lib/objects/User';
 import verificationService from '@/lib/server/verify';
 import proxyManager from '@/lib/server/proxy-manager';
+import portainer from '@/lib/server/portainer';
 import { getDefinedProxies } from '@/lib/config/proxies';
 
 /**
@@ -22,8 +23,9 @@ export async function POST(request: NextRequest) {
             }, { status: 403 });
         }
         
-        // Get environment ID
-        const environmentId = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1;
+        // Get environment ID (auto-discover if needed)
+        const storedEnvId = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null;
+        const environmentId = await portainer.getValidEnvironmentId(storedEnvId);
         
         // Load proxies from YAML
         const proxies = getDefinedProxies();

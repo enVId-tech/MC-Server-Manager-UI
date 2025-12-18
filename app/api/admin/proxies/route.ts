@@ -32,7 +32,9 @@ export async function GET(request: NextRequest) {
             }, { status: 403 });
         }
 
-        const environmentId = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1;
+        // Auto-discover valid environment ID
+        const storedEnvId = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null;
+        const environmentId = await portainer.getValidEnvironmentId(storedEnvId);
         
         // Get defined proxies from YAML
         const definedProxies = getDefinedProxies();
@@ -197,7 +199,8 @@ export async function POST(request: NextRequest) {
         await fs.writeFile(proxiesYamlPath, updatedYaml, 'utf-8');
 
         // Deploy the new proxy
-        const environmentId = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1;
+        const storedEnvIdPost = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null;
+        const environmentId = await portainer.getValidEnvironmentId(storedEnvIdPost);
         const details = await proxyManager.ensureProxies(environmentId);
 
         console.log(`[Admin Proxies] Created new proxy: ${name} (${id}) by admin ${user.email}`);
@@ -270,7 +273,8 @@ export async function DELETE(request: NextRequest) {
         await fs.writeFile(proxiesYamlPath, updatedYaml, 'utf-8');
 
         // Delete the proxy container/stack from Portainer
-        const environmentId = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1;
+        const storedEnvIdDelete = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null;
+        const environmentId = await portainer.getValidEnvironmentId(storedEnvIdDelete);
         
         try {
             // Try to delete stack first
@@ -356,7 +360,8 @@ export async function PATCH(request: NextRequest) {
         await fs.writeFile(proxiesYamlPath, updatedYaml, 'utf-8');
 
         // Re-sync proxies
-        const environmentId = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1;
+        const storedEnvIdPatch = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null;
+        const environmentId = await portainer.getValidEnvironmentId(storedEnvIdPatch);
         const details = await proxyManager.ensureProxies(environmentId);
 
         console.log(`[Admin Proxies] Updated proxy: ${id} by admin ${user.email}`);

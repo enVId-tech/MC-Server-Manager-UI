@@ -85,6 +85,7 @@ export class PortainerApiClient {
     private password: string | null;
     private authToken: string | null;
     private defaultEnvironmentId: number | null;
+    private _environmentIdValidated: boolean = false;
     public axiosInstance: AxiosInstance;
 
     /**
@@ -100,6 +101,7 @@ export class PortainerApiClient {
         this.portainerUrl = portainerUrl.endsWith('/') ? portainerUrl.slice(0, -1) : portainerUrl;
         this.defaultEnvironmentId = defaultEnvironmentId;
         this.authToken = null;
+        this._environmentIdValidated = false;
 
         // Determine authentication method
         if (typeof auth === 'string') {
@@ -215,7 +217,34 @@ export class PortainerApiClient {
     set DefaultEnvironmentId(environmentId: number | null) {
         if (environmentId === null || typeof environmentId === 'number') {
             this.defaultEnvironmentId = environmentId;
+            this._environmentIdValidated = false; // Reset validation when changed
         }
+    }
+
+    /**
+     * Get a valid environment ID, auto-discovering if necessary
+     * This ensures we always use a valid environment ID
+     */
+    async getValidEnvironmentId(requestedId?: number | null): Promise<number> {
+        const envId = requestedId ?? this.defaultEnvironmentId;
+        
+        // If we have no ID or we haven't validated yet, discover one
+        if (envId === null || !this._environmentIdValidated) {
+            const validId = await this.getFirstEnvironmentId();
+            if (validId === null) {
+                throw new Error('No valid Portainer environment found');
+            }
+            
+            // Update the default if it was null or invalid
+            if (this.defaultEnvironmentId === null || this.defaultEnvironmentId !== validId) {
+                console.log(`Updating default environment ID from ${this.defaultEnvironmentId} to ${validId}`);
+                this.defaultEnvironmentId = validId;
+            }
+            this._environmentIdValidated = true;
+            return validId;
+        }
+        
+        return envId;
     }
 
     /**

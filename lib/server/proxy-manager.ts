@@ -961,20 +961,27 @@ networks:
         // If RustyConnector is enabled globally, install the Velocity plugin
         if (isRustyConnectorEnabled()) {
             try {
+                console.log(`[ProxyManager] RustyConnector is enabled, installing Velocity plugin for ${def.id}...`);
+                
                 const { installRustyConnectorVelocityPlugin } = await import('./rusty-connector-installer');
                 
                 details.push('RustyConnector enabled, installing Velocity plugin...');
                 
                 // Wait a moment for the container to be ready
+                console.log(`[ProxyManager] Waiting 3 seconds for container to be ready...`);
                 await new Promise(resolve => setTimeout(resolve, 3000));
                 
                 // Use WebDAV path based on config directory
                 const webdavProxyPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft/velocity-test'}/${def.configPath?.split('/')[0] || def.id}`;
+                console.log(`[ProxyManager] WebDAV proxy path: ${webdavProxyPath}`);
+                console.log(`[ProxyManager] Config path: ${def.configPath}`);
                 
                 const rcInstallResult = await installRustyConnectorVelocityPlugin(
                     webdavProxyPath,
                     def.id
                 );
+                
+                console.log(`[ProxyManager] RustyConnector install result:`, rcInstallResult);
                 
                 if (rcInstallResult.success) {
                     details.push('✓ RustyConnector Velocity plugin installed');
@@ -982,8 +989,11 @@ networks:
                     details.push(`⚠ RustyConnector plugin installation failed: ${rcInstallResult.error}`);
                 }
             } catch (rcError) {
+                console.error(`[ProxyManager] Error installing RustyConnector plugin:`, rcError);
                 details.push(`⚠ Error installing RustyConnector plugin: ${rcError}`);
             }
+        } else {
+            console.log(`[ProxyManager] RustyConnector is NOT enabled, skipping plugin installation`);
         }
         
         this.registerProxyFromDefinition(def);
@@ -1050,11 +1060,15 @@ networks:
         
         // Ensure the proxy data directory exists via WebDAV
         const webdavProxyPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft'}/proxies/${def.id}`;
+        console.log(`[ProxyManager] Creating proxy data directory via WebDAV: ${webdavProxyPath}`);
+        console.log(`[ProxyManager] WEBDAV_SERVER_BASE_PATH env: ${process.env.WEBDAV_SERVER_BASE_PATH}`);
         try {
             await webdavService.createDirectory(webdavProxyPath);
             details.push(`Created proxy data directory: ${webdavProxyPath}`);
+            console.log(`[ProxyManager] ✓ Proxy data directory created`);
         } catch (e) {
             // Directory may already exist
+            console.log(`[ProxyManager] Proxy data directory may already exist: ${e}`);
         }
         
         const stackContent = `version: '3'
@@ -1095,17 +1109,24 @@ networks:
         
         // Install RustyConnector Velocity plugin
         try {
+            console.log(`[ProxyManager] Installing RustyConnector Velocity plugin...`);
+            console.log(`[ProxyManager] WebDAV proxy path: ${webdavProxyPath}`);
+            console.log(`[ProxyManager] Proxy ID: ${def.id}`);
+            
             const { installRustyConnectorVelocityPlugin } = await import('./rusty-connector-installer');
             
             details.push('Installing RustyConnector Velocity plugin...');
             
             // Wait a moment for the container to be ready
+            console.log(`[ProxyManager] Waiting 3 seconds for container to be ready...`);
             await new Promise(resolve => setTimeout(resolve, 3000));
             
             const rcInstallResult = await installRustyConnectorVelocityPlugin(
                 webdavProxyPath,
                 def.id
             );
+            
+            console.log(`[ProxyManager] RustyConnector install result:`, rcInstallResult);
             
             if (rcInstallResult.success) {
                 details.push('✓ RustyConnector Velocity plugin installed successfully');
@@ -1115,6 +1136,7 @@ networks:
                 details.push('Proxy will work but dynamic server registration may not function');
             }
         } catch (rcError) {
+            console.error(`[ProxyManager] Error installing RustyConnector plugin:`, rcError);
             details.push(`⚠ Error installing RustyConnector plugin: ${rcError}`);
             details.push('Proxy will work but dynamic server registration may not function');
         }

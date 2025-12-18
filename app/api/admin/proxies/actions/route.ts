@@ -41,7 +41,9 @@ export async function POST(request: NextRequest) {
             }, { status: 400 });
         }
 
-        const environmentId = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1;
+        // Auto-discover valid environment ID
+        const storedEnvId = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null;
+        const environmentId = await portainer.getValidEnvironmentId(storedEnvId);
 
         // Find the proxy
         const definedProxies = getDefinedProxies();
