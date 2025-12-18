@@ -143,7 +143,7 @@ export default function Dashboard() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ uniqueId: serverToDelete.uniqueId }),
+                body: JSON.stringify({ uniqueId: serverToDelete.id }),
             });
 
             if (!response.ok) {
@@ -157,7 +157,7 @@ export default function Dashboard() {
             // Trigger download
             const a = document.createElement('a');
             a.href = downloadUrl;
-            a.download = `${serverToDelete.serverName}-${serverToDelete.uniqueId}.tar`;
+            a.download = `${serverToDelete.name}-${serverToDelete.id}.tar`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
