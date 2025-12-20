@@ -50,12 +50,10 @@ export async function testProxyManagerInitialization(): Promise<{
         const velocityProxies = proxyManager.getProxiesByType('velocity');
         const bungeeCordProxies = proxyManager.getProxiesByType('bungeecord');
         const waterfallProxies = proxyManager.getProxiesByType('waterfall');
-        const rustyConnectorProxies = proxyManager.getProxiesByType('rusty-connector');
         
         details.push(`Velocity proxies: ${velocityProxies.length}`);
         details.push(`BungeeCord proxies: ${bungeeCordProxies.length}`);
         details.push(`Waterfall proxies: ${waterfallProxies.length}`);
-        details.push(`RustyConnector proxies: ${rustyConnectorProxies.length}`);
         
         // Test statistics
         const statistics = proxyManager.getProxyStatistics();

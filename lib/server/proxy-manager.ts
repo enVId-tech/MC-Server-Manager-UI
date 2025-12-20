@@ -5,13 +5,11 @@
  * - Velocity (modern, high-performance)
  * - BungeeCord (legacy compatibility)
  * - Waterfall (improved BungeeCord fork)
- * - RustyConnector (dynamic server management with Redis)
  */
 
 import { VelocityServerConfig } from './velocity';
-import { RustyConnectorServerConfig } from './rusty-connector';
 import portainer from './portainer';
-import { getDefinedProxies, reloadProxies, ProxyDefinition, getRedisConfig, isRustyConnectorEnabled } from '@/lib/config/proxies';
+import { getDefinedProxies, reloadProxies, ProxyDefinition, getRedisConfig } from '@/lib/config/proxies';
 import webdavService from './webdav';
 import velocityService from './velocity';
 import path from 'path';
@@ -19,7 +17,7 @@ import Server from '@/lib/objects/Server';
 import { createMinecraftServer, ClientServerConfig, MinecraftServerConfig } from '@/lib/server/minecraft';
 import { redisService } from './redis-service';
 
-export type ProxyType = 'velocity' | 'bungeecord' | 'waterfall' | 'rusty-connector';
+export type ProxyType = 'velocity' | 'bungeecord' | 'waterfall';
 
 export interface ProxyInstanceConfig {
     id: string;
@@ -116,15 +114,6 @@ export class ProxyManager {
             if (!environmentId) {
                 console.warn('[Proxy Manager] No Portainer environment found');
                 return;
-            }
-
-            // First, ensure Redis is running if RustyConnector is enabled
-            if (isRustyConnectorEnabled()) {
-                console.log('[Proxy Manager] RustyConnector enabled, checking Redis...');
-                const redisResult = await redisService.ensureRedis(environmentId, true);
-                if (!redisResult.success) {
-                    console.warn('[Proxy Manager] Redis check failed:', redisResult.error);
-                }
             }
 
             // Ensure proxies exist
@@ -355,9 +344,6 @@ export class ProxyManager {
                 case 'waterfall':
                     return await this.deployToWaterfall(proxy, serverConfig, userEmail, uniqueId);
 
-                case 'rusty-connector':
-                    return await this.deployToRustyConnector(proxy, serverConfig);
-
                 default:
                     return {
                         success: false,
@@ -452,29 +438,7 @@ export class ProxyManager {
         };
     }
 
-    /**
-     * Deploy to RustyConnector (existing implementation)
-     */
-    private async deployToRustyConnector(
-        proxy: ProxyInstanceConfig,
-        serverConfig: ServerProxyConfig
-    ): Promise<{ success: boolean; error?: string; details: string[] }> {
-        // Import and use RustyConnector integration
-        const { rustyConnectorIntegration } = await import('./rusty-connector-integration');
 
-        // Convert to RustyConnector format
-        const rustyConfig: RustyConnectorServerConfig = {
-            ...serverConfig,
-            families: ['default'],
-            playerCap: 100,
-            restricted: false
-        };
-
-        return await rustyConnectorIntegration.deployServerWithRustyConnector(
-            rustyConfig,
-            'PAPER' // Default server type, this should be determined dynamically
-        );
-    }
 
     /**
      * Health check for all proxies
@@ -827,13 +791,8 @@ export class ProxyManager {
 
         details.push(`Proxy ${def.name} not found. Creating...`);
 
-        // For RustyConnector-enabled proxies, configPath may not be required
-        // as configuration is managed dynamically via Redis
         if (!def.configPath) {
-            details.push(`Proxy ${def.name} uses dynamic configuration (RustyConnector). Skipping file-based config.`);
-            // Create stack without volume mount for config
-            await this.createRustyConnectorProxy(def, environmentId, details);
-            return;
+            throw new Error(`Proxy ${def.name} requires a configPath`);
         }
 
         // 2. Ensure configuration exists using absolute server path
@@ -958,44 +917,6 @@ networks:
 
         details.push(`Proxy ${def.name} deployed successfully.`);
         
-        // If RustyConnector is enabled globally, install the Velocity plugin
-        if (isRustyConnectorEnabled()) {
-            try {
-                console.log(`[ProxyManager] RustyConnector is enabled, installing Velocity plugin for ${def.id}...`);
-                
-                const { installRustyConnectorVelocityPlugin } = await import('./rusty-connector-installer');
-                
-                details.push('RustyConnector enabled, installing Velocity plugin...');
-                
-                // Wait a moment for the container to be ready
-                console.log(`[ProxyManager] Waiting 3 seconds for container to be ready...`);
-                await new Promise(resolve => setTimeout(resolve, 3000));
-                
-                // Use WebDAV path based on config directory
-                const webdavProxyPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft/velocity-test'}/${def.configPath?.split('/')[0] || def.id}`;
-                console.log(`[ProxyManager] WebDAV proxy path: ${webdavProxyPath}`);
-                console.log(`[ProxyManager] Config path: ${def.configPath}`);
-                
-                const rcInstallResult = await installRustyConnectorVelocityPlugin(
-                    webdavProxyPath,
-                    def.id
-                );
-                
-                console.log(`[ProxyManager] RustyConnector install result:`, rcInstallResult);
-                
-                if (rcInstallResult.success) {
-                    details.push('✓ RustyConnector Velocity plugin installed');
-                } else {
-                    details.push(`⚠ RustyConnector plugin installation failed: ${rcInstallResult.error}`);
-                }
-            } catch (rcError) {
-                console.error(`[ProxyManager] Error installing RustyConnector plugin:`, rcError);
-                details.push(`⚠ Error installing RustyConnector plugin: ${rcError}`);
-            }
-        } else {
-            console.log(`[ProxyManager] RustyConnector is NOT enabled, skipping plugin installation`);
-        }
-        
         this.registerProxyFromDefinition(def);
     }
 
@@ -1008,7 +929,7 @@ networks:
             port: def.port,
             enabled: true,
             priority: 100,
-            configPath: def.configPath || '', // Use empty string if not defined (RustyConnector mode)
+            configPath: def.configPath || '',
             networkName: def.networkName,
             description: `Managed Proxy: ${def.name}`,
             tags: ['managed', def.type],
@@ -1018,130 +939,6 @@ networks:
             ],
             healthStatus: 'healthy'
         });
-    }
-
-    /**
-     * Create a RustyConnector-enabled proxy (uses Redis for dynamic server registration)
-     */
-    private async createRustyConnectorProxy(def: ProxyDefinition, environmentId: number, details: string[]): Promise<void> {
-        const { getRedisConfig } = await import('@/lib/config/proxies');
-        const redisConfig = getRedisConfig();
-        
-        if (!redisConfig) {
-            throw new Error('RustyConnector proxy requires Redis configuration in proxies.yaml');
-        }
-
-        // Get RustyConnector config from the proxy definition (dynamic field)
-        const rcConfig = def.dynamic;
-        
-        const stackName = def.name;
-        
-        // Build environment variables for RustyConnector
-        const envVars: string[] = [
-            `VELOCITY_MEMORY=${def.memory}`,
-        ];
-        
-        // Add RustyConnector configuration if present
-        if (rcConfig) {
-            envVars.push(
-                `RUSTY_CONNECTOR_ENABLED=true`,
-                `RUSTY_CONNECTOR_REDIS_HOST=${rcConfig.connectionDetails.host}`,
-                `RUSTY_CONNECTOR_REDIS_PORT=${rcConfig.connectionDetails.port}`,
-                `RUSTY_CONNECTOR_PROXY_ID=${def.id}`
-            );
-            
-            if (rcConfig.connectionDetails.passwordRef) {
-                envVars.push(`RUSTY_CONNECTOR_REDIS_PASSWORD_FILE=${rcConfig.connectionDetails.passwordRef}`);
-            }
-        }
-
-        // Create a base data directory for velocity data (plugins, etc.)
-        const velocityDataPath = `/minecraft/proxies/${def.id}`;
-        
-        // Ensure the proxy data directory exists via WebDAV
-        const webdavProxyPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft'}/proxies/${def.id}`;
-        console.log(`[ProxyManager] Creating proxy data directory via WebDAV: ${webdavProxyPath}`);
-        console.log(`[ProxyManager] WEBDAV_SERVER_BASE_PATH env: ${process.env.WEBDAV_SERVER_BASE_PATH}`);
-        try {
-            await webdavService.createDirectory(webdavProxyPath);
-            details.push(`Created proxy data directory: ${webdavProxyPath}`);
-            console.log(`[ProxyManager] ✓ Proxy data directory created`);
-        } catch (e) {
-            // Directory may already exist
-            console.log(`[ProxyManager] Proxy data directory may already exist: ${e}`);
-        }
-        
-        const stackContent = `version: '3'
-services:
-  ${def.host}:
-    image: envidtech/velocity:latest
-    container_name: ${def.host}
-    restart: on-failure:5
-    ports:
-      - "${def.port}:25565"
-    volumes:
-      - ${velocityDataPath}:/data
-    networks:
-      - ${def.networkName}
-      - ${redisConfig.networkName}
-    environment:
-${envVars.map(e => `      - ${e}`).join('\n')}
-
-networks:
-  ${def.networkName}:
-    external: true
-  ${redisConfig.networkName}:
-    external: true
-`;
-
-        // Deploy stack
-        details.push(`Deploying RustyConnector-enabled stack for ${def.name}...`);
-        await portainer.createStack(
-            {
-                Name: stackName,
-                ComposeFile: stackContent,
-                Env: []
-            },
-            environmentId
-        );
-
-        details.push(`Proxy ${def.name} deployed successfully.`);
-        
-        // Install RustyConnector Velocity plugin
-        try {
-            console.log(`[ProxyManager] Installing RustyConnector Velocity plugin...`);
-            console.log(`[ProxyManager] WebDAV proxy path: ${webdavProxyPath}`);
-            console.log(`[ProxyManager] Proxy ID: ${def.id}`);
-            
-            const { installRustyConnectorVelocityPlugin } = await import('./rusty-connector-installer');
-            
-            details.push('Installing RustyConnector Velocity plugin...');
-            
-            // Wait a moment for the container to be ready
-            console.log(`[ProxyManager] Waiting 3 seconds for container to be ready...`);
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            
-            const rcInstallResult = await installRustyConnectorVelocityPlugin(
-                webdavProxyPath,
-                def.id
-            );
-            
-            console.log(`[ProxyManager] RustyConnector install result:`, rcInstallResult);
-            
-            if (rcInstallResult.success) {
-                details.push('✓ RustyConnector Velocity plugin installed successfully');
-                details.push(...rcInstallResult.details);
-            } else {
-                details.push(`⚠ RustyConnector plugin installation failed: ${rcInstallResult.error}`);
-                details.push('Proxy will work but dynamic server registration may not function');
-            }
-        } catch (rcError) {
-            console.error(`[ProxyManager] Error installing RustyConnector plugin:`, rcError);
-            details.push(`⚠ Error installing RustyConnector plugin: ${rcError}`);
-            details.push('Proxy will work but dynamic server registration may not function');
-        }
-        
-        this.registerProxyFromDefinition(def);
     }
 }
 

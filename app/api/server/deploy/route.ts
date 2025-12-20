@@ -9,8 +9,7 @@ import { createMinecraftServer, convertClientConfigToServerConfig, ClientServerC
 import verificationService from "@/lib/server/verify";
 import velocityService from "@/lib/server/velocity";
 import { FileInfo } from "@/lib/objects/ServerConfig";
-import { definedProxies, isRustyConnectorEnabled } from "@/lib/config/proxies";
-import { installRustyConnectorPlugin, supportsRustyConnector } from "@/lib/server/rusty-connector-installer";
+import { definedProxies } from "@/lib/config/proxies";
 import { redisService } from "@/lib/server/redis-service";
 import { proxyManager } from "@/lib/server/proxy-manager";
 import { promises as fs } from 'fs';
@@ -225,7 +224,6 @@ export async function POST(request: NextRequest) {
             { id: 'deploy', name: 'Deploying to container platform', status: 'pending', progress: 0 },
             { id: 'files', name: 'Setting up file directories', status: 'pending', progress: 0 },
             { id: 'upload', name: 'Uploading server files', status: 'pending', progress: 0 },
-            { id: 'rustyconnector', name: 'Installing RustyConnector plugin', status: 'pending', progress: 0 },
             { id: 'velocity', name: 'Configuring Velocity proxy integration', status: 'pending', progress: 0 },
             { id: 'finalize', name: 'Finalizing deployment', status: 'pending', progress: 0 }
         );
@@ -383,24 +381,6 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
         await updateStep(serverId, 'prerequisites', 'running', 0, 'Checking infrastructure prerequisites...');
 
         try {
-            // Check if RustyConnector is enabled
-            const rcEnabled = isRustyConnectorEnabled();
-            
-            if (rcEnabled) {
-                await updateStep(serverId, 'prerequisites', 'running', 25, 'Ensuring Redis is running...');
-                
-                // Ensure Redis container is running (required for RustyConnector)
-                const redisResult = await redisService.ensureRedis(portainerEnvironmentId);
-                
-                if (!redisResult.success) {
-                    console.warn('Redis setup warning:', redisResult.error);
-                    await updateStep(serverId, 'prerequisites', 'running', 50, `Redis warning: ${redisResult.error}, continuing...`);
-                } else {
-                    console.log('Redis is running:', redisResult.details);
-                    await updateStep(serverId, 'prerequisites', 'running', 50, 'Redis is running');
-                }
-            }
-            
             // ALWAYS sync proxies on server creation for ALL users
             // This ensures YAML config matches Portainer state
             await updateStep(serverId, 'prerequisites', 'running', 75, 'Syncing Velocity proxies with configuration...');
@@ -854,66 +834,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             throw uploadError;
         }
 
-        // Step 9: Install RustyConnector plugin (for Paper/Purpur servers)
-        await updateStep(serverId, 'rustyconnector', 'running', 0, 'Checking RustyConnector requirements...');
-
-        try {
-            const serverType = serverConfig.serverType?.toUpperCase() || '';
-            const rustyConnectorEnabled = isRustyConnectorEnabled();
-            const serverSupportsRC = supportsRustyConnector(serverType);
-            
-            console.log(`[Deploy] RustyConnector check:`);
-            console.log(`[Deploy]   Server type: ${serverType}`);
-            console.log(`[Deploy]   RustyConnector enabled globally: ${rustyConnectorEnabled}`);
-            console.log(`[Deploy]   Server supports RustyConnector: ${serverSupportsRC}`);
-            
-            if (rustyConnectorEnabled && serverSupportsRC) {
-                await updateStep(serverId, 'rustyconnector', 'running', 25, 'Installing RustyConnector plugin...');
-                
-                // Construct server path for WebDAV
-                const userEmail = user.email.split('@')[0] || 'default-user';
-                const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${serverId}`;
-                
-                console.log(`[Deploy] Installing RustyConnector plugin:`);
-                console.log(`[Deploy]   User email prefix: ${userEmail}`);
-                console.log(`[Deploy]   Server path: ${serverPath}`);
-                console.log(`[Deploy]   Server ID: ${serverId}`);
-                console.log(`[Deploy]   Server name: ${server.serverName}`);
-                
-                const rcInstallResult = await installRustyConnectorPlugin(
-                    serverPath,
-                    serverType,
-                    {
-                        serverId: serverId,
-                        serverName: server.serverName,
-                        family: 'default', // Could be customized based on server config
-                        playerCap: serverConfig.maxPlayers || 100
-                    }
-                );
-                
-                console.log(`[Deploy] RustyConnector install result:`, JSON.stringify(rcInstallResult, null, 2));
-                
-                if (rcInstallResult.success) {
-                    await updateStep(serverId, 'rustyconnector', 'completed', 100, 'RustyConnector plugin installed successfully');
-                    console.log('RustyConnector installation details:', rcInstallResult.details);
-                } else {
-                    // Log warning but don't fail deployment
-                    console.warn('RustyConnector installation failed:', rcInstallResult.error);
-                    await updateStep(serverId, 'rustyconnector', 'completed', 100, `RustyConnector installation skipped: ${rcInstallResult.error}`);
-                }
-            } else if (!rustyConnectorEnabled) {
-                await updateStep(serverId, 'rustyconnector', 'completed', 100, 'RustyConnector not enabled globally, skipping...');
-            } else {
-                await updateStep(serverId, 'rustyconnector', 'completed', 100, `Server type ${serverType} does not support RustyConnector, skipping...`);
-            }
-            
-        } catch (rcError) {
-            console.error('RustyConnector installation error:', rcError);
-            // Don't fail deployment - just log and continue
-            await updateStep(serverId, 'rustyconnector', 'completed', 100, `RustyConnector installation skipped due to error: ${rcError instanceof Error ? rcError.message : 'Unknown error'}`);
-        }
-
-        // Step 10: Configure Velocity proxy integration
+        // Step 9: Configure Velocity proxy integration
         await updateStep(serverId, 'velocity', 'running', 0, 'Configuring Velocity proxy integration...');
 
         try {

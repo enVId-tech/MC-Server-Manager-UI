@@ -1,11 +1,11 @@
 /**
  * Redis Management Service
  * 
- * This service manages the Redis container required for RustyConnector
- * dynamic server management. It handles:
+ * This service manages Redis containers for proxy systems.
+ * It handles:
  * - Checking if Redis exists
  * - Creating Redis containers with proper networking
- * - Managing Redis connections for velocity proxies
+ * - Managing Redis connections
  */
 
 import portainer from './portainer';
@@ -369,7 +369,7 @@ networks:
     }
     
     /**
-     * Get Redis connection details for RustyConnector configuration
+     * Get Redis connection details
      */
     async getRedisConnectionDetails(environmentId: number): Promise<{
         host: string;

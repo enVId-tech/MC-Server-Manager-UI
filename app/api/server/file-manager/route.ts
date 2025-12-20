@@ -145,10 +145,10 @@ export async function DELETE(request: NextRequest) {
             }, { status: 400 });
         }
 
-        // Check if the path is protected (RustyConnector files/folders)
+        // Check if the path is protected
         if (isProtectedPath(path)) {
             return NextResponse.json({ 
-                message: 'This file or folder is protected and cannot be deleted. RustyConnector is required for server connectivity.' 
+                message: 'This file or folder is protected and cannot be deleted.' 
             }, { status: 403 });
         }
 

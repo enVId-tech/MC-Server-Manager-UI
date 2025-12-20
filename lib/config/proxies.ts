@@ -17,16 +17,6 @@ export interface RedisConfig {
     };
 }
 
-// --- RustyConnector Dynamic Configuration ---
-export interface RustyConnectorDynamicConfig {
-    plugin: 'RustyConnector';
-    connectionDetails: {
-        host: string;
-        port: number;
-        passwordRef: string;
-    };
-}
-
 // --- Proxy Definition ---
 export interface ProxyDefinition {
     id: string;
@@ -37,7 +27,6 @@ export interface ProxyDefinition {
     networkName: string;
     memory: string; // e.g. "512M"
     type: 'velocity' | 'bungeecord' | 'waterfall';
-    dynamic?: RustyConnectorDynamicConfig;
 }
 
 // --- Dependencies Configuration ---
@@ -52,18 +41,8 @@ interface ProxiesConfig {
 }
 
 // --- Protected Paths (cannot be deleted by users) ---
-export const PROTECTED_PATHS = [
-    // RustyConnector plugin and config files
-    '/plugins/RustyConnector',
-    '/plugins/RustyConnector.jar',
-    '/plugins/rustyconnector',
-    '/plugins/rustyconnector.jar',
-    // RustyConnector configuration directories
-    '/plugins/RustyConnector/config.yml',
-    '/plugins/RustyConnector/families',
-    '/plugins/RustyConnector/servers',
-    '/plugins/RustyConnector/lang',
-    // Any file/folder starting with rustyconnector (case-insensitive)
+export const PROTECTED_PATHS: string[] = [
+    // Add protected paths here if needed in the future
 ];
 
 /**
@@ -81,11 +60,6 @@ export function isProtectedPath(filePath: string): boolean {
             normalizedPath.endsWith(normalizedProtected)) {
             return true;
         }
-    }
-    
-    // Check for rustyconnector anywhere in path
-    if (normalizedPath.includes('rustyconnector')) {
-        return true;
     }
     
     return false;
@@ -139,14 +113,6 @@ export function getRedisConfig(): RedisConfig | undefined {
  */
 export function getDependencies(): DependenciesConfig | undefined {
     return loadConfigFromYaml().dependencies;
-}
-
-/**
- * Check if RustyConnector is enabled for any proxy
- */
-export function isRustyConnectorEnabled(): boolean {
-    const proxies = getDefinedProxies();
-    return proxies.some(p => p.dynamic?.plugin === 'RustyConnector');
 }
 
 // For backward compatibility

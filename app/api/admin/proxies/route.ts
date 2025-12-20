@@ -7,8 +7,7 @@ import proxyManager from '@/lib/server/proxy-manager';
 import { redisService } from '@/lib/server/redis-service';
 import { 
     getDefinedProxies, 
-    getRedisConfig, 
-    isRustyConnectorEnabled,
+    getRedisConfig,
     ProxyDefinition 
 } from '@/lib/config/proxies';
 import portainer from '@/lib/server/portainer';
@@ -77,7 +76,6 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            rustyConnectorEnabled: isRustyConnectorEnabled(),
             redis: redisConfig ? {
                 configured: true,
                 status: redisStatus
@@ -167,21 +165,6 @@ export async function POST(request: NextRequest) {
             type: 'velocity',
             configPath: configPath || undefined
         };
-
-        // Add RustyConnector dynamic config if enabled
-        const rcEnabled = isRustyConnectorEnabled();
-        const redisConfig = getRedisConfig();
-        
-        if (rcEnabled && redisConfig) {
-            newProxy.dynamic = {
-                plugin: 'RustyConnector',
-                connectionDetails: {
-                    host: redisConfig.internalHost,
-                    port: redisConfig.port,
-                    passwordRef: redisConfig.passwordSecret
-                }
-            };
-        }
 
         // Read current proxies.yaml
         const proxiesYamlPath = path.join(process.cwd(), 'lib', 'config', 'proxies.yaml');
