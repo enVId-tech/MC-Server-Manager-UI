@@ -96,7 +96,7 @@ export function reloadProxies(): ProxyDefinition[] {
  * Get the absolute path for a proxy config on the host system
  */
 export function getProxyAbsolutePath(relativePath: string): string {
-    const basePath = process.env.MINECRAFT_PATH || '/mnt/nvme/minecraft/velocity-test';
+    const basePath = process.env.FOLDER_PATH || process.env.MINECRAFT_PATH || '/mnt/nvme/minecraft/velocity-test';
     return `${basePath}/${relativePath}`.replace(/\/+/g, '/');
 }
 

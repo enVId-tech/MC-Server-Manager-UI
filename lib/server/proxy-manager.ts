@@ -854,6 +854,11 @@ export class ProxyManager {
                             const serverAddress = `mc-${server.uniqueId}:25565`;
                             velocityConfig.servers[server.serverName] = { address: serverAddress };
 
+                            // Add to try list for connection attempts
+                            if (!velocityConfig['try'].includes(server.serverName)) {
+                                velocityConfig['try'].push(server.serverName);
+                            }
+
                             // Add forced host if subdomain exists
                             if (server.subdomainName) {
                                 const domain = process.env.ROOT_DOMAIN || 'example.com';

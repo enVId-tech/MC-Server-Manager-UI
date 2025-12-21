@@ -784,26 +784,25 @@ export class PortainerApiClient {
 
         // Method 1: Try the standard Portainer stack creation with compose string
         try {
-            throw new Error('Simulated failure of Method 1 for testing fallback mechanisms');
-            // console.log('📋 Method 1: Standard stack creation with compose string...');
+            console.log('📋 Method 1: Standard stack creation with compose string...');
 
-            // const payload = {
-            //     Name: stackName,
-            //     ComposeFile: composeContent,
-            //     Env: stackData.Env || [],
-            //     FromAppTemplate: false
-            // };
+            const payload = {
+                Name: stackName,
+                ComposeFile: composeContent,
+                Env: stackData.Env || [],
+                FromAppTemplate: false
+            };
 
-            // console.log('📤 Sending payload:', JSON.stringify(payload, null, 2));
+            console.log('📤 Sending payload:', JSON.stringify(payload, null, 2));
 
-            // const response = await this.axiosInstance.post(
-            //     `/api/stacks?type=2&method=string&endpointId=${environmentId}`,
-            //     payload
-            // );
+            const response = await this.axiosInstance.post(
+                `/api/stacks?type=2&method=string&endpointId=${environmentId}`,
+                payload
+            );
 
-            // console.log('✅ Method 1 Success! Stack created with standard API');
-            // console.log('📥 Response:', JSON.stringify(response.data, null, 2));
-            // return response.data;
+            console.log('✅ Method 1 Success! Stack created with standard API');
+            console.log('📥 Response:', JSON.stringify(response.data, null, 2));
+            return response.data;
 
         } catch (method1Error) {
             console.error('❌ Method 1 failed:', method1Error);

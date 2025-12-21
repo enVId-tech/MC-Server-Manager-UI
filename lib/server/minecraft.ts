@@ -489,7 +489,7 @@ export class MinecraftServer {
     generateDockerComposeConfig(): object {
         // Get server type specific configuration
         const serverTypeConfig = this.getServerTypeConfig();
-        const minecraftPath = process.env.MINECRAFT_PATH || '/minecraft';
+        const minecraftPath = process.env.FOLDER_PATH || process.env.MINECRAFT_PATH || '/minecraft';
 
         // Get email from the server config
         const userEmail = this.getUserEmail();
@@ -687,7 +687,7 @@ export class MinecraftServer {
      * Ensure server directory exists with proper permissions
      */
     async ensureServerDirectory(): Promise<void> {
-        const minecraftPath: string = process.env.MINECRAFT_PATH || '/minecraft-data';
+        const minecraftPath: string = process.env.FOLDER_PATH || process.env.MINECRAFT_PATH || '/minecraft-data';
         const userEmail = this.getUserEmail();
         const serverBasePath = `${minecraftPath}/${userEmail}`;
         const serverDir = `${serverBasePath}/${this.uniqueId}`;
@@ -1644,7 +1644,7 @@ export class MinecraftServer {
      * Get the server base path with the env/email/id structure
      */
     getServerBasePath(): string {
-        const minecraftPath = process.env.MINECRAFT_PATH || '/minecraft';
+        const minecraftPath = process.env.FOLDER_PATH || process.env.MINECRAFT_PATH || '/minecraft';
         const userEmail = this.getUserEmail();
 
         return `${minecraftPath}/${userEmail}/${this.uniqueId}`;

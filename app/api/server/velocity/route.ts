@@ -5,6 +5,7 @@ import verificationService from "@/lib/server/verify";
 import velocityService from "@/lib/server/velocity";
 import BodyParser from "@/lib/db/bodyParser";
 import portainer from "@/lib/server/portainer";
+import { proxyManager } from "@/lib/server/proxy-manager";
 
 import { IServer } from "@/lib/objects/Server";
 import { IUser } from "@/lib/objects/User";
@@ -64,6 +65,16 @@ async function configureServerForVelocity(server: IServer, user: IUser) {
 
         const environmentId = environments[0].Id;
 
+        // Ensure at least one Velocity proxy exists before configuring servers
+        console.log('[Velocity Config] Checking for existing Velocity proxy instances...');
+        try {
+            const ensureDetails = await proxyManager.ensureProxies(environmentId);
+            console.log('[Velocity Config] Velocity proxy check completed:', ensureDetails.join(', '));
+        } catch (proxyError) {
+            console.error('[Velocity Config] Failed to ensure Velocity proxy exists:', proxyError);
+            throw new Error(`Failed to ensure Velocity proxy: ${proxyError instanceof Error ? proxyError.message : 'Unknown error'}`);
+        }
+
         // Find the container
         const containers = await portainer.getContainers(environmentId);
         const serverContainer = containers.find(container =>
@@ -79,6 +90,42 @@ async function configureServerForVelocity(server: IServer, user: IUser) {
 
         const containerId = serverContainer.Id;
 
+        // Ensure the container is running before trying to execute commands
+        if (serverContainer.State === 'created' || serverContainer.State === 'exited') {
+            console.log(`[Velocity Config] Container is in '${serverContainer.State}' state, starting it...`);
+            
+            try {
+                await portainer.axiosInstance.post(
+                    `/api/endpoints/${environmentId}/docker/containers/${containerId}/start`
+                );
+                console.log(`[Velocity Config] Container start command sent, waiting for container to be running...`);
+                
+                // Wait for container to be in running state
+                let attempts = 0;
+                const maxAttempts = 30;
+                while (attempts < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    const currentContainers = await portainer.getContainers(environmentId);
+                    const currentContainer = currentContainers.find(c => c.Id === containerId);
+                    
+                    if (currentContainer?.State === 'running') {
+                        console.log(`[Velocity Config] Container is now running`);
+                        break;
+                    }
+                    
+                    console.log(`[Velocity Config] Waiting for container to start (attempt ${attempts + 1}/${maxAttempts}, current state: ${currentContainer?.State})...`);
+                    attempts++;
+                }
+                
+                if (attempts >= maxAttempts) {
+                    throw new Error('Container did not start within expected time');
+                }
+            } catch (startError) {
+                console.error(`[Velocity Config] Failed to start container:`, startError);
+                throw new Error(`Failed to start server container: ${startError instanceof Error ? startError.message : 'Unknown error'}`);
+            }
+        }
+
         // Step 1: Wait for server files to be created
         console.log('Waiting for server files to be created...');
         const filesReady = await velocityService.waitForServerFilesToBeCreated(
@@ -93,7 +140,12 @@ async function configureServerForVelocity(server: IServer, user: IUser) {
 
         // Step 2: Stop the container to configure files
         console.log('Stopping container for configuration...');
-        if (serverContainer.State === 'running') {
+        
+        // Re-fetch container state to ensure we have current state
+        const currentContainers = await portainer.getContainers(environmentId);
+        const currentContainer = currentContainers.find(c => c.Id === containerId);
+        
+        if (currentContainer?.State === 'running') {
             await portainer.axiosInstance.post(
                 `/api/endpoints/${environmentId}/docker/containers/${containerId}/stop`
             );

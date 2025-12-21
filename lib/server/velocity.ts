@@ -47,7 +47,8 @@ class VelocityService {
 
     constructor() {
         // Defaults
-        this.velocityConfigPath = '/velocity/velocity.toml';
+        const basePath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft/velocity-test';
+        this.velocityConfigPath = `${basePath}/velocity/velocity.toml`.replace(/\/+/g, '/');
         this.velocityNetworkName = 'velocity-network';
     }
 
@@ -292,8 +293,20 @@ class VelocityService {
         try {
             // Check if config file exists
             const exists = await webdavService.exists(configPath);
+            
             if (!exists) {
-                throw new Error(`Velocity configuration file not found at ${configPath}`);
+                details.push(`Velocity configuration file not found at ${configPath}. Creating default...`);
+                
+                // Ensure directory exists
+                const configDir = configPath.substring(0, configPath.lastIndexOf('/'));
+                if (configDir) {
+                    await webdavService.createDirectory(configDir);
+                }
+                
+                // Create default config
+                const defaultConfig = this.getDefaultVelocityConfig();
+                const configContent = this.generateVelocityConfig(defaultConfig);
+                await webdavService.uploadFile(configPath, configContent);
             }
 
             // Read current config
@@ -505,6 +518,44 @@ class VelocityService {
                         success: false,
                         error: `Container no longer exists. It may have crashed or been removed.`
                     };
+                }
+
+                // Check if container is not running (409)
+                if (errorMessage.includes('409') || errorMessage.includes('not running')) {
+                    console.warn(`[Velocity] Container ${containerId.slice(0, 12)} is not running (409). Checking state...`);
+                    try {
+                        const containers = await portainer.getContainers(environmentId);
+                        const container = containers.find(c => c.Id === containerId);
+                        
+                        if (container) {
+                            console.log(`[Velocity] Container state is ${container.State}, status: ${container.Status}`);
+                            
+                            if (container.State === 'exited' || container.State === 'dead') {
+                                return {
+                                    success: false,
+                                    error: `Container stopped running (State: ${container.State}, Status: ${container.Status})`
+                                };
+                            }
+                            
+                            // If it's 'created', the container needs to be started before we can execute commands
+                            if (container.State === 'created') {
+                                return {
+                                    success: false,
+                                    error: `Container is in 'created' state but not running. The container must be started before executing commands.`
+                                };
+                            }
+                            
+                            // If it's 'restarting', we can keep waiting
+                            console.log(`[Velocity] Container state is ${container.State}, will continue waiting...`);
+                        } else {
+                             return {
+                                success: false,
+                                error: `Container not found during state check`
+                            };
+                        }
+                    } catch (stateError) {
+                        console.warn(`[Velocity] Failed to check container state: ${stateError}`);
+                    }
                 }
                 
                 console.log(`[Velocity] Command execution failed, will retry: ${errorMessage}`);
@@ -837,26 +888,23 @@ show-plugins = false
             '[servers]'
         ];
         
-        // Add server addresses first
+        // Add servers as TOML table entries
         const serverNames = Object.keys(config.servers).sort();
         for (const serverName of serverNames) {
             const serverConfig = config.servers[serverName];
-            lines.push(`${serverName} = "${serverConfig.address}"`);
-        }
-        
-        // Add server properties
-        for (const serverName of serverNames) {
-            const serverConfig = config.servers[serverName];
+            lines.push(`[servers.${serverName}]`);
+            lines.push(`address = "${serverConfig.address}"`);
             
-            if (serverConfig.restricted) {
-                lines.push(`${serverName}-restricted = true`);
+            if (serverConfig.restricted !== undefined) {
+                lines.push(`restricted = ${serverConfig.restricted}`);
             }
             if (serverConfig['player-info-forwarding-mode']) {
-                lines.push(`${serverName}-player-info-forwarding-mode = "${serverConfig['player-info-forwarding-mode']}"`);
+                lines.push(`player-info-forwarding-mode = "${serverConfig['player-info-forwarding-mode']}"`);
             }
             if (serverConfig['forwarding-secret']) {
-                lines.push(`${serverName}-forwarding-secret = "${serverConfig['forwarding-secret']}"`);
+                lines.push(`forwarding-secret = "${serverConfig['forwarding-secret']}"`);
             }
+            lines.push('');
         }
         
         // Add try list
