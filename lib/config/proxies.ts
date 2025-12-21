@@ -2,21 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import yaml from 'yaml';
 
-// --- Redis Configuration ---
-export interface RedisConfig {
-    image: string;
-    networkName: string;
-    port: number;
-    internalHost: string;
-    passwordSecret: string;
-    memory: string;
-    config?: {
-        maxmemory?: string;
-        'maxmemory-policy'?: string;
-        appendonly?: string;
-    };
-}
-
 // --- Proxy Definition ---
 export interface ProxyDefinition {
     id: string;
@@ -29,14 +14,8 @@ export interface ProxyDefinition {
     type: 'velocity' | 'bungeecord' | 'waterfall';
 }
 
-// --- Dependencies Configuration ---
-export interface DependenciesConfig {
-    redis?: RedisConfig;
-}
-
 // --- Full Proxies Config ---
 interface ProxiesConfig {
-    dependencies?: DependenciesConfig;
     proxies: ProxyDefinition[];
 }
 
@@ -101,20 +80,6 @@ export function getDefinedProxies(): ProxyDefinition[] {
     return loadConfigFromYaml().proxies || [];
 }
 
-/**
- * Get Redis configuration
- */
-export function getRedisConfig(): RedisConfig | undefined {
-    return loadConfigFromYaml().dependencies?.redis;
-}
-
-/**
- * Get all dependencies configuration
- */
-export function getDependencies(): DependenciesConfig | undefined {
-    return loadConfigFromYaml().dependencies;
-}
-
 // For backward compatibility
 export const definedProxies: ProxyDefinition[] = getDefinedProxies();
 
@@ -142,22 +107,4 @@ export function getProxyContainerPath(relativePath: string): string {
     // Extract directory from relative path (e.g., "velocity/velocity.toml" -> "velocity")
     const dir = relativePath.split('/')[0];
     return `/${dir}`;
-}
-
-/**
- * Generate Redis password from environment or create a secure one
- */
-export function getRedisPassword(): string {
-    // Try to get from environment
-    if (process.env.REDIS_PASSWORD) {
-        return process.env.REDIS_PASSWORD;
-    }
-    
-    // Generate a secure password if not set
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-    let password = '';
-    for (let i = 0; i < 32; i++) {
-        password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return password;
 }

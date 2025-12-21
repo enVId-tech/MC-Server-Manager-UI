@@ -10,7 +10,6 @@ import verificationService from "@/lib/server/verify";
 import velocityService from "@/lib/server/velocity";
 import { FileInfo } from "@/lib/objects/ServerConfig";
 import { definedProxies } from "@/lib/config/proxies";
-import { redisService } from "@/lib/server/redis-service";
 import { proxyManager } from "@/lib/server/proxy-manager";
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -376,7 +375,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let allocatedRconPort = (server as any).rconPort;
 
-        // Step 0: Check infrastructure prerequisites (Redis + Velocity proxies)
+        // Step 0: Check infrastructure prerequisites (Velocity proxies)
         // This runs for ALL users to ensure proxy configuration is synced
         await updateStep(serverId, 'prerequisites', 'running', 0, 'Checking infrastructure prerequisites...');
 

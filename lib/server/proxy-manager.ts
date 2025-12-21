@@ -9,13 +9,12 @@
 
 import { VelocityServerConfig } from './velocity';
 import portainer from './portainer';
-import { getDefinedProxies, reloadProxies, ProxyDefinition, getRedisConfig } from '@/lib/config/proxies';
+import { getDefinedProxies, reloadProxies, ProxyDefinition } from '@/lib/config/proxies';
 import webdavService from './webdav';
 import velocityService from './velocity';
 import path from 'path';
 import Server from '@/lib/objects/Server';
 import { createMinecraftServer, ClientServerConfig, MinecraftServerConfig } from '@/lib/server/minecraft';
-import { redisService } from './redis-service';
 
 export type ProxyType = 'velocity' | 'bungeecord' | 'waterfall';
 
