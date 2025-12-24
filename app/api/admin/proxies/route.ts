@@ -4,10 +4,8 @@ import { IUser } from '@/lib/objects/User';
 import verificationService from '@/lib/server/verify';
 import BodyParser from '@/lib/db/bodyParser';
 import proxyManager from '@/lib/server/proxy-manager';
-import { redisService } from '@/lib/server/redis-service';
 import { 
     getDefinedProxies, 
-    getRedisConfig,
     ProxyDefinition 
 } from '@/lib/config/proxies';
 import portainer from '@/lib/server/portainer';
@@ -41,14 +39,6 @@ export async function GET(request: NextRequest) {
         // Get registered proxies from manager
         const registeredProxies = proxyManager.getAllProxies();
         
-        // Get Redis status
-        const redisConfig = getRedisConfig();
-        let redisStatus = null;
-        
-        if (redisConfig) {
-            redisStatus = await redisService.checkRedisStatus(environmentId);
-        }
-        
         // Get container status for each proxy
         const containers = await portainer.getContainers(environmentId);
         
@@ -76,13 +66,6 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            redis: redisConfig ? {
-                configured: true,
-                status: redisStatus
-            } : {
-                configured: false,
-                status: null
-            },
             proxies: proxiesWithStatus,
             registeredCount: registeredProxies.length,
             definedCount: definedProxies.length,
