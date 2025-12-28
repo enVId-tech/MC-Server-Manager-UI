@@ -243,40 +243,53 @@ class WebDavService {
         } catch (error) {
             console.log(`⚠ Recursive creation failed: ${error instanceof Error ? error.message : error}`);
             
-            // If recursive creation fails with 403 (Forbidden), 405 (Method Not Allowed), or 409 (Conflict),
-            // it might be due to permission issues on parent folders or the folder already exists.
-            // Try non-recursive creation as a fallback if the error suggests permission/existence issues.
+            // If recursive creation fails, we need to manually create parent directories first
             if (error instanceof Error && (error.message.includes('403') || error.message.includes('405') || error.message.includes('409'))) {
                 try {
-                    console.log(`🔄 Retrying with non-recursive creation...`);
-                    await this.client.createDirectory(dirPath, { recursive: false });
+                    console.log(`🔄 Creating parent directories first...`);
                     
-                    // Verify it was actually created
-                    const exists = await this.exists(dirPath);
-                    if (!exists) {
-                        throw new Error(`Non-recursive creation succeeded but folder doesn't exist: ${dirPath}`);
-                    }
-                    console.log(`✓ Successfully created folder (non-recursive): ${dirPath}`);
-                    return;
-                } catch (retryError) {
-                    console.log(`⚠ Non-recursive creation failed: ${retryError instanceof Error ? retryError.message : retryError}`);
+                    // Split the path and create each level
+                    const pathParts = dirPath.split('/').filter(p => p.length > 0);
+                    let currentPath = '';
                     
-                    // If non-recursive also fails with 409, check if the folder actually exists
-                    if (retryError instanceof Error && retryError.message.includes('409')) {
-                        // Verify the folder actually exists before claiming success
-                        const exists = await this.exists(dirPath);
-                        if (exists) {
-                            console.log(`✓ Folder already exists: ${dirPath}`);
-                            return;
+                    for (const part of pathParts) {
+                        currentPath += '/' + part;
+                        
+                        // Check if this level exists
+                        const exists = await this.exists(currentPath);
+                        if (!exists) {
+                            console.log(`  📂 Creating: ${currentPath}`);
+                            try {
+                                await this.client.createDirectory(currentPath, { recursive: false });
+                            } catch (createError) {
+                                // If we get 409, check if it actually exists now (race condition)
+                                if (createError instanceof Error && createError.message.includes('409')) {
+                                    const nowExists = await this.exists(currentPath);
+                                    if (nowExists) {
+                                        console.log(`  ✓ Folder exists: ${currentPath}`);
+                                        continue;
+                                    }
+                                    // If it still doesn't exist, this is a real error
+                                    throw createError;
+                                }
+                                throw createError;
+                            }
                         } else {
-                            // 409 error but folder doesn't exist - this is a real error
-                            const errorMsg = `Got 409 Conflict but folder doesn't exist: ${dirPath}`;
-                            console.error(`✗ ${errorMsg}`);
-                            throw new Error(errorMsg);
+                            console.log(`  ✓ Already exists: ${currentPath}`);
                         }
                     }
                     
-                    // Check if directory actually exists for other error types
+                    // Verify the final path was created
+                    const finalExists = await this.exists(dirPath);
+                    if (!finalExists) {
+                        throw new Error(`Manual directory creation completed but folder doesn't exist: ${dirPath}`);
+                    }
+                    console.log(`✓ Successfully created folder with parents: ${dirPath}`);
+                    return;
+                } catch (retryError) {
+                    console.log(`⚠ Manual creation failed: ${retryError instanceof Error ? retryError.message : retryError}`);
+                    
+                    // Final check if directory exists despite errors
                     const exists = await this.exists(dirPath);
                     if (exists) {
                         console.log(`✓ Folder exists despite errors: ${dirPath}`);
