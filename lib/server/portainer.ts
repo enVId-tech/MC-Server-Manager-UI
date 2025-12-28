@@ -117,15 +117,17 @@ export class PortainerApiClient {
         }
 
         // Create an Axios instance with default configurations
+        // SSL certificate verification can be disabled via PORTAINER_REJECT_UNAUTHORIZED=false
+        const rejectUnauthorized = process.env.PORTAINER_REJECT_UNAUTHORIZED === 'false' ? false :
+            (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) ? false : true;
+        
         this.axiosInstance = axios.create({
             baseURL: this.portainerUrl,
             headers: {
                 'Content-Type': 'application/json',
             },
-            // For development: ignore SSL certificate validation when using IP addresses
-            httpsAgent: (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) ?
-                new https.Agent({ rejectUnauthorized: false }) :
-                undefined,
+            // For development or when explicitly disabled: ignore SSL certificate validation
+            httpsAgent: new https.Agent({ rejectUnauthorized }),
         });
 
         // Set initial auth headers
