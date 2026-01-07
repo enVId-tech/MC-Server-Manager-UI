@@ -12,7 +12,7 @@ import styles from './ProxyManager.module.scss';
 interface ProxyInstanceConfig {
     id: string;
     name: string;
-    type: 'velocity' | 'bungeecord' | 'waterfall' | 'rusty-connector';
+    type: 'velocity' | 'bungeecord' | 'waterfall';
     host: string;
     port: number;
     enabled: boolean;
@@ -172,7 +172,6 @@ export const MultiProxyManager: React.FC<MultiProxyManagerProps> = ({
             case 'velocity': return '#4CAF50';
             case 'bungeecord': return '#FF9800';
             case 'waterfall': return '#2196F3';
-            case 'rusty-connector': return '#9C27B0';
             default: return '#757575';
         }
     };

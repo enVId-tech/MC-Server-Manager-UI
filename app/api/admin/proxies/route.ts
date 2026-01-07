@@ -4,11 +4,8 @@ import { IUser } from '@/lib/objects/User';
 import verificationService from '@/lib/server/verify';
 import BodyParser from '@/lib/db/bodyParser';
 import proxyManager from '@/lib/server/proxy-manager';
-import { redisService } from '@/lib/server/redis-service';
 import { 
     getDefinedProxies, 
-    getRedisConfig, 
-    isRustyConnectorEnabled,
     ProxyDefinition 
 } from '@/lib/config/proxies';
 import portainer from '@/lib/server/portainer';
@@ -42,14 +39,6 @@ export async function GET(request: NextRequest) {
         // Get registered proxies from manager
         const registeredProxies = proxyManager.getAllProxies();
         
-        // Get Redis status
-        const redisConfig = getRedisConfig();
-        let redisStatus = null;
-        
-        if (redisConfig) {
-            redisStatus = await redisService.checkRedisStatus(environmentId);
-        }
-        
         // Get container status for each proxy
         const containers = await portainer.getContainers(environmentId);
         
@@ -77,14 +66,6 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            rustyConnectorEnabled: isRustyConnectorEnabled(),
-            redis: redisConfig ? {
-                configured: true,
-                status: redisStatus
-            } : {
-                configured: false,
-                status: null
-            },
             proxies: proxiesWithStatus,
             registeredCount: registeredProxies.length,
             definedCount: definedProxies.length,
@@ -167,21 +148,6 @@ export async function POST(request: NextRequest) {
             type: 'velocity',
             configPath: configPath || undefined
         };
-
-        // Add RustyConnector dynamic config if enabled
-        const rcEnabled = isRustyConnectorEnabled();
-        const redisConfig = getRedisConfig();
-        
-        if (rcEnabled && redisConfig) {
-            newProxy.dynamic = {
-                plugin: 'RustyConnector',
-                connectionDetails: {
-                    host: redisConfig.internalHost,
-                    port: redisConfig.port,
-                    passwordRef: redisConfig.passwordSecret
-                }
-            };
-        }
 
         // Read current proxies.yaml
         const proxiesYamlPath = path.join(process.cwd(), 'lib', 'config', 'proxies.yaml');

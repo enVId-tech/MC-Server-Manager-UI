@@ -9,9 +9,7 @@ import { createMinecraftServer, convertClientConfigToServerConfig, ClientServerC
 import verificationService from "@/lib/server/verify";
 import velocityService from "@/lib/server/velocity";
 import { FileInfo } from "@/lib/objects/ServerConfig";
-import { definedProxies, isRustyConnectorEnabled } from "@/lib/config/proxies";
-import { installRustyConnectorPlugin, supportsRustyConnector } from "@/lib/server/rusty-connector-installer";
-import { redisService } from "@/lib/server/redis-service";
+import { definedProxies } from "@/lib/config/proxies";
 import { proxyManager } from "@/lib/server/proxy-manager";
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -225,7 +223,6 @@ export async function POST(request: NextRequest) {
             { id: 'deploy', name: 'Deploying to container platform', status: 'pending', progress: 0 },
             { id: 'files', name: 'Setting up file directories', status: 'pending', progress: 0 },
             { id: 'upload', name: 'Uploading server files', status: 'pending', progress: 0 },
-            { id: 'rustyconnector', name: 'Installing RustyConnector plugin', status: 'pending', progress: 0 },
             { id: 'velocity', name: 'Configuring Velocity proxy integration', status: 'pending', progress: 0 },
             { id: 'finalize', name: 'Finalizing deployment', status: 'pending', progress: 0 }
         );
@@ -378,29 +375,11 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let allocatedRconPort = (server as any).rconPort;
 
-        // Step 0: Check infrastructure prerequisites (Redis + Velocity proxies)
+        // Step 0: Check infrastructure prerequisites (Velocity proxies)
         // This runs for ALL users to ensure proxy configuration is synced
         await updateStep(serverId, 'prerequisites', 'running', 0, 'Checking infrastructure prerequisites...');
 
         try {
-            // Check if RustyConnector is enabled
-            const rcEnabled = isRustyConnectorEnabled();
-            
-            if (rcEnabled) {
-                await updateStep(serverId, 'prerequisites', 'running', 25, 'Ensuring Redis is running...');
-                
-                // Ensure Redis container is running (required for RustyConnector)
-                const redisResult = await redisService.ensureRedis(portainerEnvironmentId);
-                
-                if (!redisResult.success) {
-                    console.warn('Redis setup warning:', redisResult.error);
-                    await updateStep(serverId, 'prerequisites', 'running', 50, `Redis warning: ${redisResult.error}, continuing...`);
-                } else {
-                    console.log('Redis is running:', redisResult.details);
-                    await updateStep(serverId, 'prerequisites', 'running', 50, 'Redis is running');
-                }
-            }
-            
             // ALWAYS sync proxies on server creation for ALL users
             // This ensures YAML config matches Portainer state
             await updateStep(serverId, 'prerequisites', 'running', 75, 'Syncing Velocity proxies with configuration...');
@@ -854,66 +833,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             throw uploadError;
         }
 
-        // Step 9: Install RustyConnector plugin (for Paper/Purpur servers)
-        await updateStep(serverId, 'rustyconnector', 'running', 0, 'Checking RustyConnector requirements...');
-
-        try {
-            const serverType = serverConfig.serverType?.toUpperCase() || '';
-            const rustyConnectorEnabled = isRustyConnectorEnabled();
-            const serverSupportsRC = supportsRustyConnector(serverType);
-            
-            console.log(`[Deploy] RustyConnector check:`);
-            console.log(`[Deploy]   Server type: ${serverType}`);
-            console.log(`[Deploy]   RustyConnector enabled globally: ${rustyConnectorEnabled}`);
-            console.log(`[Deploy]   Server supports RustyConnector: ${serverSupportsRC}`);
-            
-            if (rustyConnectorEnabled && serverSupportsRC) {
-                await updateStep(serverId, 'rustyconnector', 'running', 25, 'Installing RustyConnector plugin...');
-                
-                // Construct server path for WebDAV
-                const userEmail = user.email.split('@')[0] || 'default-user';
-                const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${serverId}`;
-                
-                console.log(`[Deploy] Installing RustyConnector plugin:`);
-                console.log(`[Deploy]   User email prefix: ${userEmail}`);
-                console.log(`[Deploy]   Server path: ${serverPath}`);
-                console.log(`[Deploy]   Server ID: ${serverId}`);
-                console.log(`[Deploy]   Server name: ${server.serverName}`);
-                
-                const rcInstallResult = await installRustyConnectorPlugin(
-                    serverPath,
-                    serverType,
-                    {
-                        serverId: serverId,
-                        serverName: server.serverName,
-                        family: 'default', // Could be customized based on server config
-                        playerCap: serverConfig.maxPlayers || 100
-                    }
-                );
-                
-                console.log(`[Deploy] RustyConnector install result:`, JSON.stringify(rcInstallResult, null, 2));
-                
-                if (rcInstallResult.success) {
-                    await updateStep(serverId, 'rustyconnector', 'completed', 100, 'RustyConnector plugin installed successfully');
-                    console.log('RustyConnector installation details:', rcInstallResult.details);
-                } else {
-                    // Log warning but don't fail deployment
-                    console.warn('RustyConnector installation failed:', rcInstallResult.error);
-                    await updateStep(serverId, 'rustyconnector', 'completed', 100, `RustyConnector installation skipped: ${rcInstallResult.error}`);
-                }
-            } else if (!rustyConnectorEnabled) {
-                await updateStep(serverId, 'rustyconnector', 'completed', 100, 'RustyConnector not enabled globally, skipping...');
-            } else {
-                await updateStep(serverId, 'rustyconnector', 'completed', 100, `Server type ${serverType} does not support RustyConnector, skipping...`);
-            }
-            
-        } catch (rcError) {
-            console.error('RustyConnector installation error:', rcError);
-            // Don't fail deployment - just log and continue
-            await updateStep(serverId, 'rustyconnector', 'completed', 100, `RustyConnector installation skipped due to error: ${rcError instanceof Error ? rcError.message : 'Unknown error'}`);
-        }
-
-        // Step 10: Configure Velocity proxy integration
+        // Step 9: Configure Velocity proxy integration
         await updateStep(serverId, 'velocity', 'running', 0, 'Configuring Velocity proxy integration...');
 
         try {
@@ -922,6 +842,19 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             
             if (velocityEnabled) {
                 console.log('[Deploy] Velocity integration enabled, configuring server...');
+                
+                // Ensure at least one Velocity proxy exists before configuring servers
+                await updateStep(serverId, 'velocity', 'running', 10, 'Ensuring Velocity proxy exists...');
+                console.log('[Deploy] Checking for existing Velocity proxy instances...');
+                
+                try {
+                    const ensureDetails = await proxyManager.ensureProxies(portainerEnvironmentId);
+                    console.log('[Deploy] Velocity proxy check completed:', ensureDetails.join(', '));
+                    await updateStep(serverId, 'velocity', 'running', 20, 'Velocity proxy verified');
+                } catch (proxyError) {
+                    console.error('[Deploy] Failed to ensure Velocity proxy exists:', proxyError);
+                    throw new Error(`Failed to ensure Velocity proxy: ${proxyError instanceof Error ? proxyError.message : 'Unknown error'}`);
+                }
                 
                 // Find the deployed container - use multiple patterns to find it
                 const containers = await portainer.getContainers(portainerEnvironmentId);
@@ -946,8 +879,45 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                 if (serverContainer) {
                     console.log(`[Deploy] Found server container: ${serverContainer.Names.join(', ')} (ID: ${serverContainer.Id.slice(0, 12)}, State: ${serverContainer.State})`);
                     
+                    // Ensure the container is running before trying to execute commands
+                    if (serverContainer.State === 'created' || serverContainer.State === 'exited') {
+                        await updateStep(serverId, 'velocity', 'running', 25, 'Starting server container...');
+                        console.log(`[Deploy] Container is in '${serverContainer.State}' state, starting it...`);
+                        
+                        try {
+                            await portainer.axiosInstance.post(
+                                `/api/endpoints/${portainerEnvironmentId}/docker/containers/${serverContainer.Id}/start`
+                            );
+                            console.log(`[Deploy] Container start command sent, waiting for container to be running...`);
+                            
+                            // Wait for container to be in running state
+                            let attempts = 0;
+                            const maxAttempts = 30;
+                            while (attempts < maxAttempts) {
+                                await new Promise(resolve => setTimeout(resolve, 2000));
+                                const containers = await portainer.getContainers(portainerEnvironmentId);
+                                const currentContainer = containers.find(c => c.Id === serverContainer.Id);
+                                
+                                if (currentContainer?.State === 'running') {
+                                    console.log(`[Deploy] Container is now running`);
+                                    break;
+                                }
+                                
+                                console.log(`[Deploy] Waiting for container to start (attempt ${attempts + 1}/${maxAttempts}, current state: ${currentContainer?.State})...`);
+                                attempts++;
+                            }
+                            
+                            if (attempts >= maxAttempts) {
+                                throw new Error('Container did not start within expected time');
+                            }
+                        } catch (startError) {
+                            console.error(`[Deploy] Failed to start container:`, startError);
+                            throw new Error(`Failed to start server container: ${startError instanceof Error ? startError.message : 'Unknown error'}`);
+                        }
+                    }
+                    
                     // Wait for server files to be created
-                    await updateStep(serverId, 'velocity', 'running', 25, 'Waiting for server files to be ready...');
+                    await updateStep(serverId, 'velocity', 'running', 30, 'Waiting for server files to be ready...');
                     
                     const filesReady = await velocityService.waitForServerFilesToBeCreated(
                         serverContainer.Id,
@@ -957,9 +927,13 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
 
                     if (filesReady.success) {
                         // Stop container for configuration
-                        await updateStep(serverId, 'velocity', 'running', 50, 'Stopping server for Velocity configuration...');
+                        await updateStep(serverId, 'velocity', 'running', 55, 'Stopping server for Velocity configuration...');
                         
-                        if (serverContainer.State === 'running') {
+                        // Re-fetch container state to ensure we have current state
+                        const currentContainers = await portainer.getContainers(portainerEnvironmentId);
+                        const currentContainer = currentContainers.find(c => c.Id === serverContainer.Id);
+                        
+                        if (currentContainer?.State === 'running') {
                             await portainer.axiosInstance.post(
                                 `/api/endpoints/${portainerEnvironmentId}/docker/containers/${serverContainer.Id}/stop`
                             );
@@ -967,7 +941,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                         }
 
                         // Configure for Velocity
-                        await updateStep(serverId, 'velocity', 'running', 75, 'Applying Velocity configuration...');
+                        await updateStep(serverId, 'velocity', 'running', 80, 'Applying Velocity configuration...');
                         
                         const velocityConfig = {
                             serverId: serverId,

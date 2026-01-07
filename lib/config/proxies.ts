@@ -2,31 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import yaml from 'yaml';
 
-// --- Redis Configuration ---
-export interface RedisConfig {
-    image: string;
-    networkName: string;
-    port: number;
-    internalHost: string;
-    passwordSecret: string;
-    memory: string;
-    config?: {
-        maxmemory?: string;
-        'maxmemory-policy'?: string;
-        appendonly?: string;
-    };
-}
-
-// --- RustyConnector Dynamic Configuration ---
-export interface RustyConnectorDynamicConfig {
-    plugin: 'RustyConnector';
-    connectionDetails: {
-        host: string;
-        port: number;
-        passwordRef: string;
-    };
-}
-
 // --- Proxy Definition ---
 export interface ProxyDefinition {
     id: string;
@@ -37,33 +12,16 @@ export interface ProxyDefinition {
     networkName: string;
     memory: string; // e.g. "512M"
     type: 'velocity' | 'bungeecord' | 'waterfall';
-    dynamic?: RustyConnectorDynamicConfig;
-}
-
-// --- Dependencies Configuration ---
-export interface DependenciesConfig {
-    redis?: RedisConfig;
 }
 
 // --- Full Proxies Config ---
 interface ProxiesConfig {
-    dependencies?: DependenciesConfig;
     proxies: ProxyDefinition[];
 }
 
 // --- Protected Paths (cannot be deleted by users) ---
-export const PROTECTED_PATHS = [
-    // RustyConnector plugin and config files
-    '/plugins/RustyConnector',
-    '/plugins/RustyConnector.jar',
-    '/plugins/rustyconnector',
-    '/plugins/rustyconnector.jar',
-    // RustyConnector configuration directories
-    '/plugins/RustyConnector/config.yml',
-    '/plugins/RustyConnector/families',
-    '/plugins/RustyConnector/servers',
-    '/plugins/RustyConnector/lang',
-    // Any file/folder starting with rustyconnector (case-insensitive)
+export const PROTECTED_PATHS: string[] = [
+    // Add protected paths here if needed in the future
 ];
 
 /**
@@ -81,11 +39,6 @@ export function isProtectedPath(filePath: string): boolean {
             normalizedPath.endsWith(normalizedProtected)) {
             return true;
         }
-    }
-    
-    // Check for rustyconnector anywhere in path
-    if (normalizedPath.includes('rustyconnector')) {
-        return true;
     }
     
     return false;
@@ -127,28 +80,6 @@ export function getDefinedProxies(): ProxyDefinition[] {
     return loadConfigFromYaml().proxies || [];
 }
 
-/**
- * Get Redis configuration
- */
-export function getRedisConfig(): RedisConfig | undefined {
-    return loadConfigFromYaml().dependencies?.redis;
-}
-
-/**
- * Get all dependencies configuration
- */
-export function getDependencies(): DependenciesConfig | undefined {
-    return loadConfigFromYaml().dependencies;
-}
-
-/**
- * Check if RustyConnector is enabled for any proxy
- */
-export function isRustyConnectorEnabled(): boolean {
-    const proxies = getDefinedProxies();
-    return proxies.some(p => p.dynamic?.plugin === 'RustyConnector');
-}
-
 // For backward compatibility
 export const definedProxies: ProxyDefinition[] = getDefinedProxies();
 
@@ -165,7 +96,7 @@ export function reloadProxies(): ProxyDefinition[] {
  * Get the absolute path for a proxy config on the host system
  */
 export function getProxyAbsolutePath(relativePath: string): string {
-    const basePath = process.env.MINECRAFT_PATH || '/mnt/nvme/minecraft/velocity-test';
+    const basePath = process.env.FOLDER_PATH || process.env.MINECRAFT_PATH || '/mnt/nvme/minecraft/velocity-test';
     return `${basePath}/${relativePath}`.replace(/\/+/g, '/');
 }
 
@@ -176,22 +107,4 @@ export function getProxyContainerPath(relativePath: string): string {
     // Extract directory from relative path (e.g., "velocity/velocity.toml" -> "velocity")
     const dir = relativePath.split('/')[0];
     return `/${dir}`;
-}
-
-/**
- * Generate Redis password from environment or create a secure one
- */
-export function getRedisPassword(): string {
-    // Try to get from environment
-    if (process.env.REDIS_PASSWORD) {
-        return process.env.REDIS_PASSWORD;
-    }
-    
-    // Generate a secure password if not set
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-    let password = '';
-    for (let i = 0; i < 32; i++) {
-        password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return password;
 }

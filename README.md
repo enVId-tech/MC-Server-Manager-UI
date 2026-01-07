@@ -49,7 +49,6 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 - **Velocity**: High-performance modern proxy with advanced features
 - **BungeeCord**: Traditional proxy server with plugin ecosystem
 - **Waterfall**: BungeeCord fork with performance improvements and fixes
-- **RustyConnector**: Rust-based proxy with configuration management
 - **Unified Management**: Single interface for all proxy types
 - **Auto-Configuration**: Automatic proxy setup and server registration
 

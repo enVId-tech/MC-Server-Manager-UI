@@ -492,11 +492,6 @@ async function testServerProxyCompatibility(
             recommendations.push('Supports both legacy and modern forwarding modes');
             break;
             
-        case 'rusty-connector':
-            recommendations.push('RustyConnector enables dynamic server scaling');
-            recommendations.push('Best for networks with varying server loads');
-            break;
-            
         default:
             compatible = false;
             warnings.push(`Unknown proxy type: ${proxy.type}`);
