@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withApiLogging } from '../../../../lib/utils/api-logger';
+import { withApiLogging } from '../../../lib/utils/api-logger';
 
 /**
  * Example API route demonstrating REST API logging
