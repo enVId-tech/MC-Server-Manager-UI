@@ -1,5 +1,5 @@
 import axios from "axios";
-import { logError, logWarn, logInfo } from ".././logger.ts";
+import { logError, logWarn, logInfo } from "../../utils/logger.ts";
 import type { Constructor } from "../types.ts";
 
 interface ShellControlsMixinBase {

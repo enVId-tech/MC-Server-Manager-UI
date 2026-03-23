@@ -1,6 +1,6 @@
 import { PortainerApi } from "./api.ts";
 import type { PortainerContainer } from "./types.ts";
-import { logInfo, logWarn, logError } from "./logger.ts";
+import { logInfo, logWarn, logError } from "../utils/logger.ts";
 
 /**
  * Get the first available environment ID

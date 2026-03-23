@@ -3,7 +3,7 @@ import { EnvironmentsMixin } from './mixins/EnvironmentMixins.ts';
 import { ResourceFetchingMixin } from './mixins/ResourceFetchingMixin.ts';
 import { ResourceDeletionMixin } from './mixins/ResourceDeletionMixin.ts';
 import { StackControlsMixin } from './mixins/StackControlsMixin.ts';
-import { logWarn } from './logger.ts';
+import { logWarn } from '../utils/logger.ts';
 
 class PortainerApiBase {
     auth: PortainerAuth;

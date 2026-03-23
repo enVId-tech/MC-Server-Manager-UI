@@ -1,4 +1,4 @@
-import { logError, logInfo } from ".././logger.ts";
+import { logError, logInfo } from "../../utils/logger.ts";
 import type { Constructor } from "../types.ts";
 
 interface ContainerControlsMixinBase {

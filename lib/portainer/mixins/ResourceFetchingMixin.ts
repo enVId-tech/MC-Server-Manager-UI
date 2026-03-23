@@ -1,4 +1,4 @@
-import { logError } from ".././logger.ts";
+import { logError } from "../../utils/logger.ts";
 import type { Constructor, PortainerContainer, PortainerImage, PortainerStack } from "../types.ts";
 
 interface ResourceFetchingMixinBase {

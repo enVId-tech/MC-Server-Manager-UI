@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance } from 'axios';
 import https from 'https';
-import { logError, logWarn } from './logger.ts';
+import { logError, logWarn } from '../utils/logger.ts';
 
 export class PortainerAuth {
     private static instance: PortainerAuth;

@@ -1,4 +1,4 @@
-import { logError, logInfo, logWarn } from ".././logger.ts";
+import { logError, logInfo, logWarn } from "../../utils/logger.ts";
 import type { Constructor, PortainerStack } from "../types.ts";
 
 interface StackControlsMixinBase {

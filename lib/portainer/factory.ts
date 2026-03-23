@@ -1,6 +1,6 @@
 import { PortainerApi } from "./api.ts";
 import { getStackByName, verifyContainerCreation, verifyStackCreation } from "./utils.ts";
-import { logInfo, logWarn, logError } from "./logger.ts";
+import { logInfo, logWarn, logError } from "../utils/logger.ts";
 
 export class PortainerFactory {
     public static instance: PortainerFactory;
