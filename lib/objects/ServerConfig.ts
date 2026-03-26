@@ -8,11 +8,11 @@ export interface FileInfo {
     size: number;
     mimetype: string;
     uploadedAt: Date;
-    analysis?: FileAnalysis; // File analysis data
+    // analysis?: FileAnalysis; // File analysis data
 }
 
-// Import FileAnalysis from minecraft.ts
-import { FileAnalysis } from '../server/minecraft';
+// // Import FileAnalysis from minecraft.ts
+// import { FileAnalysis } from '../server/minecraft';
 
 // Interface for server configuration (used for type definitions only)
 // The actual server config is embedded in the Server document as Schema.Types.Mixed
