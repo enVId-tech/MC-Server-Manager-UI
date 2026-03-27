@@ -1,3 +1,4 @@
+import { PortainerFactory } from "../portainer";
 import { PortainerAuth } from "../portainer/auth";
 import dotenv from "dotenv";
 
@@ -8,4 +9,5 @@ export function initializePortainer() {
     const portainerKey = process.env.PORTAINER_API_KEY || "your-portainer-api-key";
 
     PortainerAuth.initialize(portainerUrl, portainerKey);
+    PortainerFactory.initialize()
 }

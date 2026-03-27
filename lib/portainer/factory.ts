@@ -149,13 +149,13 @@ export class PortainerFactory {
         }
 
         if (maxRetryCount !== undefined && maxRetryCount !== null && (typeof maxRetryCount !== 'number' || isNaN(maxRetryCount))) {
-            logError('Invalid maxRetryCount: must be a number');
-            return undefined;
+            logWarn(`Maximum retry count not provided or of invalid type (${typeof maxRetryCount}), using default value of 3.`);
+            maxRetryCount = 3;
         }
 
         if (timeoutMs !== undefined && timeoutMs !== null && (typeof timeoutMs !== 'number' || isNaN(timeoutMs))) {
-            logError('Invalid timeoutMs: must be a number');
-            return undefined;
+            logWarn(`Maximum timeout value not provided or of invalid type (${typeof timeoutMs}), using default value of 15s before next reattempting.`)
+            timeoutMs = 15000;
         }
 
         const stackName = stackData.Name as string;

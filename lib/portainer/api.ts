@@ -4,10 +4,11 @@ import { ResourceFetchingMixin } from './mixins/ResourceFetchingMixin.ts';
 import { ResourceDeletionMixin } from './mixins/ResourceDeletionMixin.ts';
 import { StackControlsMixin } from './mixins/StackControlsMixin.ts';
 import { logWarn } from '../utils/logger.ts';
+import { ContainerControlsMixin } from './mixins/ContainerControlsMixin.ts';
 
 class PortainerApiBase {
     auth: PortainerAuth;
-    environmentId: number | null = null; // Environment ID, can be null on init but must be defined when used
+    environmentId: number | null = null; // Env Id, is null by default, will be set to the first available environment if not provided
     constructor(
         environmentId: number | null = null
     ) {
@@ -16,11 +17,13 @@ class PortainerApiBase {
     }
 }
 
-const ApiStack = StackControlsMixin(
-    ResourceDeletionMixin(
-        ResourceFetchingMixin(
-            EnvironmentsMixin(
-                PortainerApiBase
+const ApiStack = ContainerControlsMixin(
+    StackControlsMixin(
+        ResourceDeletionMixin(
+            ResourceFetchingMixin(
+                EnvironmentsMixin(
+                    PortainerApiBase
+                )
             )
         )
     )
@@ -29,14 +32,14 @@ const ApiStack = StackControlsMixin(
 // Maintain singleton instance
 class PortainerApi extends ApiStack {
     public static instance: PortainerApi;
-    
+
     // Make constructor private to enforce singleton pattern
     private constructor(
         environmentId: number | null = null
     ) {
         super(environmentId);
     }
-    
+
     public static getInstance(): PortainerApi {
         if (!PortainerApi.instance) {
             PortainerApi.instance = new PortainerApi();

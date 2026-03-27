@@ -1,5 +1,10 @@
+import { PortainerFactory } from "../portainer";
+
+const instance = PortainerFactory.getInstance();
+
 const generateCompose = (name: string, type: string, version: string, secret: string) => {
-  return docker.createContainer({
+
+  return instance.createContainer({
     name: name,
     Image: 'itzg/minecraft-server',
     Env: [
