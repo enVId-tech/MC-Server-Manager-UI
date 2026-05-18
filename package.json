@@ -58,7 +58,7 @@
     "eslint": "^10",
     "eslint-config-next": "16.2.6",
     "eslint-config-next": "16.2.6",
-    "tsx": "^4.22.0",
+    "tsx": "^4.22.1",
     "typescript": "^6"
   },
   "type": "module"
