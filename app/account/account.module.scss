@@ -42,8 +42,8 @@
 }
 
 .pageTitle {
-  font-size: 1.6rem;
-  font-weight: 600;
+  font-size: 1.4rem;
+  font-weight: 400;
   font-family: $heading-font;
   color: $text-primary;
   text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
@@ -209,8 +209,10 @@
 }
 
 .sectionTitle {
-  font-size: 1.8rem;
-  font-weight: 600;
+  // Press Start 2P is very wide, so keep this smaller than the page title
+  font-size: 1.1rem;
+  font-weight: 400;
+  line-height: 1.4;
   color: $text-primary;
   font-family: $heading-font;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.3);
@@ -626,8 +628,8 @@
   border-bottom: 1px solid rgba($error-red, 0.3);
 
   h2 {
-    font-size: 1.8rem;
-    font-weight: 700;
+    font-size: 1.2rem;
+    font-weight: 400;
     color: $error-red;
     font-family: $heading-font;
     display: flex;
@@ -690,8 +692,9 @@
   }
 
   h3 {
-    font-size: 1.3rem;
-    font-weight: 700;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.4;
     color: $error-red;
     margin-bottom: 1rem;
     text-align: center;
