@@ -8,27 +8,9 @@ export function proxy(request: NextRequest) {
         apiContext = logApiRequest(request);
     }
 
-    // You can add custom body parsing logic here if needed
-    // For most cases, Next.js built-in body parsing is sufficient
-    
-    // Example: Add custom headers or modify request
+    // The API is only used by this application's own pages (same origin), so no CORS headers are added.
+    // Sending `Access-Control-Allow-Origin: *` would let any website read responses from the API.
     const response = NextResponse.next();
-    
-    // Set custom headers for API routes
-    if (request.nextUrl.pathname.startsWith('/api/')) {
-        response.headers.set('X-Body-Parser', 'enabled');
-        response.headers.set('Access-Control-Allow-Origin', '*');
-        response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-        response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    }
-
-    // Handle preflight requests
-    if (request.method === 'OPTIONS') {
-        return new Response(null, {
-            status: 200,
-            headers: response.headers,
-        });
-    }
 
     // Log API response (this will be called after the response is ready)
     if (apiContext) {
@@ -38,7 +20,7 @@ export function proxy(request: NextRequest) {
             logApiResponse(apiContext, response);
         }, 0);
     }
-    
+
     return response;
 }
 
@@ -46,6 +28,5 @@ export function proxy(request: NextRequest) {
 export const config = {
     matcher: [
         '/api/:path*',
-        // Add other paths as needed
     ],
 };
