@@ -5,6 +5,7 @@ import User, { IUser } from '@/lib/objects/User';
 import Server from '@/lib/objects/Server';
 import bcrypt from 'bcrypt';
 import verificationService from '@/lib/server/verify';
+import { getJwtSecret } from '@/lib/server/jwt';
 import { deleteServer } from "@/lib/server/deleteServer";
 
 // PUT request to update user information based on provided email and password
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Verify the token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default');
+        const decoded = jwt.verify(token, getJwtSecret());
         if (!decoded) {
             return NextResponse.json({ message: 'Invalid session token.' }, { status: 401 });
         }
