@@ -4,6 +4,7 @@ import { IUser } from "@/lib/objects/User";
 import Server from "@/lib/objects/Server";
 import portainer from "@/lib/server/portainer";
 import verificationService from "@/lib/server/verify";
+import { isSingleLineCommand, shellQuote } from '@/lib/server/shell';
 
 export async function POST(request: NextRequest) {
     await dbConnect();
@@ -20,6 +21,10 @@ export async function POST(request: NextRequest) {
 
         if (!uniqueId || !command) {
             return NextResponse.json({ message: 'Server uniqueId and command are required.' }, { status: 400 });
+        }
+
+        if (typeof command !== 'string' || !isSingleLineCommand(command)) {
+            return NextResponse.json({ message: 'The command must be a single line of text.' }, { status: 400 });
         }
 
         const server = await Server.findOne({
@@ -47,10 +52,9 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ message: 'Server is not running.' }, { status: 400 });
         }
 
-        // Execute command using rcon-cli
-        // We need to escape the command properly
-        const safeCommand = command.replace(/"/g, '\\"');
-        const rconCommand = `rcon-cli "${safeCommand}"`;
+        // Execute command using rcon-cli. The command is passed through a shell, so it has to be quoted as a
+        // single literal argument, otherwise `$(...)`, backticks or a backslash could run other commands.
+        const rconCommand = `rcon-cli ${shellQuote(command)}`;
 
         const result = await portainer.executeCommand(container.Id, rconCommand, environmentId);
 

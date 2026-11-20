@@ -4,6 +4,7 @@ import { IUser } from "@/lib/objects/User";
 import Server from "@/lib/objects/Server";
 import portainer from "@/lib/server/portainer";
 import verificationService from "@/lib/server/verify";
+import { isSingleLineCommand, shellQuote } from '@/lib/server/shell';
 
 /**
  * GET /api/server/console - Get console access information for a server
@@ -127,7 +128,7 @@ export async function POST(request: NextRequest) {
             }, { status: 400 });
         }
 
-        if (!command || typeof command !== 'string') {
+        if (!command || typeof command !== 'string' || !isSingleLineCommand(command)) {
             return NextResponse.json({ 
                 success: false,
                 message: 'Command is required and must be a string.' 
@@ -174,10 +175,10 @@ export async function POST(request: NextRequest) {
         // Use RCON to send command if available, otherwise use docker exec
         // For Minecraft servers, we can use the attach/exec functionality
         // Send command through stdin to the container
-        const escapedCommand = command.replace(/"/g, '\\"');
+        // The command goes through a shell, so it is quoted as one literal argument
         const result = await portainer.executeCommand(
             container.Id, 
-            `echo "${escapedCommand}" > /proc/1/fd/0`,
+            `printf '%s\\n' ${shellQuote(command)} > /proc/1/fd/0`,
             environmentId
         );
 
