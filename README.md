@@ -37,7 +37,9 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 
 ### 🔐 Authentication & Security
 - **JWT Authentication**: Secure session management with HTTP-only cookies
-- **User Registration**: Account creation with validation
+- **User Registration**: Account creation with validation; the first account to sign up (or any email in `ADMIN_EMAILS`) becomes an administrator
+- **Single Active Session**: Logging in elsewhere or changing a password invalidates the previous session
+- **Hardened APIs**: Admin and internal endpoints require authentication, file paths are validated, and console commands are shell-escaped
 - **Protected Routes**: Automatic authentication checks and redirects
 
 ### 🌐 Infrastructure Integration
@@ -64,7 +66,7 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 - **Admin Dashboard**: Comprehensive admin interface with tabbed navigation
 - **Server Overview**: View and manage all servers across all users
 - **Bulk Server Management**: Start, stop, restart, or delete multiple servers
-- **User Management**: View server ownership and user details
+- **User Management**: Promote, demote, activate, deactivate, set server quotas for, and delete users from the admin panel
 - **System Monitoring**: Docker update status and system health
 - **Advanced Filtering**: Search and filter servers by various criteria
 
@@ -87,31 +89,64 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 
 ## 🛠️ Technology Stack
 
-- **Frontend**: Next.js 15, React 19, TypeScript, SCSS Modules
+- **Frontend**: Next.js 16, React 19, TypeScript, SCSS Modules
 - **Backend**: Next.js API Routes, MongoDB, JWT Authentication
 - **Infrastructure**: Docker, Portainer, WebDAV
 - **UI/UX**: React Context API, Custom Notification System, Mobile-responsive Design
-- **Development**: ESLint, TypeScript, SASS, Node.js 18+
+- **Development**: ESLint, TypeScript, SASS, Node.js 20+
 
 ## 🚦 Quick Start
 
-1. **Clone and Install**
+1. **Clone and install**
    ```bash
-   git clone <repository-url>
-   cd MinecraftServerCreator
+   git clone https://github.com/enVId-tech/MC-Server-Manager-UI.git
+   cd MC-Server-Manager-UI
    npm install
    ```
 
-2. **Environment Setup**
-   Create `.env.local` with your MongoDB, Portainer, and WebDAV credentials
+2. **Configure the environment**
+   ```bash
+   cp .env.example .env.local
+   ```
+   Fill in `.env.local` (see the table below). `MONGODB_URI` and `JWT_SECRET` are required, and Portainer and WebDAV credentials are needed to actually deploy servers.
 
-3. **Start Development**
+3. **Start development**
    ```bash
    npm run dev
    ```
-   Open `http://localhost:3000`
+   Open `http://localhost:3000` and sign up. The first account becomes the administrator.
 
-For detailed setup instructions, see the installation guide in the project documentation.
+### Environment variables
+
+| Variable | Purpose |
+| --- | --- |
+| `MONGODB_URI` | MongoDB connection string |
+| `JWT_SECRET` | Secret used to sign session cookies (required) |
+| `SERVER_DOMAIN` | Domain servers live under: a server named `survival` is reached at `survival.<SERVER_DOMAIN>` (default `mc.etran.dev`) |
+| `ADMIN_EMAILS` | Comma separated emails that become administrators when they sign up |
+| `INTERNAL_API_KEY` | Protects `/api/admin/docker-updates/scheduled`; the endpoint is disabled while empty |
+| `PORTAINER_URL`, `PORTAINER_USERNAME`, `PORTAINER_PASSWORD`, `PORTAINER_ENV_ID` | Portainer access used to create and manage containers |
+| `PORTAINER_REJECT_UNAUTHORIZED` | Set to `false` to accept self-signed Portainer certificates |
+| `WEBDAV_URL`, `WEBDAV_USERNAME`, `WEBDAV_PASSWORD`, `WEBDAV_SERVER_BASE_PATH` | WebDAV storage for server files |
+| `WEBDAV_REJECT_UNAUTHORIZED` | Set to `false` to accept self-signed WebDAV certificates |
+| `PROXIES_CONFIG_PATH` | Location of the proxy definitions (defaults to `lib/config/proxies.yaml`, see `lib/config/proxies.example.yaml`) |
+
+### Running with Docker
+
+```bash
+cp .env.example stack.env   # then fill it in
+docker compose up -d
+```
+
+The compose file starts the app and a MongoDB instance. App data, including the proxy definitions, is kept in `./mc-server-creator`.
+
+### Checks
+
+```bash
+npx tsc --noEmit   # types
+npm run lint       # eslint
+npm run build      # production build
+```
 
 ## 📝 License
 
