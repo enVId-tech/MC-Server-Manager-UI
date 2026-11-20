@@ -3,31 +3,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import styles from './AdminServerManager.module.scss';
 
-interface User {
-  email: string;
-  username: string;
-  isAdmin: boolean;
-  lastLogin?: Date;
-}
-
 interface Server {
   _id: string;
-  name: string;
-  serverJar: string;
-  serverVersion: string;
-  userEmail: string;
-  portainerStackName: string;
-  portainerStackId?: string;
-  portainerEndpointId: number;
-  containerId?: string;
-  status: string;
-  allocatedPorts: number[];
-  proxyPort?: number;
-  proxyType?: string;
-  createdAt: Date;
-  updatedAt: Date;
-  lastBackup?: Date;
-  user?: User;
+  uniqueId: string;
+  serverName: string;
+  email: string;
+  subdomainName?: string;
+  isOnline?: boolean;
+  port?: number;
+  serverConfig?: {
+    serverType?: string;
+    version?: string;
+  };
+  createdAt: string;
+  // Live state from Portainer; missing when the container could not be queried
+  containerStatus?: { state?: string; status?: string } | null;
+  user?: { email: string; isActive: boolean; maxServers: number } | null;
 }
 
 interface ServersResponse {
@@ -44,11 +35,11 @@ interface BulkActionResult {
   success: boolean;
   results: Array<{
     serverId: string;
-    serverName: string;
+    serverName?: string;
     success: boolean;
     error?: string;
   }>;
-  stats: {
+  summary: {
     total: number;
     successful: number;
     failed: number;
@@ -105,8 +96,8 @@ export default function AdminServerManager() {
     }
   }, [currentPage, searchQuery, statusFilter, userFilter]);
 
-  const performBulkAction = async (action: 'start' | 'stop' | 'restart' | 'delete') => {
-    if (selectedServers.size === 0) return;
+  const performServerAction = async (action: 'start' | 'stop' | 'restart' | 'delete', serverIds: string[]) => {
+    if (serverIds.length === 0) return;
 
     setBulkActionLoading(true);
     setBulkActionResult(null);
@@ -118,8 +109,8 @@ export default function AdminServerManager() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          action,
-          serverIds: Array.from(selectedServers)
+          action: `bulk-${action}`,
+          serverIds
         }),
       });
 
@@ -141,11 +132,14 @@ export default function AdminServerManager() {
     }
   };
 
+  const performBulkAction = (action: 'start' | 'stop' | 'restart' | 'delete') =>
+    performServerAction(action, Array.from(selectedServers));
+
   const handleSelectAll = () => {
     if (selectedServers.size === servers.length) {
       setSelectedServers(new Set());
     } else {
-      setSelectedServers(new Set(servers.map(s => s._id)));
+      setSelectedServers(new Set(servers.map(s => s.uniqueId)));
     }
   };
 
@@ -159,12 +153,19 @@ export default function AdminServerManager() {
     setSelectedServers(newSelected);
   };
 
+  // Prefer the live container state and fall back to what the database last recorded
+  const getServerStatus = (server: Server) =>
+    server.containerStatus?.state || (server.isOnline ? 'running' : 'stopped');
+
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case 'running': return 'running';
+      case 'exited':
       case 'stopped': return 'stopped';
+      case 'restarting':
       case 'starting': return 'starting';
       case 'stopping': return 'stopping';
+      case 'dead':
       case 'error': return 'error';
       default: return 'unknown';
     }
@@ -178,11 +179,6 @@ export default function AdminServerManager() {
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
-
-  const getProxyDisplayName = (proxyType?: string) => {
-    if (!proxyType) return 'None';
-    return proxyType.charAt(0).toUpperCase() + proxyType.slice(1);
   };
 
   useEffect(() => {
@@ -231,13 +227,13 @@ export default function AdminServerManager() {
         <div className={styles.statCard}>
           <h3>Running</h3>
           <div className={styles.statValue}>
-            {servers.filter(s => s.status.toLowerCase() === 'running').length}
+            {servers.filter(s => getServerStatus(s).toLowerCase() === 'running').length}
           </div>
         </div>
         <div className={styles.statCard}>
           <h3>Stopped</h3>
           <div className={styles.statValue}>
-            {servers.filter(s => s.status.toLowerCase() === 'stopped').length}
+            {servers.filter(s => getServerStatus(s).toLowerCase() !== 'running').length}
           </div>
         </div>
         <div className={styles.statCard}>
@@ -266,11 +262,8 @@ export default function AdminServerManager() {
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="all">All Statuses</option>
-              <option value="running">Running</option>
-              <option value="stopped">Stopped</option>
-              <option value="starting">Starting</option>
-              <option value="stopping">Stopping</option>
-              <option value="error">Error</option>
+              <option value="online">Running</option>
+              <option value="offline">Stopped</option>
             </select>
           </div>
           <div className={styles.filterGroup}>
@@ -290,9 +283,9 @@ export default function AdminServerManager() {
         <div className={`${styles.resultPanel} ${bulkActionResult.success ? styles.success : styles.error}`}>
           <h3>Bulk Action Results</h3>
           <div className={styles.resultStats}>
-            <span>Total: {bulkActionResult.stats.total}</span>
-            <span className={styles.success}>Successful: {bulkActionResult.stats.successful}</span>
-            <span className={styles.error}>Failed: {bulkActionResult.stats.failed}</span>
+            <span>Total: {bulkActionResult.summary.total}</span>
+            <span className={styles.success}>Successful: {bulkActionResult.summary.successful}</span>
+            <span className={styles.error}>Failed: {bulkActionResult.summary.failed}</span>
           </div>
           {bulkActionResult.results.some(r => !r.success) && (
             <div className={styles.resultErrors}>
@@ -302,7 +295,7 @@ export default function AdminServerManager() {
                   .filter(r => !r.success)
                   .map((result, index) => (
                     <li key={index} className={styles.error}>
-                      {result.serverName}: {result.error}
+                      {result.serverName || result.serverId}: {result.error}
                     </li>
                   ))}
               </ul>
@@ -368,64 +361,72 @@ export default function AdminServerManager() {
             <span>Server Name</span>
             <span>Owner</span>
             <span>Version</span>
-            <span>Proxy</span>
+            <span>Port</span>
             <span>Status</span>
             <span>Created</span>
             <span>Actions</span>
           </div>
-          {servers.map((server) => (
-            <div key={server._id} className={styles.tableRow}>
+          {servers.map((server) => {
+            const status = getServerStatus(server);
+            const isRunning = status.toLowerCase() === 'running';
+            return (
+            <div key={server.uniqueId} className={styles.tableRow}>
               <input
                 type="checkbox"
-                checked={selectedServers.has(server._id)}
-                onChange={() => handleSelectServer(server._id)}
+                checked={selectedServers.has(server.uniqueId)}
+                onChange={() => handleSelectServer(server.uniqueId)}
+                aria-label={`Select ${server.serverName}`}
               />
               <div className={styles.serverInfo}>
-                <div className={styles.serverName}>{server.name}</div>
+                <div className={styles.serverName}>{server.serverName}</div>
                 <div className={styles.serverDetails}>
-                  {server.serverJar} • Ports: {server.allocatedPorts.join(', ')}
+                  {server.serverConfig?.serverType || 'unknown'} • {server.subdomainName || 'no address'}
                 </div>
               </div>
               <div className={styles.userInfo}>
-                <div className={styles.userEmail}>{server.userEmail}</div>
-                {server.user?.username && (
-                  <div className={styles.username}>@{server.user.username}</div>
+                <div className={styles.userEmail}>{server.email}</div>
+                {server.user && !server.user.isActive && (
+                  <div className={styles.username}>deactivated</div>
                 )}
               </div>
-              <span className={styles.version}>{server.serverVersion}</span>
-              <span className={styles.proxy}>{getProxyDisplayName(server.proxyType)}</span>
-              <span className={`${styles.status} ${styles[getStatusColor(server.status)]}`}>
-                {server.status}
+              <span className={styles.version}>{server.serverConfig?.version || 'unknown'}</span>
+              <span className={styles.proxy}>{server.port ?? '—'}</span>
+              <span className={`${styles.status} ${styles[getStatusColor(status)]}`}>
+                {status}
               </span>
               <span className={styles.date}>{formatDate(server.createdAt)}</span>
               <div className={styles.serverActions}>
                 <button
                   className={styles.actionBtn}
-                  onClick={() => performBulkAction('start')}
-                  disabled={bulkActionLoading || server.status.toLowerCase() === 'running'}
+                  onClick={() => performServerAction('start', [server.uniqueId])}
+                  disabled={bulkActionLoading || isRunning}
                   title="Start Server"
+                  aria-label={`Start ${server.serverName}`}
                 >
                   ▶️
                 </button>
                 <button
                   className={styles.actionBtn}
-                  onClick={() => performBulkAction('stop')}
-                  disabled={bulkActionLoading || server.status.toLowerCase() === 'stopped'}
+                  onClick={() => performServerAction('stop', [server.uniqueId])}
+                  disabled={bulkActionLoading || !isRunning}
                   title="Stop Server"
+                  aria-label={`Stop ${server.serverName}`}
                 >
                   ⏹️
                 </button>
                 <button
                   className={styles.actionBtn}
-                  onClick={() => performBulkAction('restart')}
+                  onClick={() => performServerAction('restart', [server.uniqueId])}
                   disabled={bulkActionLoading}
                   title="Restart Server"
+                  aria-label={`Restart ${server.serverName}`}
                 >
                   🔄
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {totalPages > 1 && (
