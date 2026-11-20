@@ -7,7 +7,7 @@ export interface PortReservationRange {
     description?: string;
 }
 
-export interface IUser extends Document {
+export interface IUser extends pkg.Document {
     _id: pkg.Types.ObjectId;
     email: string;
     password: string;
@@ -17,6 +17,8 @@ export interface IUser extends Document {
     isAdmin: boolean; // Flag to indicate if the user is an admin
     reservedPorts: number[]; // Array of individual reserved ports for the user
     reservedPortRanges: PortReservationRange[]; // Array of reserved port ranges for the user
+    createdAt?: Date; // Added by the schema timestamps option
+    updatedAt?: Date;
     comparePassword(candidatePassword: string): Promise<boolean>; // Method to compare passwords
 }
 
