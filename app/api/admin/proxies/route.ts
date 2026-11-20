@@ -6,12 +6,11 @@ import BodyParser from '@/lib/db/bodyParser';
 import proxyManager from '@/lib/server/proxy-manager';
 import { 
     getDefinedProxies, 
-    ProxyDefinition 
+    ProxyDefinition,
+    readProxiesFile,
+    writeProxiesFile
 } from '@/lib/config/proxies';
 import portainer from '@/lib/server/portainer';
-import fs from 'fs/promises';
-import path from 'path';
-import yaml from 'yaml';
 
 /**
  * GET /api/admin/proxies
@@ -150,9 +149,7 @@ export async function POST(request: NextRequest) {
         };
 
         // Read current proxies.yaml
-        const proxiesYamlPath = path.join(process.cwd(), 'lib', 'config', 'proxies.yaml');
-        const yamlContent = await fs.readFile(proxiesYamlPath, 'utf-8');
-        const config = yaml.parse(yamlContent);
+        const config = readProxiesFile();
 
         // Add new proxy to config
         if (!config.proxies) {
@@ -161,8 +158,7 @@ export async function POST(request: NextRequest) {
         config.proxies.push(newProxy);
 
         // Write updated config back
-        const updatedYaml = yaml.stringify(config, { indent: 2 });
-        await fs.writeFile(proxiesYamlPath, updatedYaml, 'utf-8');
+        writeProxiesFile(config);
 
         // Deploy the new proxy
         const storedEnvIdPost = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null;
@@ -227,16 +223,13 @@ export async function DELETE(request: NextRequest) {
         const proxyToDelete = existingProxies[proxyIndex];
 
         // Read current proxies.yaml
-        const proxiesYamlPath = path.join(process.cwd(), 'lib', 'config', 'proxies.yaml');
-        const yamlContent = await fs.readFile(proxiesYamlPath, 'utf-8');
-        const config = yaml.parse(yamlContent);
+        const config = readProxiesFile();
 
         // Remove proxy from config
         config.proxies = config.proxies.filter((p: ProxyDefinition) => p.id !== proxyId);
 
         // Write updated config back
-        const updatedYaml = yaml.stringify(config, { indent: 2 });
-        await fs.writeFile(proxiesYamlPath, updatedYaml, 'utf-8');
+        writeProxiesFile(config);
 
         // Delete the proxy container/stack from Portainer
         const storedEnvIdDelete = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null;
@@ -299,9 +292,7 @@ export async function PATCH(request: NextRequest) {
         }
 
         // Read current proxies.yaml
-        const proxiesYamlPath = path.join(process.cwd(), 'lib', 'config', 'proxies.yaml');
-        const yamlContent = await fs.readFile(proxiesYamlPath, 'utf-8');
-        const config = yaml.parse(yamlContent);
+        const config = readProxiesFile();
 
         // Find and update proxy
         const proxyIndex = config.proxies.findIndex((p: ProxyDefinition) => p.id === id);
@@ -314,7 +305,7 @@ export async function PATCH(request: NextRequest) {
         }
 
         // Apply updates (only allowed fields)
-        const allowedUpdates = ['name', 'memory', 'networkName'];
+        const allowedUpdates = ['name', 'memory', 'networkName'] as const;
         for (const key of allowedUpdates) {
             if (updates[key] !== undefined) {
                 config.proxies[proxyIndex][key] = updates[key];
@@ -322,8 +313,7 @@ export async function PATCH(request: NextRequest) {
         }
 
         // Write updated config back
-        const updatedYaml = yaml.stringify(config, { indent: 2 });
-        await fs.writeFile(proxiesYamlPath, updatedYaml, 'utf-8');
+        writeProxiesFile(config);
 
         // Re-sync proxies
         const storedEnvIdPatch = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null;
