@@ -7,7 +7,7 @@ import dashboardBg from "@/public/dashboard-bg.png";
 
 // Define servers interfaces for better type checking
 interface MCServer {
-    id: number;
+    id: string;
     name: string;
     type: string;
     status: 'online' | 'offline';
@@ -24,8 +24,9 @@ interface ServerConfig {
     maxPlayers: number;
     version: string;
     subdomainName: string;
-    id: number;
-    isOnline: boolean;
+    id: string;
+    // The API reports the state as text
+    isOnline: 'online' | 'offline';
 }
 
 export default function Dashboard() {
@@ -61,7 +62,7 @@ export default function Dashboard() {
                     id: server.id,
                     name: server.serverName,
                     type: server.serverType,
-                    status: server.isOnline ? 'online' : 'offline',
+                    status: server.isOnline === 'online' ? 'online' : 'offline',
                     players: server.players,
                     maxPlayers: server.maxPlayers,
                     version: server.version,
@@ -109,19 +110,19 @@ export default function Dashboard() {
     }, [router]);
 
 
-    const handleStartServer = (id: number) => {
+    const handleStartServer = (id: string) => {
         setServers(servers.map(server =>
             server.id === id ? { ...server, status: 'online' } : server
         ));
     };
 
-    const handleStopServer = (id: number) => {
+    const handleStopServer = (id: string) => {
         setServers(servers.map(server =>
             server.id === id ? { ...server, status: 'offline', players: 0 } : server
         ));
     };
 
-    const handleDeleteServer = (id: number) => {
+    const handleDeleteServer = (id: string) => {
         const serverToSet = servers.find(server => server.id === id);
         if (serverToSet) {
             setServerToDelete(serverToSet);
