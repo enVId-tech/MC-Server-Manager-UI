@@ -4,6 +4,7 @@ import { IUser } from "@/lib/objects/User";
 import Server from "@/lib/objects/Server";
 import portainer from "@/lib/server/portainer";
 import verificationService from "@/lib/server/verify";
+import { Readable } from 'stream';
 
 export async function GET(
     request: NextRequest,
@@ -51,7 +52,7 @@ export async function GET(
         );
 
         // Return stream
-        return new NextResponse(archiveStream as any, {
+        return new NextResponse(Readable.toWeb(archiveStream as Readable) as unknown as ReadableStream, {
             headers: {
                 'Content-Type': 'application/x-tar',
                 'Content-Disposition': `attachment; filename="${server.serverName}-${server.uniqueId}.tar"`,
