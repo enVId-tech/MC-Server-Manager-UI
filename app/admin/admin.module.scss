@@ -9,8 +9,13 @@
 .header {
   background: linear-gradient(135deg, rgba($accent-blue, 0.1), rgba($accent-orange, 0.1));
   border-bottom: 2px solid $border-color;
-  padding: 3rem 2rem 2rem 2rem;
+  // Clear the fixed navbar
+  padding: 7rem 2rem 2rem 2rem;
   text-align: center;
+
+  @media (max-width: 768px) {
+    padding: 6rem 1rem 1.5rem 1rem;
+  }
 
   h1 {
     color: $accent-blue;
