@@ -47,10 +47,11 @@ const NotificationSystem: React.FC = () => {
     return (
         <>
             {/* Notifications */}
-            <div className={styles.notificationContainer}>
+            <div className={styles.notificationContainer} aria-live="polite">
                 {notifications.map((notification) => (
                     <div
                         key={notification.id}
+                        role={notification.type === 'error' ? 'alert' : 'status'}
                         className={`${styles.notification} ${styles[notification.type]}`}
                     >
                         <div className={styles.notificationContent}>
@@ -63,6 +64,7 @@ const NotificationSystem: React.FC = () => {
                             </div>
                             <button
                                 className={styles.notificationClose}
+                                aria-label="Dismiss notification"
                                 onClick={() => removeNotification(notification.id)}
                             >
                                 <FaTimes />
@@ -85,15 +87,22 @@ const NotificationSystem: React.FC = () => {
                         }
                     }}
                 >
-                    <div className={styles.confirmDialog}>
+                    <div
+                        className={styles.confirmDialog}
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-labelledby="confirm-dialog-title"
+                        aria-describedby="confirm-dialog-message"
+                    >
                         <div className={styles.dialogHeader}>
-                            <h3 className={styles.dialogTitle}>{confirmDialog.title}</h3>
+                            <h3 id="confirm-dialog-title" className={styles.dialogTitle}>{confirmDialog.title}</h3>
                         </div>
                         <div className={styles.dialogContent}>
-                            <p className={styles.dialogMessage}>{confirmDialog.message}</p>
+                            <p id="confirm-dialog-message" className={styles.dialogMessage}>{confirmDialog.message}</p>
                         </div>
                         <div className={styles.dialogActions}>
                             <button
+                                autoFocus
                                 className={`${styles.dialogButton} ${styles.cancel}`}
                                 onClick={() => {
                                     if (confirmDialog.onCancel) {
