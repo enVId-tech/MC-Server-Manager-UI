@@ -100,22 +100,56 @@
   }
 }
 
+.summary {
+  margin-top: 0.6rem;
+  font-size: 0.9rem;
+  color: $text-secondary;
+}
+
+.createButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
 .emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
   text-align: center;
-  padding: 2rem 1rem;
+  padding: 2.5rem 1.25rem;
   margin-bottom: 1.5rem;
   background-color: $dark-card;
-  border-radius: 8px;
+  border: 1px dashed $border-color;
+  border-radius: 12px;
   color: $text-secondary;
 
-  @media (min-width: $mobile) {
-    padding: 2.5rem 1.5rem;
+  .createButton {
+    margin-top: 1rem;
   }
 
   @media (min-width: $tablet) {
-    padding: 3rem;
+    padding: 3.5rem;
     margin-bottom: 2rem;
   }
+}
+
+.emptyIcon {
+  font-size: 2.5rem;
+  color: rgba($accent-blue, 0.8);
+  margin-bottom: 0.5rem;
+}
+
+.emptyTitle {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: $text-primary;
 }
 
 .serverGrid {
@@ -181,37 +215,92 @@
 .serverName {
   font-size: 1.1rem;
   font-weight: 600;
-  margin: 0.5rem 0 1rem;
+  margin: 0.75rem 0 0.5rem;
   color: $text-primary;
   transition: color 0.2s ease;
+  overflow-wrap: anywhere;
 
   @media (min-width: $mobile) {
     font-size: 1.25rem;
   }
 }
 
-.serverDetails {
+.serverLink {
+  color: inherit;
+  border-radius: 4px;
+
+  &:hover {
+    color: $accent-blue;
+  }
+}
+
+.addressRow {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  min-width: 0;
+}
+
+.address {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  background-color: rgba($dark-bg, 0.6);
   color: $text-secondary;
   font-size: 0.85rem;
+  user-select: all;
+}
+
+.copyButton {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: $text-secondary;
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease;
+
+  &:hover {
+    color: $text-primary;
+    background-color: rgba($border-color, 0.4);
+  }
+}
+
+.serverDetails {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  justify-content: start;
+  gap: 0.5rem 1.5rem;
   margin-bottom: 1.25rem;
 
-  @media (min-width: $mobile) {
+  dt {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: rgba($text-secondary, 0.8);
+  }
+
+  dd {
     font-size: 0.95rem;
-    margin-bottom: 1.5rem;
-  }
-
-  h4 {
-    margin: 0.25rem 0;
-    font-weight: 500;
-  }
-
-  p {
-    margin-bottom: 0.5rem;
+    color: $text-primary;
   }
 }
 
 .serverStatus {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   padding: 0.25rem 0.75rem;
   border-radius: 20px;
   font-size: 0.75rem;
@@ -219,14 +308,87 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
 
+  .statusDot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background-color: currentColor;
+  }
+
   &.online {
     background-color: rgba($accent-green, 0.15);
     color: color.scale($accent-green, $lightness: 20%);
+
+    .statusDot {
+      box-shadow: 0 0 0 0 rgba($accent-green, 0.6);
+      animation: pulse 2s infinite;
+    }
   }
 
   &.offline {
     background-color: rgba($accent-red, 0.15);
     color: color.scale($accent-red, $lightness: 20%);
+  }
+}
+
+@keyframes pulse {
+  70% {
+    box-shadow: 0 0 0 6px rgba($accent-green, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba($accent-green, 0);
+  }
+}
+
+// Loading placeholders
+.skeletonCard {
+  cursor: default;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  pointer-events: none;
+
+  &:hover {
+    transform: none;
+    box-shadow: none;
+    border-color: $border-color;
+  }
+}
+
+.skeleton {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba($border-color, 0.25) 25%, rgba($border-color, 0.5) 50%, rgba($border-color, 0.25) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+
+.skeletonBadge {
+  width: 5rem;
+  height: 1.4rem;
+  border-radius: 20px;
+}
+
+.skeletonTitle {
+  width: 60%;
+  height: 1.5rem;
+}
+
+.skeletonLine {
+  width: 85%;
+  height: 1rem;
+}
+
+.skeletonButtons {
+  width: 70%;
+  height: 2.2rem;
+  margin-top: 0.5rem;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
   }
 }
 

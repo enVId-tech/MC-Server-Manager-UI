@@ -1,7 +1,9 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import styles from './dashboard.module.scss';
+import Link from 'next/link';
 import { useRouter } from "next/navigation";
+import { FaCopy, FaPlus, FaServer } from 'react-icons/fa';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
 import dashboardBg from "@/public/dashboard-bg.png";
 
@@ -40,6 +42,7 @@ export default function Dashboard() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [deletionSuccess, setDeletionSuccess] = useState(false);
     const [deletionProgress, setDeletionProgress] = useState(0);
+    const [loadingServers, setLoadingServers] = useState(true);
     const [busyServerIds, setBusyServerIds] = useState<Set<string>>(new Set());
     const router = useRouter();
 
@@ -72,6 +75,8 @@ export default function Dashboard() {
                 setServers(servers);
             } catch (error) {
                 console.error('Error fetching server types:', error);
+            } finally {
+                setLoadingServers(false);
             }
         };
 
@@ -308,55 +313,123 @@ export default function Dashboard() {
         setDeletionProgress(0);
     };
 
+    const formatServerType = (type: string) =>
+        type ? type.charAt(0).toUpperCase() + type.slice(1).toLowerCase() : 'Unknown';
+
+    const getServerSlug = (server: MCServer) =>
+        server.subdomainName && server.subdomainName !== 'N/A' ? server.subdomainName : server.id;
+
+    const copyServerAddress = async (address: string) => {
+        try {
+            await navigator.clipboard.writeText(address);
+            showNotification({ type: 'success', title: 'Copied', message: `${address} copied to your clipboard.`, duration: 2500 });
+        } catch {
+            showNotification({ type: 'error', title: 'Copy Failed', message: 'Could not copy the address. Select it and copy it manually.' });
+        }
+    };
+
+    const onlineCount = servers.filter(server => server.status === 'online').length;
+
     return (
         <main className={styles.dashboard} style={{ backgroundImage: `url(${dashboardBg.src})` }}>
             <div className={styles.container} >
                 <div className={styles.header}>
-                    <h1 className={styles.pageTitle}>Server Manager</h1>
+                    <div>
+                        <h1 className={styles.pageTitle}>Server Manager</h1>
+                        {!loadingServers && servers.length > 0 && (
+                            <p className={styles.summary}>
+                                {servers.length} {servers.length === 1 ? 'server' : 'servers'} · {onlineCount} online
+                            </p>
+                        )}
+                    </div>
                     <button
-                        className={`${styles.button} ${styles.primary}`}
+                        className={`${styles.button} ${styles.primary} ${styles.createButton}`}
                         onClick={() => router.push("/manager/servers/create")}
                     >
-                        Create New Server
+                        <FaPlus aria-hidden="true" /> Create New Server
                     </button>
                 </div>
 
                 <h2 className={styles.sectionTitle}>Your Servers</h2>
-                {servers.length === 0 ? (
-                    <p className={styles.emptyState}>You don&apos;t have any servers yet. Create one to get started!</p>
+                {loadingServers ? (
+                    <div className={styles.serverGrid} aria-busy="true" aria-label="Loading servers">
+                        {[0, 1, 2].map(index => (
+                            <div key={index} className={`${styles.serverCard} ${styles.skeletonCard}`} aria-hidden="true">
+                                <span className={`${styles.skeleton} ${styles.skeletonBadge}`} />
+                                <span className={`${styles.skeleton} ${styles.skeletonTitle}`} />
+                                <span className={`${styles.skeleton} ${styles.skeletonLine}`} />
+                                <span className={`${styles.skeleton} ${styles.skeletonLine}`} />
+                                <span className={`${styles.skeleton} ${styles.skeletonButtons}`} />
+                            </div>
+                        ))}
+                    </div>
+                ) : servers.length === 0 ? (
+                    <div className={styles.emptyState}>
+                        <FaServer className={styles.emptyIcon} aria-hidden="true" />
+                        <p className={styles.emptyTitle}>No servers yet</p>
+                        <p>Create your first Minecraft server and it will show up here.</p>
+                        <button
+                            className={`${styles.button} ${styles.primary} ${styles.createButton}`}
+                            onClick={() => router.push("/manager/servers/create")}
+                        >
+                            <FaPlus aria-hidden="true" /> Create your first server
+                        </button>
+                    </div>
                 ) : (
                     <div className={styles.serverGrid}>
                         {servers.map(server => (
                             <div
                                 key={server.id}
                                 className={styles.serverCard}
-                                onClick={() => {
-                                    const serverSlug = server.subdomainName && server.subdomainName !== 'N/A'
-                                        ? server.subdomainName
-                                        : server.id;
-                                    console.log('Navigating to server:', serverSlug, 'Full server object:', server);
-                                    router.push(`/manager/servers/${serverSlug}`);
-                                }}
-                                style={{ cursor: 'pointer' }}
-                                title="Click to manage server"
+                                onClick={() => router.push(`/manager/servers/${getServerSlug(server)}`)}
                             >
                                 <div className={styles.cardClickIndicator}>
                                     <span>Click to manage →</span>
                                 </div>
                                 <span className={`${styles.serverStatus} ${styles[server.status]}`}>
+                                    <span className={styles.statusDot} aria-hidden="true" />
                                     {server.status}
                                 </span>
                                 <h3 className={styles.serverName}>
-                                    {server.name}
+                                    <Link
+                                        href={`/manager/servers/${getServerSlug(server)}`}
+                                        className={styles.serverLink}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        {server.name}
+                                    </Link>
                                 </h3>
-                                <div className={styles.serverDetails}>
-                                    <p className={styles.serverSubdomain}>
-                                        Server IP: {server.subdomainName || 'N/A'}
-                                    </p>
-                                    <p>Type: {server.type.charAt(0).toUpperCase() + server.type.slice(1)}</p>
-                                    <p>Version: {server.version}</p>
-                                    <p>Players: {server.players}/{server.maxPlayers}</p>
+                                <div className={styles.addressRow}>
+                                    <code className={styles.address}>{server.subdomainName || 'N/A'}</code>
+                                    {server.subdomainName && server.subdomainName !== 'N/A' && (
+                                        <button
+                                            type="button"
+                                            className={styles.copyButton}
+                                            aria-label={`Copy ${server.subdomainName}`}
+                                            title="Copy server address"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                copyServerAddress(server.subdomainName);
+                                            }}
+                                        >
+                                            <FaCopy aria-hidden="true" />
+                                        </button>
+                                    )}
                                 </div>
+                                <dl className={styles.serverDetails}>
+                                    <div>
+                                        <dt>Type</dt>
+                                        <dd>{formatServerType(server.type)}</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Version</dt>
+                                        <dd>{server.version}</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Players</dt>
+                                        <dd>{server.players}/{server.maxPlayers}</dd>
+                                    </div>
+                                </dl>
 
                                 <div className={styles.actions}>
                                     {server.status === 'offline' ? (
@@ -386,10 +459,7 @@ export default function Dashboard() {
                                         className={`${styles.button} ${styles.secondary}`}
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            const serverSlug = server.subdomainName && server.subdomainName !== 'N/A'
-                                                ? server.subdomainName
-                                                : server.id;
-                                            router.push(`/manager/servers/${serverSlug}`);
+                                            router.push(`/manager/servers/${getServerSlug(server)}`);
                                         }}
                                     >
                                         Settings
