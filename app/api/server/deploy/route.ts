@@ -252,6 +252,9 @@ export async function POST(request: NextRequest) {
 
         deploymentStatuses.set(serverId, initialStatus);
 
+        // Servers that are being deployed are not touched by the container synchronisation
+        await Server.updateOne({ uniqueId: serverId }, { $set: { lastDeploymentStatus: 'running', lastDeploymentAt: new Date() } });
+
         // Start deployment process asynchronously
         deployServer(serverId, server, user).catch(error => {
             console.error('Deployment error:', error);

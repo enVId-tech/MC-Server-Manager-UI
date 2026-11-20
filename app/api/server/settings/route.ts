@@ -4,11 +4,7 @@ import Server from '@/lib/objects/Server';
 import { IUser } from '@/lib/objects/User';
 import verificationService from '@/lib/server/verify';
 import portainer from '@/lib/server/portainer';
-import {
-    convertClientConfigToServerConfig,
-    createMinecraftServer,
-    type ClientServerConfig,
-} from '@/lib/server/minecraft';
+import { createMinecraftServerFromRecord } from '@/lib/server/minecraft';
 import {
     getRequiredJavaVersion,
     getServerType,
@@ -128,25 +124,7 @@ export async function PATCH(request: NextRequest) {
                 const environmentId = environments[0].Id;
                 portainer.DefaultEnvironmentId = environmentId;
 
-                const clientConfig = {
-                    ...config,
-                    port: server.port,
-                    rconPort: server.rconPort,
-                    plugins: [],
-                    mods: [],
-                    subdomain: String(server.subdomainName ?? '').split('.')[0],
-                } as unknown as ClientServerConfig;
-
-                const minecraftConfig = convertClientConfigToServerConfig(clientConfig);
-                minecraftConfig.SUBDOMAIN = clientConfig.subdomain;
-                const instance = createMinecraftServer(
-                    minecraftConfig,
-                    server.serverName,
-                    server.uniqueId,
-                    environmentId,
-                    user.email,
-                    server.proxyIds || []
-                );
+                const instance = createMinecraftServerFromRecord(server, environmentId, user.email);
 
                 const stack = await portainer.getStackByName(`minecraft-${server.uniqueId}`);
                 if (!stack) throw new Error('The container stack of this server was not found. Redeploy the server first.');

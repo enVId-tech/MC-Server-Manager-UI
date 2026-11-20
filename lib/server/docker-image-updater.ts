@@ -453,14 +453,8 @@ export class DockerImageUpdater {
             }
 
             // Recreate container using existing MinecraftServer class
-            const { createMinecraftServer } = await import('./minecraft');
-            const minecraftServer = createMinecraftServer(
-                server.serverConfig,
-                server.serverName,
-                server.uniqueId,
-                environmentId,
-                server.email
-            );
+            const { createMinecraftServerFromRecord } = await import('./minecraft');
+            const minecraftServer = createMinecraftServerFromRecord(server, environmentId);
 
             // Deploy with new image
             await minecraftServer.deployToPortainer();

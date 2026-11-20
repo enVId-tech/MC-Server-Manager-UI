@@ -323,6 +323,7 @@ export interface MinecraftPropertiesV1_20_2 extends MinecraftPropertiesV1_20 {
 /** Properties for Minecraft 1.21, adding the latest configurations. */
 export type MinecraftPropertiesV1_21 = MinecraftPropertiesV1_20_2;
 
+import { getSubdomainLabel } from '@/lib/config/domain';
 import portainer from './portainer';
 import { PortainerContainer } from './portainer';
 import { proxyManager } from './proxy-manager';
@@ -1904,6 +1905,43 @@ async function fetchUserEmailFromAuth(_authToken: string): Promise<string> {
 
     // For now, just return a placeholder
     return 'user@example.com';
+}
+
+/**
+ * Builds a MinecraftServer from a server record of the database.
+ *
+ * The configuration stored in the database is in the format of the wizard (serverType, maxPlayers, ...), which is
+ * not what the container is generated from. It has to go through convertClientConfigToServerConfig first, otherwise
+ * the server type, version, EULA, port and every setting are lost.
+ */
+export function createMinecraftServerFromRecord(
+    server: {
+        uniqueId: string;
+        serverName: string;
+        email?: string;
+        port?: number;
+        rconPort?: number;
+        subdomainName?: string;
+        proxyIds?: string[];
+        serverConfig?: unknown;
+    },
+    environmentId: number,
+    userEmail?: string
+): MinecraftServer {
+    const subdomain = getSubdomainLabel(server.subdomainName ?? '');
+    const clientConfig = {
+        ...((server.serverConfig ?? {}) as Record<string, unknown>),
+        port: server.port,
+        rconPort: server.rconPort,
+        plugins: [],
+        mods: [],
+        subdomain,
+    } as unknown as ClientServerConfig;
+
+    const config = convertClientConfigToServerConfig(clientConfig);
+    config.SUBDOMAIN = subdomain;
+
+    return createMinecraftServer(config, server.serverName, server.uniqueId, environmentId, userEmail ?? server.email ?? '', server.proxyIds ?? []);
 }
 
 /**

@@ -14,7 +14,7 @@ import serverStorage from './storage';
 import velocityService from './velocity';
 import path from 'path';
 import Server from '@/lib/objects/Server';
-import { createMinecraftServer, ClientServerConfig, MinecraftServerConfig } from '@/lib/server/minecraft';
+import { createMinecraftServerFromRecord } from '@/lib/server/minecraft';
 
 export type ProxyType = 'velocity' | 'bungeecord' | 'waterfall';
 
@@ -701,31 +701,26 @@ export class ProxyManager {
             for (const server of dbServers) {
                 const containerName = `mc-${server.uniqueId}`;
                 const exists = serverContainers.some(c => c.Names.some(n => n.includes(containerName)));
+                if (exists) continue;
 
-                if (!exists) {
-                    details.push(`Server ${server.serverName} (${server.uniqueId}) missing in Portainer. Recreating...`);
+                // Only a server that was deployed before has lost its container. One that is being deployed right
+                // now (this sync is part of every deployment), failed or was never deployed must be left alone.
+                // Servers from before the status was recorded count as deployed once they are an hour old.
+                const status = server.lastDeploymentStatus;
+                const ageMs = Date.now() - new Date(server.createdAt).getTime();
+                const wasDeployed = status === 'success' || (status === undefined && ageMs > 60 * 60 * 1000);
+                if (!wasDeployed) {
+                    details.push(`Server ${server.serverName} (${server.uniqueId}) has no container yet (deployment: ${status ?? 'not recorded'}). Not recreating.`);
+                    continue;
+                }
 
-                    try {
-                        // Construct config from DB
-                        // We assume server.serverConfig matches ClientServerConfig structure roughly
-                        // We might need to map fields if they differ significantly
-                        const config = server.serverConfig as unknown as MinecraftServerConfig;
+                details.push(`Server ${server.serverName} (${server.uniqueId}) missing in Portainer. Recreating...`);
 
-                        // Create server instance
-                        const minecraftServer = createMinecraftServer(
-                            config,
-                            server.serverName,
-                            server.uniqueId,
-                            environmentId,
-                            server.email || 'default-user'
-                        );
-
-                        // Deploy
-                        await minecraftServer.deployToPortainer();
-                        details.push(`Successfully recreated server ${server.serverName}`);
-                    } catch (e) {
-                        details.push(`Failed to recreate server ${server.serverName}: ${e}`);
-                    }
+                try {
+                    await createMinecraftServerFromRecord(server, environmentId).deployToPortainer();
+                    details.push(`Successfully recreated server ${server.serverName}`);
+                } catch (e) {
+                    details.push(`Failed to recreate server ${server.serverName}: ${e}`);
                 }
             }
 

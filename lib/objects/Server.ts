@@ -12,6 +12,11 @@ export interface IServer extends pkg.Document {
     rconPort?: number;
     environmentId?: number;
     proxyIds?: string[];
+    /** 'running' while a deployment is in progress; only 'success' servers are recreated when their container is lost */
+    lastDeploymentStatus?: 'running' | 'success' | 'failed';
+    lastDeploymentError?: string;
+    lastDeploymentAt?: Date;
+    deployedAt?: Date;
     createdAt: Date;
     serverConfig: ServerConfigData;
 }
@@ -76,6 +81,14 @@ const ServerSchema: pkg.Schema = new pkg.Schema({
         required: false,
         default: []
     },
+    lastDeploymentStatus: {
+        type: String,
+        enum: ['running', 'success', 'failed'],
+        required: false,
+    },
+    lastDeploymentError: { type: String, required: false },
+    lastDeploymentAt: { type: Date, required: false },
+    deployedAt: { type: Date, required: false },
     createdAt: {
         type: Date,
         default: Date.now,
