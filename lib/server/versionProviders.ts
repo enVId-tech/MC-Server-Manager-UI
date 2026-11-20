@@ -18,8 +18,8 @@ const CACHE_TTL_MS = 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 5000;
 
 const SOURCES: Record<string, { url: string; parse: (data: unknown) => string[] }> = {
-    paper: { url: 'https://api.papermc.io/v2/projects/paper', parse: parseProjectVersions },
-    folia: { url: 'https://api.papermc.io/v2/projects/folia', parse: parseProjectVersions },
+    paper: { url: 'https://fill.papermc.io/v3/projects/paper', parse: parseProjectVersions },
+    folia: { url: 'https://fill.papermc.io/v3/projects/folia', parse: parseProjectVersions },
     purpur: { url: 'https://api.purpurmc.org/v2/purpur', parse: parseProjectVersions },
     fabric: { url: 'https://meta.fabricmc.net/v2/versions/game', parse: parseLoaderMetaVersions },
     quilt: { url: 'https://meta.quiltmc.org/v3/versions/game', parse: parseLoaderMetaVersions },

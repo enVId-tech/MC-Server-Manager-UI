@@ -18,11 +18,18 @@ export function onlyReleases(versions: Iterable<string>): string[] {
     return [...versions].filter(version => RELEASE_PATTERN.test(version));
 }
 
-/** https://api.papermc.io/v2/projects/{project} and https://api.purpurmc.org/v2/purpur */
+/**
+ * https://fill.papermc.io/v3/projects/{project} (versions grouped by release line, as an object)
+ * and https://api.purpurmc.org/v2/purpur (flat array).
+ */
 export function parseProjectVersions(data: unknown): string[] {
     const versions = (data as { versions?: unknown })?.versions;
-    if (!Array.isArray(versions)) return [];
-    return sortNewestFirst(onlyReleases(versions.filter((entry): entry is string => typeof entry === 'string')));
+    const flat: unknown[] = Array.isArray(versions)
+        ? versions
+        : versions && typeof versions === 'object'
+            ? Object.values(versions).flat()
+            : [];
+    return sortNewestFirst(onlyReleases(flat.filter((entry): entry is string => typeof entry === 'string')));
 }
 
 /** https://meta.fabricmc.net/v2/versions/game and https://meta.quiltmc.org/v3/versions/game */

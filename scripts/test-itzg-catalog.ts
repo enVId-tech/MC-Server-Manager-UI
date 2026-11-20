@@ -251,6 +251,10 @@ check('paper style project lists keep releases and sort newest first', () => {
         ['1.21.1', '1.21', '1.20.10', '1.20.4', '1.8.8']
     );
     assert.deepEqual(parseProjectVersions(null), []);
+    assert.deepEqual(
+        parseProjectVersions({ versions: { '1.21': ['1.21.1', '1.21.1-rc1', '1.21'], '1.20': ['1.20.4'] } }),
+        ['1.21.1', '1.21', '1.20.4'],
+    );
 });
 check('fabric style lists drop unstable versions', () => {
     assert.deepEqual(
