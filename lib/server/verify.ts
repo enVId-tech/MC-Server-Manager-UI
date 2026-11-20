@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 import User, { IUser } from "../objects/User";
+import { getJwtSecret } from './jwt';
 
 interface Token {
     status: number;
@@ -47,7 +48,7 @@ class VerificationService {
             }
 
             // Verify the token
-            const decoded = jwt.verify(token.token, process.env.JWT_SECRET || 'default');
+            const decoded = jwt.verify(token.token, getJwtSecret());
             if (!decoded) {
                 return { status: 401, message: 'Invalid session token.' };
             }

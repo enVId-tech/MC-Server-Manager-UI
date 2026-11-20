@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
-import User, { IUser } from "@/lib/objects/User";
+import { IUser } from "@/lib/objects/User";
 import Server from "@/lib/objects/Server";
 import dbConnect from "@/lib/db/dbConnect";
 import webdavService from "@/lib/server/webdav";
@@ -121,17 +120,8 @@ export async function DELETE(request: NextRequest) {
 
     try {
         // Check authentication
-        const token = request.cookies.get('sessionToken')?.value;
-        if (!token) {
-            return NextResponse.json({ message: 'No active session found.' }, { status: 401 });
-        }
+        const user: IUser | null = await verificationService.getUserFromToken(request);
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default');
-        if (!decoded) {
-            return NextResponse.json({ message: 'Invalid session token.' }, { status: 401 });
-        }
-
-        const user = await User.findById((decoded as { id: string }).id);
         if (!user || !user.isActive) {
             return NextResponse.json({ message: 'User not found or inactive.' }, { status: 403 });
         }

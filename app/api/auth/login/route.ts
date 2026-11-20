@@ -3,6 +3,7 @@ import dbConnect from '@/lib/db/dbConnect';
 import User from '@/lib/objects/User';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '@/lib/server/jwt';
 
 export async function POST(request: Request) {
     await dbConnect();
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
         // Generate a JWT token
         const token = jwt.sign(
             { id: user._id, email: user.email },
-            process.env.JWT_SECRET || 'default',
+            getJwtSecret(),
             { expiresIn: '24h' }
         );
 
