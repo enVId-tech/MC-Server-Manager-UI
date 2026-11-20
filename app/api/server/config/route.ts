@@ -9,7 +9,8 @@ import portainer from "@/lib/server/portainer";
 import MinecraftServerManager from "@/lib/server/serverManager";
 import { v4 as uuidv4 } from 'uuid';
 import verificationService from "@/lib/server/verify";
-import { buildServerHostname } from '@/lib/config/domain';
+import { buildServerHostname, getServerDomain } from '@/lib/config/domain';
+import { resolveCreateOptions, CreateOptions } from '@/lib/data/createDefaults';
 
 // Configure body parsing for this API route
 // Note: In Next.js App Router, body size limits are configured in next.config.js or middleware
@@ -33,20 +34,17 @@ export async function GET() {
         console.log("Fetching server configuration options...");
 
         await dbConnect();
-        await new Promise(resolve => setTimeout(resolve, 100));
 
-        // Fetch the single combined configuration document
+        // Options stored in the `create` collection take priority, anything missing (or a fresh database
+        // without that collection) falls back to the built in defaults
         const configOptions = await getCreateConfig();
-        if (!configOptions) {
-            console.warn("No configuration options found in CreateConfig.");
-            return NextResponse.json({ error: "No server configuration options found." }, { status: 404 });
-        }
 
-        // Remove MongoDB-specific fields and return the configuration
+        // Remove MongoDB-specific fields before the stored document is merged with the defaults
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { _id, __v, createdAt, updatedAt, ...cleanConfig } = configOptions;
+        const { _id, __v, createdAt, updatedAt, ...storedConfig } = (configOptions ?? {}) as Record<string, unknown>;
+        const options = await resolveCreateOptions(storedConfig as Partial<CreateOptions>);
 
-        return NextResponse.json(cleanConfig, { status: 200 });
+        return NextResponse.json({ ...storedConfig, ...options, serverDomain: getServerDomain() }, { status: 200 });
     } catch (error) {
         console.error("Error fetching server configuration options:", error);
         return NextResponse.json({

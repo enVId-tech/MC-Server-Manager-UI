@@ -212,10 +212,10 @@ const commonProperties: PropertyDefinition[] = [
   {
     key: 'server-ip',
     displayName: 'Server IP',
-    description: 'IP address to bind to (leave empty for all). Will be: [yourname].mc.etran.dev',
+    description: 'IP address to bind to (leave empty for all). Will be: [yourname] followed by the server domain',
     type: 'string',
     defaultValue: '',
-    placeholder: 'Enter subdomain (will become [yourname].mc.etran.dev)',
+    placeholder: 'Enter subdomain (the server domain is added automatically)',
     serverManaged: true,
     clientEditable: false,
     category: 'network',
@@ -352,7 +352,7 @@ const commonProperties: PropertyDefinition[] = [
   {
     key: 'server-ip',
     displayName: 'Server IP Address',
-    description: 'IP address the server binds to. Will be: [yourname].mc.etran.dev (managed by server)',
+    description: 'IP address the server binds to. Will be: [yourname] followed by the server domain (managed by server)',
     type: 'string',
     defaultValue: '',
     serverManaged: true,
