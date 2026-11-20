@@ -6,6 +6,7 @@
 
 import webdavService from '@/lib/server/webdav';
 import { BungeeCordServerConfig, BungeeCordConfig } from './bungeecord';
+import { buildServerHostname } from '@/lib/config/domain';
 
 export interface WaterfallServerConfig extends BungeeCordServerConfig {
     // Waterfall-specific configurations
@@ -289,7 +290,7 @@ class WaterfallService {
             
             // Add forced host mapping if subdomain is provided
             if (serverConfig.subdomain && listener) {
-                const forcedHostDomain = `${serverConfig.subdomain}.mc.etran.dev`;
+                const forcedHostDomain = buildServerHostname(serverConfig.subdomain);
                 
                 if (!listener.forced_hosts) {
                     listener.forced_hosts = {};

@@ -5,6 +5,7 @@ import webdavService from './webdav';
 import dbConnect from '@/lib/db/dbConnect';
 import PortManager from '@/lib/server/portManager';
 import type { PortAllocationResult } from '@/lib/server/portManager';
+import { buildServerHostname } from '@/lib/config/domain';
 
 export type { PortAllocationResult };
 
@@ -61,7 +62,8 @@ export class MinecraftServerManager {
             }
 
             // Check if subdomain is already taken
-            const existingServer = await Server.findOne({ subdomainName: subdomain });
+            // Servers store the full hostname, not the label the user typed
+            const existingServer = await Server.findOne({ subdomainName: buildServerHostname(subdomain.toLowerCase()) });
             if (existingServer) {
                 return {
                     isValid: false,

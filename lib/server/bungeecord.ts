@@ -5,6 +5,7 @@
 
 import webdavService from '@/lib/server/webdav';
 import { VelocityServerConfig } from './velocity';
+import { buildServerHostname } from '@/lib/config/domain';
 
 export interface BungeeCordServerConfig extends VelocityServerConfig {
     // BungeeCord-specific configurations
@@ -283,7 +284,7 @@ class BungeeCordService {
             
             // Add forced host mapping if subdomain is provided
             if (serverConfig.subdomain && listener) {
-                const forcedHostDomain = `${serverConfig.subdomain}.mc.etran.dev`;
+                const forcedHostDomain = buildServerHostname(serverConfig.subdomain);
                 
                 if (!listener.forced_hosts) {
                     listener.forced_hosts = {};

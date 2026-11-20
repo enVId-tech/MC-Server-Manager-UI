@@ -14,6 +14,7 @@ import { proxyManager } from "@/lib/server/proxy-manager";
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getServerFolderPath } from '@/lib/server/serverPaths';
+import { getSubdomainLabel } from '@/lib/config/domain';
 
 // Interface for server config as stored in database (with FileInfo instead of AnalyzedFile)
 interface DatabaseServerConfig {
@@ -553,13 +554,13 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             serverMemory: server.serverConfig.serverMemory,
             plugins: [],
             mods: [],
-            subdomain: server.subdomainName.replace('.etran.dev', '')
+            subdomain: getSubdomainLabel(server.subdomainName)
         };
 
         const minecraftConfig = convertClientConfigToServerConfig(updatedClientConfig);
         
         // Ensure SUBDOMAIN is set in the config for proxy routing
-        minecraftConfig.SUBDOMAIN = server.subdomainName.replace('.etran.dev', '');
+        minecraftConfig.SUBDOMAIN = getSubdomainLabel(server.subdomainName);
 
         const updatedMinecraftServer = createMinecraftServer(
             minecraftConfig,
