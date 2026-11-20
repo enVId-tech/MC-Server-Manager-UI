@@ -4,7 +4,8 @@
 // Notification Container
 .notificationContainer {
     position: fixed;
-    top: 2rem;
+    // Sit below the fixed navbar instead of covering its links
+    top: 5.5rem;
     right: 2rem;
     z-index: 1000;
     display: flex;
@@ -13,7 +14,7 @@
     max-width: 450px;
 
     @media (max-width: $mobile) {
-        top: 1rem;
+        top: 5rem;
         right: 1rem;
         left: 1rem;
         max-width: none;
