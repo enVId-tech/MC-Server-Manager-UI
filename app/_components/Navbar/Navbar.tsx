@@ -36,6 +36,7 @@ export default function Navbar() {
 
     useEffect(() => {
         // Check auth on component mount
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- the session state comes from the server
         checkAuthStatus();
 
         // Create a custom event listener for login success

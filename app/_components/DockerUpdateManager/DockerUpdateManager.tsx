@@ -63,10 +63,6 @@ export default function DockerUpdateManager() {
     const [selectedServers, setSelectedServers] = useState<string[]>([]);
     const [showConfig, setShowConfig] = useState(false);
 
-    useEffect(() => {
-        fetchStatus();
-    }, []);
-
     const fetchStatus = async () => {
         try {
             setLoading(true);
@@ -85,6 +81,12 @@ export default function DockerUpdateManager() {
             setLoading(false);
         }
     };
+
+
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data load on mount
+        fetchStatus();
+    }, []);
 
     const triggerManualUpdate = async (serverIds?: string[]) => {
         try {

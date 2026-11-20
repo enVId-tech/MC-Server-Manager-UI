@@ -68,13 +68,6 @@ export const MultiProxyManager: React.FC<MultiProxyManagerProps> = ({
     } | null>(null);
     const [activeTab, setActiveTab] = useState<'overview' | 'deploy' | 'health' | 'config'>('overview');
 
-    // Load initial data
-    useEffect(() => {
-        loadProxies();
-        loadStatistics();
-        loadHealthStatus();
-    }, []);
-
     const loadProxies = async () => {
         try {
             const response = await fetch('/api/server/multi-proxy?action=list-proxies');
@@ -119,6 +112,14 @@ export const MultiProxyManager: React.FC<MultiProxyManagerProps> = ({
             console.error('Error loading health status:', error);
         }
     };
+
+    // Load initial data (after the loaders it calls are declared)
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data load on mount
+        loadProxies();
+        loadStatistics();
+        loadHealthStatus();
+    }, []);
 
     const deployToProxies = async () => {
         if (!serverId || selectedProxies.length === 0) {

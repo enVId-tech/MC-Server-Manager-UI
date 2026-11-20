@@ -183,6 +183,7 @@ export default function AdminServerManager() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reload whenever the page or a filter changes
     loadServers();
   }, [loadServers]);
 
