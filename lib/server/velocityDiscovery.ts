@@ -150,3 +150,26 @@ export async function resolveVelocityConfigPath(fallback: string): Promise<strin
         return fallback;
     }
 }
+
+/**
+ * Whether a Velocity proxy already exists, as a container (running or not) or as a velocity.toml this app can reach.
+ * Used before anything creates a proxy of its own.
+ */
+export async function findExistingVelocity(environmentId?: number): Promise<{ exists: boolean; description: string }> {
+    const instances = await discoverVelocityInstances({ environmentId });
+    if (instances.length > 0) {
+        return { exists: true, description: instances[0].containerName ? `container ${instances[0].containerName} (${instances[0].configPath})` : instances[0].configPath };
+    }
+
+    try {
+        const envId = await portainer.getValidEnvironmentId(environmentId ?? (process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null));
+        const containers = await portainer.getContainers(envId, true);
+        const match = containers.find(container => /velocity/i.test(container.Image) || container.Names.some(name => /velocity/i.test(name)));
+        if (match) {
+            return { exists: true, description: `container ${match.Names[0]?.replace(/^\//, '') ?? match.Id}` };
+        }
+    } catch {
+        // Portainer unreachable: nothing is known, the caller decides what that means
+    }
+    return { exists: false, description: '' };
+}

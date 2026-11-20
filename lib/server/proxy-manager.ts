@@ -15,6 +15,7 @@ import velocityService from './velocity';
 import path from 'path';
 import Server from '@/lib/objects/Server';
 import { createMinecraftServerFromRecord } from '@/lib/server/minecraft';
+import { findExistingVelocity } from '@/lib/server/velocityDiscovery';
 import { getContainerName } from '@/lib/server/containerNames';
 
 export type ProxyType = 'velocity' | 'bungeecord' | 'waterfall';
@@ -784,6 +785,16 @@ export class ProxyManager {
             // Register it
             this.registerProxyFromDefinition(def);
             return;
+        }
+
+        // An existing Velocity is always the one that is used. Creating a second proxy next to it would fight over
+        // the same port and split the server list in two.
+        if (def.type === 'velocity') {
+            const existing = await findExistingVelocity(environmentId);
+            if (existing.exists) {
+                details.push(`Proxy ${def.name} was not created: a Velocity proxy already exists (${existing.description}) and is used instead.`);
+                return;
+            }
         }
 
         details.push(`Proxy ${def.name} not found. Creating...`);
