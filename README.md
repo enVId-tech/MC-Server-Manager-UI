@@ -22,7 +22,7 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 - **Auto-refresh**: Automatic dashboard updates every 60 seconds
 
 ### 📁 File Management & Editor
-- **WebDAV Integration**: Browse and manage server files through the web interface
+- **Flexible File Storage**: Browse and manage server files through the web interface, stored on the local disk or over WebDAV
 - **Built-in File Editor**: Edit configuration files directly in the browser
 - **Real-time Preview**: View file contents with syntax highlighting
 - **Auto-save Protection**: Unsaved changes warning when navigating away
@@ -45,7 +45,7 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 ### 🌐 Infrastructure Integration
 - **Docker Containers**: Automated server deployment via Portainer
 - **Dynamic Port Allocation**: Automatic port assignment with conflict resolution
-- **File System**: WebDAV integration for server file management
+- **File System**: local disk (default when configured) or WebDAV for server file management
 
 ### 🌐 Multi-Proxy Support
 - **Velocity**: High-performance modern proxy with advanced features
@@ -127,6 +127,8 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 | `INTERNAL_API_KEY` | Protects `/api/admin/docker-updates/scheduled`; the endpoint is disabled while empty |
 | `PORTAINER_URL`, `PORTAINER_USERNAME`, `PORTAINER_PASSWORD`, `PORTAINER_ENV_ID` | Portainer access used to create and manage containers |
 | `PORTAINER_REJECT_UNAUTHORIZED` | Set to `false` to accept self-signed Portainer certificates |
+| `STORAGE_BACKEND` | `local` or `webdav`. Defaults to local when `LOCAL_STORAGE_PATH` is set |
+| `LOCAL_STORAGE_PATH`, `LOCAL_STORAGE_HOST_PATH`, `LOCAL_STORAGE_OWNER` | Local storage folder, the same folder as the Docker host sees it (when the app is containerised), and an optional `uid:gid` for created files |
 | `WEBDAV_URL`, `WEBDAV_USERNAME`, `WEBDAV_PASSWORD`, `WEBDAV_SERVER_BASE_PATH` | WebDAV storage for server files |
 | `WEBDAV_REJECT_UNAUTHORIZED` | Set to `false` to accept self-signed WebDAV certificates |
 | `PROXIES_CONFIG_PATH` | Location of the proxy definitions (defaults to `lib/config/proxies.yaml`, see `lib/config/proxies.example.yaml`) |
@@ -147,6 +149,22 @@ npx tsc --noEmit   # types
 npm run lint       # eslint
 npm run build      # production build
 ```
+
+
+## Local file storage
+
+Server files can live directly on the machine instead of going through WebDAV, so nothing is sent over the network.
+
+```env
+STORAGE_BACKEND=local
+LOCAL_STORAGE_PATH=/data/minecraft
+```
+
+- Files are stored under `LOCAL_STORAGE_PATH/<WEBDAV_SERVER_BASE_PATH>/<user>/<server id>`, and the Minecraft containers bind mount the same folders.
+- If the app itself runs in Docker, mount the folder into the app container at `LOCAL_STORAGE_PATH` and set `LOCAL_STORAGE_HOST_PATH` to the folder's path on the Docker host, because that is the path Docker uses for the bind mounts.
+- The app only touches files inside the storage folder. Paths with `..`, and symlinks that point outside it, are refused.
+- Set `LOCAL_STORAGE_OWNER=1000:1000` (the user of the itzg images) to have created files owned by the container user. This needs the app to run as root.
+- `npm run test:local-storage` runs the safety checks for this backend.
 
 ## 📝 License
 
