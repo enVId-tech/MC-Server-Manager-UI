@@ -4,7 +4,7 @@ import User, { IUser } from '@/lib/objects/User';
 import Server from '@/lib/objects/Server';
 import bcrypt from 'bcrypt';
 import verificationService from '@/lib/server/verify';
-import { deleteServer } from "@/lib/server/deleteServer";
+import { deleteUserWithServers } from "@/lib/server/deleteUser";
 
 // Emails end up in folder names, so path separators are not allowed
 const EMAIL_PATTERN = /^(?!\.+@)[^\s@/\\]+@[^\s@/\\]+\.[^\s@/\\]+$/;
@@ -148,27 +148,15 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ message: 'Incorrect password.' }, { status: 403 });
         }
 
-        // Find all servers owned by user (servers are linked to their owner by email)
-        const servers = await Server.find({ email: user.email });
-
         // Delete all servers before the account, otherwise their containers would keep running without an owner
-        const failedServers: { uniqueId: string; error?: string; details?: string[] }[] = [];
-        for (const server of servers) {
-            const result = await deleteServer(server.uniqueId, server.toObject(), user, 'account-deletion');
-            if (!result.success) {
-                failedServers.push({ uniqueId: server.uniqueId, error: result.error, details: result.details });
-            }
-        }
+        const deletion = await deleteUserWithServers(user, 'account-deletion');
 
-        if (failedServers.length > 0) {
+        if (!deletion.success) {
             return NextResponse.json({
                 message: 'Some servers could not be fully removed, so the account was not deleted. Please try again.',
-                failedServers
+                failedServers: deletion.failedServers
             }, { status: 500 });
         }
-
-        // Delete user
-        await User.deleteOne({ _id: user._id });
 
         // Clear session cookie
         const response = NextResponse.json({ message: 'Account deleted successfully.' }, { status: 200 });
