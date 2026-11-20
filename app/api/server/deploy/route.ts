@@ -57,6 +57,7 @@ interface DatabaseServerConfig {
     broadcastConsoleToOps: boolean;
     serverMemory: number;
     serverProperties?: Record<string, string | number | boolean>;
+    itzgEnv?: Record<string, string | number | boolean>;
     plugins?: FileInfo[];
     mods?: FileInfo[];
     worldFiles?: FileInfo;
@@ -552,6 +553,8 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             broadcastRconToOps: server.serverConfig.broadcastRconToOps,
             broadcastConsoleToOps: server.serverConfig.broadcastConsoleToOps,
             serverMemory: server.serverConfig.serverMemory,
+            serverProperties: server.serverConfig.serverProperties,
+            itzgEnv: server.serverConfig.itzgEnv,
             plugins: [],
             mods: [],
             subdomain: getSubdomainLabel(server.subdomainName)

@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import verificationService from "@/lib/server/verify";
 import { buildServerHostname, getServerDomain } from '@/lib/config/domain';
 import { resolveCreateOptions, CreateOptions } from '@/lib/data/createDefaults';
+import { getServerType, sanitizeOverrides } from '@/lib/data/itzg';
 
 // Configure body parsing for this API route
 // Note: In Next.js App Router, body size limits are configured in next.config.js or middleware
@@ -91,7 +92,13 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Server name and subdomain are required." }, { status: 400 });
         }
 
-        if (!config.serverType || !config.version) {
+        const serverTypeDefinition = getServerType(config.serverType);
+        if (!serverTypeDefinition) {
+            return NextResponse.json({ error: `Unknown server type "${config.serverType}".` }, { status: 400 });
+        }
+
+        // Modpacks decide the Minecraft version themselves, every other type needs one
+        if (!config.serverType || (!config.version && !serverTypeDefinition.versionFromPack)) {
             return NextResponse.json({ error: "Server type and version are required." }, { status: 400 });
         }
 
@@ -188,8 +195,8 @@ export async function POST(request: NextRequest) {
         const serverConfigData: ServerConfigData = {
             // Basic server information
             name: config.name,
-            serverType: config.serverType,
-            version: config.version,
+            serverType: serverTypeDefinition.id,
+            version: config.version || 'LATEST',
             description: config.description || '',
 
             // World settings
@@ -248,6 +255,9 @@ export async function POST(request: NextRequest) {
 
             // Server properties (from advanced section)
             serverProperties: config.serverProperties || {},
+
+            // Settings from the option panels. Unknown, locked and inapplicable ones are dropped
+            itzgEnv: sanitizeOverrides(config.itzgEnv, config.serverType, config.version).values,
 
             // File information
             plugins: config.plugins || [],

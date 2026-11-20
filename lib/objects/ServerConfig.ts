@@ -82,6 +82,9 @@ export interface IServerConfig extends Document {
     // Server properties (from advanced section)
     serverProperties?: Record<string, string | number | boolean>;
 
+    // Settings from the option panels, keyed by environment variable of the itzg image
+    itzgEnv?: Record<string, string | number | boolean>;
+
     // File information
     plugins?: FileInfo[];
     mods?: FileInfo[];
