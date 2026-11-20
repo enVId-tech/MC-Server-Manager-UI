@@ -57,6 +57,9 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
 }> {
     const details: string[] = [];
     let hasErrors = false;
+    // Set when the container or stack could not be removed. The files and the database record are kept then,
+    // otherwise a server that is still running would lose its data and could not be deleted again.
+    let containerCleanupFailed = false;
 
     try {
         details.push('Starting comprehensive server deletion...');
@@ -77,6 +80,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
         } catch (portainerError) {
             details.push(`Warning: Could not connect to Portainer - ${portainerError instanceof Error ? portainerError.message : 'Unknown error'}`);
             hasErrors = true;
+            containerCleanupFailed = true;
             portainerEnvironmentId = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1; // Default fallback
         }
 
@@ -119,6 +123,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
                     } catch (containerError) {
                         details.push(`Warning: Failed to remove container ${container.Names[0]} - ${containerError instanceof Error ? containerError.message : 'Unknown error'}`);
                         hasErrors = true;
+                        containerCleanupFailed = true;
                     }
                 }
             } else {
@@ -144,6 +149,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
                     } catch (stackError) {
                         details.push(`Warning: Failed to remove stack ${stack.Name} - ${stackError instanceof Error ? stackError.message : 'Unknown error'}`);
                         hasErrors = true;
+                        containerCleanupFailed = true;
                     }
                 }
             } else {
@@ -153,6 +159,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
         } catch (portainerCleanupError) {
             details.push(`Warning: Portainer cleanup failed - ${portainerCleanupError instanceof Error ? portainerCleanupError.message : 'Unknown error'}`);
             hasErrors = true;
+            containerCleanupFailed = true;
         }
 
         // 2. Clean up Velocity configuration
@@ -190,6 +197,16 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
         } catch (velocityCleanupError) {
             details.push(`Warning: Velocity cleanup failed - ${velocityCleanupError instanceof Error ? velocityCleanupError.message : 'Unknown error'}`);
             hasErrors = true;
+        }
+
+        if (containerCleanupFailed) {
+            details.push('The server files and database record were kept because its container could not be removed. Check the connection to Portainer and try again.');
+
+            return {
+                success: false,
+                error: 'The server container could not be removed, so nothing else was deleted. Please try again.',
+                details
+            };
         }
 
         if (!process.env.DELETE_SERVER_FOLDERS || process.env.DELETE_SERVER_FOLDERS.toLowerCase() !== 'true') {
