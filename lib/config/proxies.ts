@@ -15,7 +15,7 @@ export interface ProxyDefinition {
 }
 
 // --- Full Proxies Config ---
-interface ProxiesConfig {
+export interface ProxiesConfig {
     proxies: ProxyDefinition[];
 }
 
@@ -48,11 +48,47 @@ let cachedConfig: ProxiesConfig | null = null;
 let lastModified: number = 0;
 
 /**
+ * Absolute path of the proxies definition file. PROXIES_CONFIG_PATH lets a container keep it on a mounted volume.
+ */
+export function getProxiesConfigPath(): string {
+    const configured = process.env.PROXIES_CONFIG_PATH?.trim();
+    return configured ? path.resolve(configured) : path.join(process.cwd(), 'lib', 'config', 'proxies.yaml');
+}
+
+/**
+ * Read the proxies file for editing. A missing or empty file is treated as "no proxies yet".
+ */
+export function readProxiesFile(): ProxiesConfig {
+    let contents: string;
+    try {
+        contents = fs.readFileSync(getProxiesConfigPath(), 'utf8');
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            return { proxies: [] };
+        }
+        throw error;
+    }
+    const parsed = yaml.parse(contents) as Partial<ProxiesConfig> | null;
+    return { ...parsed, proxies: Array.isArray(parsed?.proxies) ? parsed.proxies : [] };
+}
+
+/**
+ * Persist the proxies file (creating its folder if needed) and drop the cache.
+ */
+export function writeProxiesFile(config: ProxiesConfig): void {
+    const filePath = getProxiesConfigPath();
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, yaml.stringify(config, { indent: 2 }), 'utf8');
+    cachedConfig = null;
+    lastModified = 0;
+}
+
+/**
  * Load full configuration from YAML file
  */
 function loadConfigFromYaml(): ProxiesConfig {
     try {
-        const yamlPath = path.join(process.cwd(), 'lib', 'config', 'proxies.yaml');
+        const yamlPath = getProxiesConfigPath();
         const stats = fs.statSync(yamlPath);
         
         // Check if file has been modified
@@ -61,14 +97,17 @@ function loadConfigFromYaml(): ProxiesConfig {
         }
         
         const fileContents = fs.readFileSync(yamlPath, 'utf8');
-        const config = yaml.parse(fileContents) as ProxiesConfig;
-        
+        const parsed = yaml.parse(fileContents) as Partial<ProxiesConfig> | null;
+        const config: ProxiesConfig = { ...parsed, proxies: Array.isArray(parsed?.proxies) ? parsed.proxies : [] };
+
         cachedConfig = config;
         lastModified = stats.mtimeMs;
         
         return cachedConfig;
     } catch (error) {
-        console.error('Failed to load proxies.yaml:', error);
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            console.error('Failed to load proxies.yaml:', error);
+        }
         return { proxies: [] };
     }
 }
