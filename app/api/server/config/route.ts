@@ -11,7 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import verificationService from "@/lib/server/verify";
 import { buildServerHostname, getServerDomain } from '@/lib/config/domain';
 import { resolveCreateOptions, CreateOptions } from '@/lib/data/createDefaults';
-import { getServerType, sanitizeOverrides } from '@/lib/data/itzg';
+import { getServerType, isVelocityCompatible, sanitizeOverrides } from '@/lib/data/itzg';
 
 // Configure body parsing for this API route
 // Note: In Next.js App Router, body size limits are configured in next.config.js or middleware
@@ -95,6 +95,13 @@ export async function POST(request: NextRequest) {
         const serverTypeDefinition = getServerType(config.serverType);
         if (!serverTypeDefinition) {
             return NextResponse.json({ error: `Unknown server type "${config.serverType}".` }, { status: 400 });
+        }
+
+        // Only software that the Velocity hookup can configure may be created
+        if (!isVelocityCompatible(serverTypeDefinition.id)) {
+            return NextResponse.json({
+                error: `${serverTypeDefinition.name} cannot be connected to the Velocity proxy, so it is not available for new servers.`
+            }, { status: 400 });
         }
 
         // Modpacks decide the Minecraft version themselves, every other type needs one

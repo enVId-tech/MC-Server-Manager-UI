@@ -186,3 +186,23 @@ export function supportsPlugins(idOrType: string | undefined | null): boolean {
 export function supportsMods(idOrType: string | undefined | null): boolean {
     return getServerType(idOrType)?.supportsMods ?? false;
 }
+
+/**
+ * Server types that can be connected to the Velocity proxy by the manager.
+ *
+ * The Velocity hookup (lib/server/velocity.ts) adds the server to velocity.toml and turns on BungeeCord style
+ * forwarding in server.properties, spigot.yml and the Paper config. Only software built on the Bukkit/Spigot
+ * layer reads those files, so vanilla, the mod loaders, Limbo, Glowstone, Sponge, CraftBukkit (which has no
+ * spigot.yml) and the modpack installers cannot be created: they would never see the player's real identity.
+ */
+const VELOCITY_COMPATIBLE = new Set([
+    'paper', 'folia', 'purpur', 'pufferfish', 'leaf', 'spigot',
+    'mohist', 'banner', 'arclight', 'magma', 'magma_maintained', 'ketting', 'youer',
+]);
+
+export function isVelocityCompatible(id: string | null | undefined): boolean {
+    return typeof id === 'string' && VELOCITY_COMPATIBLE.has(id.toLowerCase());
+}
+
+/** The types a new server can be created with */
+export const CREATABLE_SERVER_TYPES: ServerTypeDefinition[] = SERVER_TYPES.filter(definition => isVelocityCompatible(definition.id));

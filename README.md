@@ -10,7 +10,7 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 
 ### 🎮 Server Creation & Management
 - **Multi-step Creation Wizard**: Step-by-step interface for creating custom Minecraft servers
-- **27 Server Types**: Vanilla, Paper, Folia, Purpur, Pufferfish, Leaf, Spigot, Bukkit, Forge, NeoForge, Fabric, Quilt, Sponge, Mohist, Banner, Arclight, Magma, Ketting, Youer, Glowstone, Crucible, Limbo and the Modrinth, CurseForge and Feed the Beast modpack installers
+- **Velocity-Ready Server Types**: Only software that the Velocity hookup can configure can be created: Paper, Folia, Purpur, Pufferfish, Leaf, Spigot and the Bukkit based hybrids Mohist, Banner, Arclight, Magma, Ketting and Youer. Vanilla, mod loaders, modpack installers and the like are not offered because they cannot read the forwarding settings
 - **Live Version Lists**: The versions of every server type are read from the software's own API (PaperMC, Purpur, Fabric, Quilt, Forge, NeoForge, Mojang) and are not stored in the database
 - **Every itzg Setting**: About 230 options of the `itzg/minecraft-server` image, shown only when they apply to the chosen server type and Minecraft version, in the creation wizard and in the server dashboard (Settings tab)
 - **Automatic Java**: The Java version follows from the Minecraft version through the image tag. EULA, RCON, ports, user ids and the server type itself are managed by the platform and cannot be changed

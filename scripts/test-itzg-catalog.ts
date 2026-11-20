@@ -13,7 +13,9 @@ import {
     getApplicableOptions,
     getImageTag,
     getRequiredJavaVersion,
+    CREATABLE_SERVER_TYPES,
     getServerType,
+    isVelocityCompatible,
     groupOptions,
     isOptionApplicable,
     readOptionValue,
@@ -308,6 +310,18 @@ check('config file helpers', () => {
     assert.deepEqual(parseStructured(setStructuredValue('{"a":{"b":1}}', 'json', ['a', 'b'], 2), 'json').data, { a: { b: 2 } });
     assert.ok(parseStructured('a: [', 'yaml').error);
     assert.ok(parseStructured('{nope', 'json').error);
+});
+
+check('only server types the velocity hookup can configure are creatable', () => {
+    const ids = CREATABLE_SERVER_TYPES.map(type => type.id);
+    for (const id of ['paper', 'folia', 'purpur', 'spigot', 'mohist']) assert.ok(ids.includes(id), id);
+    for (const id of ['vanilla', 'forge', 'fabric', 'neoforge', 'quilt', 'bukkit', 'limbo', 'modrinth', 'custom']) {
+        assert.ok(!ids.includes(id), `${id} must not be creatable`);
+        assert.equal(isVelocityCompatible(id), false);
+    }
+    assert.equal(isVelocityCompatible('PAPER'), true);
+    // existing servers of other types are still understood
+    assert.ok(getServerType('fabric'));
 });
 
 console.log(`\nAll itzg catalog checks passed (${OPTIONS.length} options, ${SERVER_TYPES.length} server types).`);

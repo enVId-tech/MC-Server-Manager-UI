@@ -1,4 +1,4 @@
-import { SERVER_TYPES } from '@/lib/data/itzg';
+import { CREATABLE_SERVER_TYPES } from '@/lib/data/itzg';
 import { getVersionsForType } from '@/lib/server/versionProviders';
 
 export interface ServerTypeOption {
@@ -60,7 +60,7 @@ export const DEFAULT_CREATE_OPTIONS: Omit<CreateOptions, 'versions' | 'serverTyp
  * Server types the wizard offers. They come from the itzg catalog, never from the database, so new
  * types and their rules show up with the code.
  */
-export const SERVER_TYPE_OPTIONS: ServerTypeOption[] = SERVER_TYPES.map(definition => ({
+export const SERVER_TYPE_OPTIONS: ServerTypeOption[] = CREATABLE_SERVER_TYPES.map(definition => ({
     id: definition.id,
     name: definition.name,
     family: definition.family,
