@@ -449,6 +449,12 @@
   justify-content: flex-end;
   gap: 1rem;
   margin-top: 1rem;
+  // Keep the primary action reachable while scrolling through long tabs
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  padding: 0.75rem 0;
+  background: linear-gradient(to top, rgba($dark-bg, 0.95) 60%, rgba($dark-bg, 0));
 
   @media (max-width: 640px) {
     flex-direction: column;
