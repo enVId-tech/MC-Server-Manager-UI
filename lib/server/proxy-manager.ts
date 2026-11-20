@@ -801,7 +801,7 @@ export class ProxyManager {
         const configDir = path.dirname(absoluteConfigPath);
 
         // Create directory using WebDAV (directory in the actual server filesystem)
-        const webdavConfigDir = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft/velocity-test'}/${def.configPath.split('/')[0]}`;
+        const webdavConfigDir = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${def.configPath.split('/')[0]}`;
         try {
             await serverStorage.createDirectory(webdavConfigDir);
             details.push(`Created config directory: ${configDir}`);

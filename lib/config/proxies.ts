@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import yaml from 'yaml';
+import { getLocalStorageRoot } from '@/lib/server/storage';
 
 // --- Proxy Definition ---
 export interface ProxyDefinition {
@@ -135,6 +136,13 @@ export function reloadProxies(): ProxyDefinition[] {
  * Get the absolute path for a proxy config on the host system
  */
 export function getProxyAbsolutePath(relativePath: string): string {
+    // With local storage the proxy configs live under the storage root, as the Docker host sees it
+    if (getLocalStorageRoot()) {
+        const hostRoot = process.env.LOCAL_STORAGE_HOST_PATH?.trim() || getLocalStorageRoot();
+        const base = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
+        return `${hostRoot}/${base}/${relativePath}`.replace(/\/+/g, '/');
+    }
+
     const basePath = process.env.FOLDER_PATH || process.env.MINECRAFT_PATH || '/mnt/nvme/minecraft/velocity-test';
     return `${basePath}/${relativePath}`.replace(/\/+/g, '/');
 }
