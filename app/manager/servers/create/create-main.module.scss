@@ -1571,3 +1571,26 @@
     opacity: 0.8;
   }
 }
+// Settings panels added below the dedicated controls of the general, world and advanced tabs
+.sectionSubtitle {
+  margin: 2rem 0 0;
+  padding-top: 1.5rem;
+  border-top: 1px solid $border-color;
+  color: $text-primary;
+  font-family: var(--font-poppins);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.sectionHint,
+.fieldHint {
+  display: block;
+  color: $text-secondary;
+  font-family: var(--font-poppins);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.fieldHint {
+  margin-top: 0.4rem;
+}

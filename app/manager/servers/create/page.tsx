@@ -18,6 +18,14 @@ import {
 } from '.';
 import { ClientServerConfig, FileAnalysis, AnalyzedFile } from '@/lib/server/minecraft';
 import VersionWarningModal from './VersionWarningModal';
+import ItzgOptionsPanel from '@/app/_components/ItzgOptions/ItzgOptionsPanel';
+import {
+  getServerType,
+  sanitizeOverrides,
+  supportsMods,
+  supportsPlugins,
+  type OptionValue,
+} from '@/lib/data/itzg';
 import {
   extractVersionFromAnalysis,
   compareVersions,
@@ -101,6 +109,8 @@ Object.entries(propertyMapping).forEach(([general, advanced]) => {
 interface ServerTypes {
   id: string;
   name: string;
+  description?: string;
+  versionFromPack?: boolean;
 }
 
 interface WorldType {
@@ -159,6 +169,7 @@ export default function ServerGenerator() {
     worldFiles: null,
     customOptions: '',
     serverProperties: {},
+    itzgEnv: {},
     // World Features - Default values (will be overridden by API)
     // Database IDs should match these property names
     allowNether: true,              // Database ID: allowNether
@@ -240,6 +251,9 @@ export default function ServerGenerator() {
   const [difficulties, setDifficulties] = useState<{ value: string; label: string }[]>([]);
   const [worldFeatures, setWorldFeatures] = useState<{ name: string; label: string; enabled?: boolean }[]>([]);
   const [serverDomain, setServerDomain] = useState('');
+  // Where the version list of the chosen server type came from, to tell the user when it is a fallback
+  const [versionSource, setVersionSource] = useState<string>('');
+  const [versionsLoading, setVersionsLoading] = useState(false);
   // const [serverOptions, setServerOptions] = useState<{ name: string; label: string }[]>([]);
   const [error, setError] = useState<{
     title?: string;
@@ -334,20 +348,64 @@ export default function ServerGenerator() {
     }
   };
 
+  // Load the versions the chosen server type can run, and drop settings that do not apply to it
   useEffect(() => {
-    // Change plugins and mods tab name depending on server type
-    const updateTabNames = () => {
-      setTabs(prevTabs => {
-        return prevTabs.map(tab => {
-          if (tab.id === 'mods' && (serverConfig.serverType === 'spigot' || serverConfig.serverType === 'paper' || serverConfig.serverType === 'bukkit' || serverConfig.serverType === 'purpur')) {
-            return { ...tab, label: 'Plugins' };
-          }
-          return tab;
+    const type = serverConfig.serverType;
+    if (!type) return;
+
+    const controller = new AbortController();
+    setVersionsLoading(true);
+
+    fetch(`/api/server/versions?type=${encodeURIComponent(type)}`, { signal: controller.signal })
+      .then(response => (response.ok ? response.json() : Promise.reject(new window.Error('Could not load versions'))))
+      .then((data: { versions: string[]; source: string }) => {
+        setVersions(data.versions);
+        setVersionSource(data.source);
+
+        setServerConfig(prev => {
+          // A modpack picks the Minecraft version itself
+          const version = data.versions.includes(prev.version) ? prev.version : (data.versions[0] ?? 'LATEST');
+          if (version === prev.version) return prev;
+          return { ...prev, version };
         });
-      });
-    };
-    updateTabNames();
+      })
+      .catch(fetchError => {
+        if (fetchError?.name !== 'AbortError') console.error('Error loading versions:', fetchError);
+      })
+      .finally(() => setVersionsLoading(false));
+
+    return () => controller.abort();
   }, [serverConfig.serverType]);
+
+  // Settings only apply to some server types and versions, so remove the ones that stopped applying
+  useEffect(() => {
+    setServerConfig(prev => {
+      const current = prev.itzgEnv ?? {};
+      if (Object.keys(current).length === 0) return prev;
+
+      const { values } = sanitizeOverrides(current, prev.serverType, prev.version);
+      return Object.keys(values).length === Object.keys(current).length ? prev : { ...prev, itzgEnv: values };
+    });
+  }, [serverConfig.serverType, serverConfig.version]);
+
+  useEffect(() => {
+    // The plugins and mods tab is named after what the server type can load
+    const plugins = supportsPlugins(serverConfig.serverType);
+    const mods = supportsMods(serverConfig.serverType);
+    const modpack = getServerType(serverConfig.serverType)?.versionFromPack;
+    const label = modpack ? 'Modpack' : plugins && mods ? 'Plugins & Mods' : plugins ? 'Plugins' : mods ? 'Mods' : 'Plugins & Mods';
+
+    setTabs(prevTabs => prevTabs.map(tab => (tab.id === 'mods' ? { ...tab, label } : tab)));
+  }, [serverConfig.serverType]);
+
+  const handleItzgChange = useCallback((env: string, value: OptionValue | undefined) => {
+    setServerConfig(prev => {
+      const next = { ...(prev.itzgEnv ?? {}) };
+      if (value === undefined) delete next[env];
+      else next[env] = value;
+      return { ...prev, itzgEnv: next };
+    });
+  }, []);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -1715,22 +1773,37 @@ export default function ServerGenerator() {
                       <option key={type.id} value={type.id}>{type.name}</option>
                     ))}
                   </select>
+                  {getServerType(serverConfig.serverType)?.description && (
+                    <small className={styles.fieldHint}>{getServerType(serverConfig.serverType)?.description}</small>
+                  )}
                 </div>
               </div>
 
               <div className={styles.formRow}>
                 <div className={styles.formGroup}>
                   <label htmlFor="version">Minecraft Version</label>
-                  <select
-                    id="version"
-                    name="version"
-                    value={serverConfig.version}
-                    onChange={handleChange}
-                  >
-                    {versions.map(version => (
-                      <option key={version} value={version}>{version}</option>
-                    ))}
-                  </select>
+                  {getServerType(serverConfig.serverType)?.versionFromPack ? (
+                    <small className={styles.fieldHint}>The modpack decides the Minecraft version. Pick the pack on the Modpack tab.</small>
+                  ) : (
+                    <>
+                      <select
+                        id="version"
+                        name="version"
+                        value={serverConfig.version}
+                        onChange={handleChange}
+                        disabled={versionsLoading}
+                      >
+                        {versions.map(version => (
+                          <option key={version} value={version}>{version}</option>
+                        ))}
+                      </select>
+                      {versionSource === 'fallback' && (
+                        <small className={styles.fieldHint}>
+                          The version list of this server software could not be loaded, so all Minecraft releases are shown. Some may not be available.
+                        </small>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 <div className={styles.formGroup}>
@@ -1799,6 +1872,16 @@ export default function ServerGenerator() {
                 selectedValue={serverConfig.difficulty}
                 onChange={handleChange}
                 label="Difficulty"
+              />
+
+              <h3 className={styles.sectionSubtitle}>More settings</h3>
+              <ItzgOptionsPanel
+                type={serverConfig.serverType}
+                version={serverConfig.version}
+                tab="general"
+                values={serverConfig.itzgEnv ?? {}}
+                onChange={handleItzgChange}
+                omitFormManaged
               />
             </div>
           )}
@@ -1908,6 +1991,16 @@ export default function ServerGenerator() {
                 onChange={handleChange}
                 unit="chunks"
               />
+
+              <h3 className={styles.sectionSubtitle}>More settings</h3>
+              <ItzgOptionsPanel
+                type={serverConfig.serverType}
+                version={serverConfig.version}
+                tab="world"
+                values={serverConfig.itzgEnv ?? {}}
+                onChange={handleItzgChange}
+                omitFormManaged
+              />
             </div>
           )}
 
@@ -1915,12 +2008,16 @@ export default function ServerGenerator() {
           {activeTab === 'mods' && (
             <div className={styles.formSection}>
               <h2 className={styles.sectionTitle}>{
-                serverConfig.serverType === 'spigot' || serverConfig.serverType === 'paper' || serverConfig.serverType === 'bukkit' || serverConfig.serverType === 'purpur'
-                  ? 'Plugins'
-                  : 'Mods'
+                getServerType(serverConfig.serverType)?.versionFromPack
+                  ? 'Modpack'
+                  : supportsPlugins(serverConfig.serverType) && supportsMods(serverConfig.serverType)
+                    ? 'Plugins & Mods'
+                    : supportsPlugins(serverConfig.serverType)
+                      ? 'Plugins'
+                      : 'Mods'
               }</h2>
 
-              {(serverConfig.serverType === 'spigot' || serverConfig.serverType === 'paper' || serverConfig.serverType === 'bukkit' || serverConfig.serverType === 'purpur') && (
+              {supportsPlugins(serverConfig.serverType) && (
                 <FileUploadSection
                   label="Plugins"
                   files={serverConfig.plugins}
@@ -1932,7 +2029,7 @@ export default function ServerGenerator() {
                 />
               )}
 
-              {(serverConfig.serverType === 'forge' || serverConfig.serverType === 'fabric') && (
+              {supportsMods(serverConfig.serverType) && !getServerType(serverConfig.serverType)?.versionFromPack && (
                 <FileUploadSection
                   label="Mods"
                   files={serverConfig.mods}
@@ -1944,19 +2041,44 @@ export default function ServerGenerator() {
                 />
               )}
 
-              {serverConfig.serverType === 'vanilla' && (
-                <p>Vanilla servers do not support plugins or mods. Choose Spigot/Paper for plugins or Forge/Fabric for mods.</p>
+              {!supportsPlugins(serverConfig.serverType) && !supportsMods(serverConfig.serverType) && (
+                <p>{getServerType(serverConfig.serverType)?.name ?? 'This server type'} does not load plugins or mods. Choose Paper or Spigot for plugins, or Fabric or Forge for mods.</p>
               )}
+
+              <ItzgOptionsPanel
+                type={serverConfig.serverType}
+                version={serverConfig.version}
+                tab="mods"
+                values={serverConfig.itzgEnv ?? {}}
+                onChange={handleItzgChange}
+              />
             </div>
           )}
 
           {/* Advanced Tab */}
           {activeTab === 'advanced' && (
-            <ServerPropertiesSection
-              version={serverConfig.version}
-              onPropertiesChange={handleServerPropertiesChange}
-              initialProperties={serverConfig.serverProperties}
-            />
+            <>
+              <ServerPropertiesSection
+                version={serverConfig.version}
+                onPropertiesChange={handleServerPropertiesChange}
+                initialProperties={serverConfig.serverProperties}
+              />
+              <div className={styles.formSection}>
+                <h2 className={styles.sectionTitle}>Container Settings</h2>
+                <p className={styles.sectionHint}>
+                  Settings of the server software, Java, logging and everything else the Minecraft container understands.
+                  Anything you leave on its default is not written at all.
+                </p>
+                <ItzgOptionsPanel
+                  type={serverConfig.serverType}
+                  version={serverConfig.version}
+                  tab="advanced"
+                  values={serverConfig.itzgEnv ?? {}}
+                  onChange={handleItzgChange}
+                  showPlatformInfo
+                />
+              </div>
+            </>
           )}
 
           <div className={styles.serverPreview}>
