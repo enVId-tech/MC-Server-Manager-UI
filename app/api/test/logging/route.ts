@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withApiLogging } from '../../../../lib/utils/api-logger';
+import { requireAdmin } from '@/lib/server/auth';
 
 /**
  * Example API route demonstrating REST API logging
@@ -7,6 +8,12 @@ import { withApiLogging } from '../../../../lib/utils/api-logger';
  */
 async function handler(request: NextRequest) {
     const { method } = request;
+
+    // Only admins may use the diagnostics endpoint
+    const auth = await requireAdmin(request);
+    if (auth.response) {
+        return auth.response;
+    }
     
     if (method === 'GET') {
         // Simulate some processing time
@@ -16,7 +23,6 @@ async function handler(request: NextRequest) {
             message: 'Logging test successful!',
             timestamp: new Date().toISOString(),
             method,
-            headers: Object.fromEntries(request.headers.entries()),
         });
     }
     
