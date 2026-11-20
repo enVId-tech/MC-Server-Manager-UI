@@ -1,7 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/server/auth";
 import portainer from "@/lib/server/portainer";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+    // Exposes the container platform's environments and system information, so only admins may run it
+    const auth = await requireAdmin(request);
+    if (auth.response) {
+        return auth.response;
+    }
+
     try {
         console.log("Testing Portainer API connectivity...");
 
