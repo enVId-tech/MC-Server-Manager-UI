@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { LocalStorage } from '../lib/server/storage/local';
+import { LocalStorage, parseOwner } from '../lib/server/storage/local';
 
 async function expectRejects(label: string, action: () => Promise<unknown>, pattern?: RegExp) {
     try {
@@ -111,6 +111,22 @@ async function main() {
         await fs.symlink(path.join(root, 'real'), path.join(root, 'alias'));
         assert.equal((await storage.getFileContents('/alias/data.txt')).toString(), 'inside');
         console.log('  ✓ links that stay inside the root still work');
+
+        console.log('Ownership');
+        assert.deepEqual(parseOwner('1000:1000'), { uid: 1000, gid: 1000 });
+        assert.equal(parseOwner('  '), undefined);
+        assert.throws(() => parseOwner('root'), /LOCAL_STORAGE_OWNER/);
+        if (process.getuid?.() === 0) {
+            const owned = new LocalStorage(path.join(sandbox, 'owned-root'), { owner: { uid: 1000, gid: 1000 } });
+            await owned.uploadFile('/minecraft-servers/alex/abc/server.properties', 'x');
+            for (const relative of ['minecraft-servers', 'minecraft-servers/alex/abc', 'minecraft-servers/alex/abc/server.properties']) {
+                const stats = await fs.stat(path.join(sandbox, 'owned-root', relative));
+                assert.deepEqual([stats.uid, stats.gid], [1000, 1000], `${relative} should belong to 1000:1000`);
+            }
+            console.log('  ✓ created folders and files belong to the configured owner');
+        } else {
+            console.log('  - skipped chown check (needs root)');
+        }
 
         console.log('Configuration');
         assert.throws(() => new LocalStorage('relative/path'), /absolute/);

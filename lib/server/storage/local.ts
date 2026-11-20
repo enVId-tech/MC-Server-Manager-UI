@@ -26,6 +26,25 @@ const MIME_TYPES: Record<string, string> = {
     '.jpeg': 'image/jpeg',
 };
 
+export interface LocalStorageOptions {
+    /** Owner applied to everything this class creates, for example the 1000:1000 user the Minecraft containers run as */
+    owner?: { uid: number; gid: number };
+}
+
+/**
+ * Parse values such as "1000:1000" (LOCAL_STORAGE_OWNER). Returns undefined for an empty value.
+ */
+export function parseOwner(value: string | undefined): LocalStorageOptions['owner'] {
+    const trimmed = value?.trim();
+    if (!trimmed) return undefined;
+
+    const match = /^(\d+):(\d+)$/.exec(trimmed);
+    if (!match) {
+        throw new Error(`LOCAL_STORAGE_OWNER must look like "1000:1000", got "${trimmed}".`);
+    }
+    return { uid: Number(match[1]), gid: Number(match[2]) };
+}
+
 type StorageError = Error & { code?: string; status?: number };
 
 function storageError(message: string, code: string, status: number): StorageError {
@@ -50,9 +69,12 @@ function isWithin(root: string, candidate: string): boolean {
 export class LocalStorage implements ServerStorage {
     public readonly kind = 'local' as const;
     private readonly root: string;
+    private readonly owner?: { uid: number; gid: number };
     private realRootPromise: Promise<string> | null = null;
+    private warnedAboutOwner = false;
 
-    public constructor(rootPath: string) {
+    public constructor(rootPath: string, options: LocalStorageOptions = {}) {
+        this.owner = options.owner;
         if (!rootPath || !path.isAbsolute(rootPath)) {
             throw new Error('LOCAL_STORAGE_PATH must be an absolute path.');
         }
@@ -138,6 +160,39 @@ export class LocalStorage implements ServerStorage {
         }
     }
 
+    /**
+     * Give a file or folder to the configured owner so the container user can use it. Failing to
+     * chown (for example when not running as root) is reported once and is not fatal.
+     */
+    private async applyOwnership(target: string): Promise<void> {
+        if (!this.owner) return;
+        try {
+            await fs.lchown(target, this.owner.uid, this.owner.gid);
+        } catch (error) {
+            if (!this.warnedAboutOwner) {
+                this.warnedAboutOwner = true;
+                console.warn(`Could not set LOCAL_STORAGE_OWNER on stored files (${(error as NodeJS.ErrnoException).code}). Run the app as root or set permissions on the storage folder yourself.`);
+            }
+        }
+    }
+
+    /** mkdir -p that also hands every newly created folder to the configured owner. */
+    private async makeDirectories(absolute: string): Promise<void> {
+        const firstCreated = await fs.mkdir(absolute, { recursive: true, mode: DIRECTORY_MODE });
+        if (!firstCreated || !this.owner) return;
+
+        let current = absolute;
+        const created: string[] = [];
+        while (isWithin(firstCreated, current)) {
+            created.push(current);
+            if (current === firstCreated) break;
+            current = path.dirname(current);
+        }
+        for (const folder of created) {
+            await this.applyOwnership(folder);
+        }
+    }
+
     private translate(error: unknown, virtualPath: string): never {
         // Errors raised by this class are already worded for callers
         if (typeof (error as StorageError)?.status === 'number') throw error;
@@ -220,12 +275,13 @@ export class LocalStorage implements ServerStorage {
             const absolute = await this.resolveSafe(filePath, false);
             this.assertNotRoot(absolute, 'overwrite');
 
-            await fs.mkdir(path.dirname(absolute), { recursive: true, mode: DIRECTORY_MODE });
+            await this.makeDirectories(path.dirname(absolute));
             // Re-check now that the folder exists, in case an existing parent was a link
             await this.resolveSafe(filePath, false);
 
             temporaryPath = path.join(path.dirname(absolute), `.${path.basename(absolute)}.${crypto.randomBytes(6).toString('hex')}.tmp`);
             await fs.writeFile(temporaryPath, data, { mode: FILE_MODE, flag: 'wx' });
+            await this.applyOwnership(temporaryPath);
             await fs.rename(temporaryPath, absolute);
             temporaryPath = null;
         } catch (error) {
@@ -250,7 +306,7 @@ export class LocalStorage implements ServerStorage {
     public async createDirectory(dirPath: string): Promise<void> {
         try {
             const absolute = await this.resolveSafe(dirPath);
-            await fs.mkdir(absolute, { recursive: true, mode: DIRECTORY_MODE });
+            await this.makeDirectories(absolute);
             await this.resolveSafe(dirPath);
         } catch (error) {
             this.translate(error, dirPath);

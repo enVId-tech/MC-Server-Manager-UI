@@ -1,5 +1,5 @@
 import '../loadEnv';
-import { LocalStorage } from './local';
+import { LocalStorage, parseOwner } from './local';
 import { getWebDavService } from '../webdav';
 import type { ServerStorage } from './types';
 
@@ -36,7 +36,7 @@ function createStorage(): ServerStorage {
             throw new Error('STORAGE_BACKEND=local needs LOCAL_STORAGE_PATH, the absolute folder that holds the server files.');
         }
         console.log(`✅ Server files are stored locally in ${rootPath}`);
-        return new LocalStorage(rootPath);
+        return new LocalStorage(rootPath, { owner: parseOwner(process.env.LOCAL_STORAGE_OWNER) });
     }
 
     return getWebDavService();
