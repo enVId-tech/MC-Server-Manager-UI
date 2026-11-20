@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dockerImageUpdater from '@/lib/server/docker-image-updater';
+import { hasValidInternalApiKey } from '@/lib/server/auth';
 
 /**
  * Scheduled Docker Update Endpoint
@@ -14,10 +15,7 @@ import dockerImageUpdater from '@/lib/server/docker-image-updater';
 export async function POST(request: NextRequest) {
     try {
         // Verify internal API call
-        const authHeader = request.headers.get('authorization');
-        const isInternalCall = authHeader === `Bearer ${process.env.INTERNAL_API_KEY}`;
-        
-        if (!isInternalCall) {
+        if (!hasValidInternalApiKey(request)) {
             return NextResponse.json({ 
                 message: 'Unauthorized. This endpoint is for internal scheduled calls only.' 
             }, { status: 401 });
@@ -86,10 +84,7 @@ export async function POST(request: NextRequest) {
 // GET - Health check for the scheduler
 export async function GET(request: NextRequest) {
     try {
-        const authHeader = request.headers.get('authorization');
-        const isInternalCall = authHeader === `Bearer ${process.env.INTERNAL_API_KEY}`;
-        
-        if (!isInternalCall) {
+        if (!hasValidInternalApiKey(request)) {
             return NextResponse.json({ 
                 message: 'Unauthorized' 
             }, { status: 401 });
