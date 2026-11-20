@@ -134,6 +134,8 @@ export interface ClientServerConfig {
     worldFiles?: AnalyzedFile | null;
     customOptions?: string;
     serverProperties?: Record<string, string | number | boolean>;
+    /** Settings chosen with the option panels, keyed by environment variable of the itzg image */
+    itzgEnv?: OptionValues;
     
     // World Features (optional, used for checkbox UI synchronization)
     // Database IDs should match the property names below
@@ -175,7 +177,7 @@ export interface MinecraftServerConfig {
     // Core Server Settings
     EULA?: boolean; // Must be true to run the server
     VERSION?: string; // e.g., "1.20.4", "LATEST"
-    TYPE?: 'VANILLA' | 'SPIGOT' | 'PAPER' | 'BUKKIT' | 'PURPUR' | 'FORGE' | 'FABRIC'; // Server type
+    TYPE?: string; // Value of the itzg TYPE variable, see lib/data/itzg/serverTypes.ts
     MOTD?: string;
     SERVER_NAME?: string;
     GAMEMODE?: 'survival' | 'creative' | 'adventure' | 'spectator';
@@ -218,6 +220,10 @@ export interface MinecraftServerConfig {
     ENABLE_RCON?: boolean;
     RCON_PORT?: number;
     RCON_PASSWORD?: string;
+
+    // Settings chosen in the interface
+    ITZG_OVERRIDES?: OptionValues; // Environment variables of the itzg image, set explicitly
+    SERVER_PROPERTIES?: Record<string, OptionValue>; // Entries of the advanced server.properties editor
 
     // User Management
     userEmail?: string; // Email address for organizing server files
@@ -322,6 +328,18 @@ import { PortainerContainer } from './portainer';
 import { proxyManager } from './proxy-manager';
 import serverStorage from './storage';
 import { getServerAppBase, getServerHostBase } from './serverPaths';
+import {
+    OPTIONS as ITZG_OPTIONS,
+    getImageTag,
+    getServerType,
+    readOptionValue,
+    resolveUserEnvironment,
+    sanitizeOverrides,
+    toContainerType,
+    type OptionValue,
+    type OptionValues,
+    type ServerTypeDefinition,
+} from '@/lib/data/itzg';
 import yaml from 'yaml';
 import extractZip from 'extract-zip';
 import * as path from 'path';
@@ -516,7 +534,7 @@ export class MinecraftServer {
             }
         }
 
-        const versionSpecificProps = {};
+        const environment = this.buildEnvironment(serverTypeConfig.definition);
 
         const composeConfig = {
             version: '3.8',
@@ -524,40 +542,7 @@ export class MinecraftServer {
                 minecraft: {
                     image: serverTypeConfig.image,
                     container_name: `mc-${this.uniqueId}`,
-                    environment: {
-                        EULA: this.config.EULA ? 'TRUE' : 'FALSE',
-                        VERSION: this.config.VERSION || 'LATEST',
-                        TYPE: serverTypeConfig.type,
-                        MEMORY: this.config.MEMORY || '2G',
-                        JVM_OPTS: '-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200',
-                        USE_AIKAR_FLAGS: 'true',
-                        UID: '1000', // Set user ID for file permissions
-                        GID: '1000', // Set group ID for file permissions
-                        INIT_MEMORY: this.config.MEMORY || '2G',
-                        MAX_MEMORY: this.config.MEMORY || '2G',
-                        ENABLE_ROLLING_LOGS: 'true', // Enable log rotation to prevent disk fill
-                        USE_FLARE_FLAGS: 'true', // Use optimized JVM flags
-                        EXEC_DIRECTLY: 'true', // Run Minecraft directly to avoid permission issues
-                        OVERRIDE_SERVER_PROPERTIES: 'true', // Allow server.properties override
-                        SETUP_ONLY: 'false', // Don't exit after setup
-                        FORCE_REDOWNLOAD: 'false', // Don't force redownload
-                        FIX_PERMISSIONS: 'true', // Auto-fix file permissions on startup
-                        SPIGET_RESOURCES: '', // Clear any plugin downloads that might cause issues
-                        SKIP_JAVA_VERSION_CHECK: 'true', // Skip Java version validation that can cause issues
-                        ENABLE_AUTOPAUSE: 'false', // Disable autopause which can cause permission issues
-                        EXISTING_EULA_FILE: 'SKIP', // Skip EULA file creation if it exists
-                        FORCE_WORLD_COPY: 'false', // Don't force world copy which can cause permission issues
-                        SETUP_EULA_ONLY: 'false', // Don't only setup EULA
-                        REMOVE_OLD_MODS: 'false', // Don't remove old mods automatically
-                        CLEANUP_ON_EXIT: 'false', // Don't cleanup on exit to avoid permission issues
-                        ...Object.fromEntries(
-                            Object.entries(versionSpecificProps).map(([key, value]) => [
-                                key.toUpperCase().replace(/-/g, '_'),
-                                typeof value === 'boolean' ? (value ? 'TRUE' : 'FALSE') : String(value)
-                            ])
-                        ),
-                        ...serverTypeConfig.additionalEnv
-                    },
+                    environment,
                     ports: [
                         `${this.config.SERVER_PORT || 25565}:25565`,
                         ...(this.config.ENABLE_RCON ? [`${this.config.RCON_PORT || 25575}:25575`] : [])
@@ -566,13 +551,14 @@ export class MinecraftServer {
                     volumes: [
                         `${serverBasePath}/${this.uniqueId}:/data`,
                         // Only add plugins volume if server type supports it
-                        ...(serverTypeConfig.type === 'SPIGOT' || serverTypeConfig.type === 'PAPER' || serverTypeConfig.type === 'BUKKIT' || serverTypeConfig.type === 'PURPUR' ? [`${serverBasePath}/${this.uniqueId}/plugins:/plugins`] : []),
+                        ...(serverTypeConfig.definition.supportsPlugins ? [`${serverBasePath}/${this.uniqueId}/plugins:/plugins`] : []),
                         // Only add mods volume if server type supports it
-                        ...(serverTypeConfig.type === 'FORGE' || serverTypeConfig.type === 'FABRIC' ? [`${serverBasePath}/${this.uniqueId}/mods:/mods`] : []),
+                        ...(serverTypeConfig.definition.supportsMods ? [`${serverBasePath}/${this.uniqueId}/mods:/mods`] : []),
                         `${serverBasePath}/${this.uniqueId}/world:/world`,
                         `${serverBasePath}/${this.uniqueId}/backups:/backups`,
-                        ...serverTypeConfig.additionalVolumes
                     ],
+                    // Auto-pause watches for connection attempts with knockd, which needs raw sockets
+                    ...(environment.ENABLE_AUTOPAUSE === 'true' ? { cap_add: ['NET_RAW'] } : {}),
                     restart: 'unless-stopped',
                     stdin_open: true,
                     tty: true,
@@ -613,66 +599,79 @@ export class MinecraftServer {
     private getServerTypeConfig(): {
         image: string;
         type: string;
-        additionalEnv: Record<string, string>;
-        additionalVolumes: string[];
+        definition: ServerTypeDefinition;
     } {
         // Default to vanilla if no server type specified
-        const serverType = this.config.TYPE || 'VANILLA';
+        const definition = getServerType(this.config.TYPE) ?? (getServerType('vanilla') as ServerTypeDefinition);
 
-        const configs = {
-            VANILLA: {
-                image: 'itzg/minecraft-server:latest',
-                type: 'VANILLA',
-                additionalEnv: {},
-                additionalVolumes: []
-            },
-            SPIGOT: {
-                image: 'itzg/minecraft-server:latest',
-                type: 'SPIGOT',
-                additionalEnv: {
-                    SPIGET_RESOURCES: '', // Can be used to auto-download plugins
-                },
-                additionalVolumes: []
-            },
-            PAPER: {
-                image: 'itzg/minecraft-server:latest',
-                type: 'PAPER',
-                additionalEnv: {
-                    PAPER_DOWNLOAD_URL: '', // Can specify custom Paper builds
-                },
-                additionalVolumes: []
-            },
-            BUKKIT: {
-                image: 'itzg/minecraft-server:latest',
-                type: 'BUKKIT',
-                additionalEnv: {},
-                additionalVolumes: []
-            },
-            PURPUR: {
-                image: 'itzg/minecraft-server:latest',
-                type: 'PURPUR',
-                additionalEnv: {},
-                additionalVolumes: []
-            },
-            FORGE: {
-                image: 'itzg/minecraft-server:latest',
-                type: 'FORGE',
-                additionalEnv: {
-                    FORGE_VERSION: 'RECOMMENDED', // Can specify Forge version
-                },
-                additionalVolumes: []
-            },
-            FABRIC: {
-                image: 'itzg/minecraft-server:latest',
-                type: 'FABRIC',
-                additionalEnv: {
-                    FABRIC_LOADER_VERSION: 'LATEST', // Can specify Fabric loader version
-                },
-                additionalVolumes: []
-            }
+        // The image tag carries the Java version the Minecraft version needs. A modpack decides the
+        // Minecraft version itself, so it uses the untagged image which can run the newest releases.
+        const tag = definition.versionFromPack ? 'latest' : getImageTag(this.config.VERSION);
+
+        return {
+            image: `itzg/minecraft-server:${tag}`,
+            type: definition.type,
+            definition,
+        };
+    }
+
+    /**
+     * Environment variables of the container, lowest priority first:
+     * 1. defaults of the manager, which a user may change
+     * 2. everything the user configured (dedicated form fields, the advanced server.properties editor
+     *    and the option panels), checked against the catalog so locked values cannot be touched
+     * 3. values the platform controls, which always win
+     */
+    private buildEnvironment(definition: ServerTypeDefinition): Record<string, string> {
+        const memory = this.config.MEMORY || '2G';
+
+        const defaults: Record<string, string> = {
+            MEMORY: memory,
+            INIT_MEMORY: memory,
+            MAX_MEMORY: memory,
+            JVM_OPTS: '-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200',
+            USE_AIKAR_FLAGS: 'true',
+            ENABLE_ROLLING_LOGS: 'true', // Enable log rotation to prevent disk fill
+            USE_FLARE_FLAGS: 'true', // Use optimized JVM flags
+            OVERRIDE_SERVER_PROPERTIES: 'true', // Apply the settings made in the manager to server.properties
+            FORCE_REDOWNLOAD: 'false', // Don't force redownload
+            ENABLE_AUTOPAUSE: 'false', // Autopause needs extra privileges, so it is opt in
+            EXISTING_EULA_FILE: 'SKIP', // Skip EULA file creation if it exists
+            FORCE_WORLD_COPY: 'false', // Don't force world copy which can cause permission issues
+            SETUP_EULA_ONLY: 'false', // Don't only setup EULA
+            REMOVE_OLD_MODS: 'false', // Don't remove old mods automatically
+            CLEANUP_ON_EXIT: 'false', // Don't cleanup on exit to avoid permission issues
         };
 
-        return configs[serverType as keyof typeof configs] || configs.VANILLA;
+        const configured = resolveUserEnvironment({
+            type: definition.id,
+            version: this.config.VERSION,
+            overrides: this.config.ITZG_OVERRIDES,
+            serverProperties: this.config.SERVER_PROPERTIES,
+        });
+
+        const platform: Record<string, string> = {
+            EULA: this.config.EULA ? 'TRUE' : 'FALSE',
+            TYPE: definition.type,
+            UID: '1000', // Set user ID for file permissions
+            GID: '1000', // Set group ID for file permissions
+            EXEC_DIRECTLY: 'true', // Run Minecraft directly to avoid permission issues
+            SETUP_ONLY: 'false', // Don't exit after setup
+            FIX_PERMISSIONS: 'true', // Auto-fix file permissions on startup
+            SKIP_JAVA_VERSION_CHECK: 'true', // The Java version follows from the image tag
+            ENABLE_RCON: this.config.ENABLE_RCON === false ? 'false' : 'true',
+            RCON_PORT: '25575',
+        };
+
+        // Modpacks decide the Minecraft version themselves
+        if (!definition.versionFromPack) {
+            platform.VERSION = this.config.VERSION || 'LATEST';
+        }
+        if (this.config.RCON_PASSWORD) {
+            platform.RCON_PASSWORD = this.config.RCON_PASSWORD;
+        }
+
+        return { ...defaults, ...configured, ...platform };
     }
 
     /**
@@ -1891,21 +1890,23 @@ async function fetchUserEmailFromAuth(_authToken: string): Promise<string> {
  * Helper function to convert ClientServerConfig to MinecraftServerConfig
  */
 export function convertClientConfigToServerConfig(clientConfig: ClientServerConfig, userEmail?: string): MinecraftServerConfig {
-    // Map client server types to Docker image server types
-    const serverTypeMap: Record<string, 'VANILLA' | 'SPIGOT' | 'PAPER' | 'BUKKIT' | 'PURPUR' | 'FORGE' | 'FABRIC'> = {
-        'vanilla': 'VANILLA',
-        'spigot': 'SPIGOT',
-        'paper': 'PAPER',
-        'bukkit': 'BUKKIT',
-        'purpur': 'PURPUR',
-        'forge': 'FORGE',
-        'fabric': 'FABRIC'
-    };
+    // Every itzg server type is understood, anything unknown falls back to vanilla
+    const containerType = toContainerType(clientConfig.serverType);
+
+    // Dedicated form fields (max players, difficulty, ...) are applied as environment variables of
+    // the container, then the settings from the option panels are put on top
+    const overrides: OptionValues = {};
+    for (const option of ITZG_OPTIONS) {
+        if (!option.formField) continue;
+        const value = readOptionValue(option, clientConfig, undefined);
+        if (value !== undefined) overrides[option.env] = value;
+    }
+    Object.assign(overrides, sanitizeOverrides(clientConfig.itzgEnv, clientConfig.serverType, clientConfig.version).values);
 
     return {
         EULA: true, // Always accept EULA for server creation
         VERSION: clientConfig.version,
-        TYPE: serverTypeMap[clientConfig.serverType.toLowerCase()] || 'VANILLA',
+        TYPE: containerType,
         MOTD: clientConfig.motd || clientConfig.description || 'A Minecraft Server',
         SERVER_NAME: clientConfig.name,
         GAMEMODE: clientConfig.gameMode as 'survival' | 'creative' | 'adventure' | 'spectator',
@@ -1936,6 +1937,8 @@ export function convertClientConfigToServerConfig(clientConfig: ClientServerConf
         ENABLE_RCON: clientConfig.rconEnabled,
         RCON_PORT: 25575,
         RCON_PASSWORD: clientConfig.rconPassword || 'changeme',
+        ITZG_OVERRIDES: overrides,
+        SERVER_PROPERTIES: clientConfig.serverProperties,
         userEmail: userEmail || 'default-user', // Add user email for folder structure
     };
 }
