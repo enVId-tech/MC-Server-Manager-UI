@@ -5,7 +5,7 @@ import { FaRocket, FaServer } from 'react-icons/fa';
 import { IoMdLogIn, IoMdLogOut } from "react-icons/io";
 import { HiMenu, HiX } from "react-icons/hi";
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import styles from './Navbar.module.scss';
 import mcSvgLogo from '@/public/minecraft-server.png';
 import { MdOutlineSettings } from 'react-icons/md';
@@ -15,6 +15,8 @@ export default function Navbar() {
     const [isLoading, setIsLoading] = useState(true);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const router = useRouter();
+    const pathname = usePathname();
+    const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
     const checkAuthStatus = async () => {
         try {
@@ -67,8 +69,13 @@ export default function Navbar() {
         window.addEventListener('storage', checkAuthStatus);
         document.addEventListener('mousedown', handleClickOutside);
         window.addEventListener('popstate', handleRouteChange);
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setIsMobileMenuOpen(false);
+        };
+        document.addEventListener('keydown', handleEscape);
 
         return () => {
+            document.removeEventListener('keydown', handleEscape);
             window.removeEventListener('login-success', handleLoginSuccess);
             window.removeEventListener('storage', checkAuthStatus);
             document.removeEventListener('mousedown', handleClickOutside);
@@ -108,33 +115,33 @@ export default function Navbar() {
     return (
         <header className={styles.navbar}>
             <div className={styles.container}>
-                <div className={styles.logoContainer} onClick={() => router.push('/')}>
-                    <div className={styles.logoImage}>
-                        <img src={mcSvgLogo.src} alt={'logo'} />
-                    </div>
-                    <Link href="/" className={styles.logo} onClick={closeMobileMenu}>
-                        MC Server Manager
-                    </Link>
-                </div>
+                <Link href="/" className={styles.logoContainer} onClick={closeMobileMenu} aria-label="MC Server Manager home">
+                    <span className={styles.logoImage}>
+                        <img src={mcSvgLogo.src} alt="" />
+                    </span>
+                    <span className={styles.logo}>MC Server Manager</span>
+                </Link>
 
                 <button
                     className={styles.mobileToggle}
                     onClick={toggleMobileMenu}
-                    aria-label="Toggle mobile menu"
+                    aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+                    aria-expanded={isMobileMenuOpen}
+                    aria-controls="main-navigation"
                 >
                     {isMobileMenuOpen ? <HiX /> : <HiMenu />}
                 </button>
 
-                <nav className={`${styles.links} ${isMobileMenuOpen ? styles.mobileOpen : ''}`}>
+                <nav id="main-navigation" aria-label="Main" className={`${styles.links} ${isMobileMenuOpen ? styles.mobileOpen : ''}`}>
                     {isLoading ? (
                         <span className={styles.link}>Loading...</span>
                     ) : isLoggedIn ? (
                         <>
-                            <Link href="/account" className={styles.link} onClick={closeMobileMenu}>
+                            <Link href="/account" className={`${styles.link} ${isActive('/account') ? styles.active : ''}`} aria-current={isActive('/account') ? 'page' : undefined} onClick={closeMobileMenu}>
                                 <MdOutlineSettings />
                                 <span>Account</span>
                             </Link>
-                            <Link href="/manager/dashboard" className={styles.link} onClick={closeMobileMenu}>
+                            <Link href="/manager/dashboard" className={`${styles.link} ${isActive('/manager') ? styles.active : ''}`} aria-current={isActive('/manager') ? 'page' : undefined} onClick={closeMobileMenu}>
                                 <FaServer />
                                 <span>Dashboard</span>
                             </Link>
@@ -145,7 +152,7 @@ export default function Navbar() {
                         </>
                     ) : (
                         <>
-                            <Link href="/get-started" className={styles.link} onClick={closeMobileMenu}>
+                            <Link href="/get-started" className={`${styles.link} ${isActive('/get-started') ? styles.active : ''}`} aria-current={isActive('/get-started') ? 'page' : undefined} onClick={closeMobileMenu}>
                                 <FaRocket />
                                 <span>Get Started</span>
                             </Link>
