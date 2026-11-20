@@ -1,5 +1,11 @@
 import webdavService from '@/lib/server/webdav';
 import portainer from '@/lib/server/portainer';
+import { buildServerHostname } from '@/lib/config/domain';
+
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 
 export interface VelocityServerConfig {
     serverId: string;
@@ -318,7 +324,9 @@ class VelocityService {
             // But for this implementation, we'll use regex replacement to preserve comments/structure
             
             // 1. Add to [servers] section
-            const serversSectionRegex = /\[servers\]([\s\S]*?)(?=\[|\Z)/;
+            // The section ends at the next table header at the start of a line. `try = [...]` lives inside
+            // [servers] and contains a bracket itself, so stopping at the first bracket would cut it in half.
+            const serversSectionRegex = /\[servers\]([\s\S]*?)(?=\n\[|$)/;
             const match = configContent.match(serversSectionRegex);
             
             if (!match) {
@@ -327,21 +335,22 @@ class VelocityService {
 
             const serversContent = match[1];
             const serverEntry = `${serverConfig.serverName} = "${serverConfig.address}:${serverConfig.port}"`;
+            const existingEntryRegex = new RegExp(`^[ \\t]*${escapeRegExp(serverConfig.serverName)}[ \\t]*=[ \\t]*".*?"`, 'm');
             
             // Check if server already exists
-            if (serversContent.includes(`${serverConfig.serverName} =`)) {
+            if (existingEntryRegex.test(serversContent)) {
                 details.push(`Server ${serverConfig.serverName} already exists in velocity.toml, updating...`);
                 // Update existing entry
-                const updatedServersContent = serversContent.replace(
-                    new RegExp(`${serverConfig.serverName}\\s*=\\s*".*?"`),
-                    serverEntry
-                );
+                const updatedServersContent = serversContent.replace(existingEntryRegex, serverEntry);
                 const newConfigContent = configContent.replace(serversContent, updatedServersContent);
                 await webdavService.uploadFile(configPath, newConfigContent);
             } else {
                 details.push(`Adding server ${serverConfig.serverName} to velocity.toml...`);
-                // Add new entry
-                const newServersContent = serversContent.trimEnd() + '\n' + serverEntry + '\n\n';
+                // Add new entry above the `try` list when there is one, so it stays a valid server definition
+                const tryIndex = serversContent.search(/^[ \t]*try[ \t]*=/m);
+                const newServersContent = tryIndex >= 0
+                    ? `${serversContent.slice(0, tryIndex)}${serverEntry}\n${serversContent.slice(tryIndex)}`
+                    : `${serversContent.trimEnd()}\n${serverEntry}\n\n`;
                 const newConfigContent = configContent.replace(serversContent, newServersContent);
                 await webdavService.uploadFile(configPath, newConfigContent);
             }
@@ -412,10 +421,16 @@ class VelocityService {
         configPath: string,
         details: string[]
     ): Promise<void> {
+        if (!serverConfig.subdomain) {
+            details.push('No subdomain configured, skipping forced host mapping');
+            return;
+        }
+
         try {
             const configBuffer = await webdavService.getFileContents(configPath);
             const configContent = configBuffer.toString('utf-8');
-            const forcedHostsSectionRegex = /\[forced-hosts\]([\s\S]*?)(?=\[|\Z)/;
+            // \Z does not exist in JavaScript regular expressions, so the end of the file is matched with $
+            const forcedHostsSectionRegex = /\[forced-hosts\]([\s\S]*?)(?=\n\[|$)/;
             const match = configContent.match(forcedHostsSectionRegex);
 
             if (!match) {
@@ -425,13 +440,13 @@ class VelocityService {
             }
 
             const sectionContent = match[1];
-            const domain = process.env.ROOT_DOMAIN || 'example.com';
-            const hostEntry = `"${serverConfig.subdomain}.${domain}" = ["${serverConfig.serverName}"]`;
+            const hostname = buildServerHostname(serverConfig.subdomain);
+            const hostEntry = `"${hostname}" = ["${serverConfig.serverName}"]`;
 
-            if (sectionContent.includes(`"${serverConfig.subdomain}.${domain}"`)) {
+            if (sectionContent.includes(`"${hostname}"`)) {
                 details.push(`Forced host for ${serverConfig.subdomain} already exists, updating...`);
                 const updatedSection = sectionContent.replace(
-                    new RegExp(`"${serverConfig.subdomain}\\.${domain}"\\s*=\\s*\\[.*?\\]`),
+                    new RegExp(`"${hostname.replace(/\./g, '\\.')}"\\s*=\\s*\\[.*?\\]`),
                     hostEntry
                 );
                 const newConfigContent = configContent.replace(sectionContent, updatedSection);
