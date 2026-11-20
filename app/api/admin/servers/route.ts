@@ -8,6 +8,10 @@ import portainer from '@/lib/server/portainer';
 import { deleteServer } from '@/lib/server/deleteServer';
 
 // GET - Get all servers for admin management (admin only)
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export async function GET(request: NextRequest) {
     await dbConnect();
 
@@ -32,7 +36,7 @@ export async function GET(request: NextRequest) {
         const query: Record<string, unknown> = {};
 
         if (userEmail) {
-            query.email = { $regex: userEmail, $options: 'i' };
+            query.email = { $regex: escapeRegExp(userEmail), $options: 'i' };
         }
 
         if (serverType && serverType !== 'all') {
@@ -40,11 +44,12 @@ export async function GET(request: NextRequest) {
         }
 
         if (search) {
+            const escapedSearch = escapeRegExp(search);
             query.$or = [
-                { serverName: { $regex: search, $options: 'i' } },
-                { subdomainName: { $regex: search, $options: 'i' } },
-                { uniqueId: { $regex: search, $options: 'i' } },
-                { email: { $regex: search, $options: 'i' } }
+                { serverName: { $regex: escapedSearch, $options: 'i' } },
+                { subdomainName: { $regex: escapedSearch, $options: 'i' } },
+                { uniqueId: { $regex: escapedSearch, $options: 'i' } },
+                { email: { $regex: escapedSearch, $options: 'i' } }
             ];
         }
 
