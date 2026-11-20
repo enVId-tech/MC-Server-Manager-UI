@@ -321,6 +321,7 @@ import portainer from './portainer';
 import { PortainerContainer } from './portainer';
 import { proxyManager } from './proxy-manager';
 import serverStorage from './storage';
+import { getServerAppBase, getServerHostBase } from './serverPaths';
 import yaml from 'yaml';
 import extractZip from 'extract-zip';
 import * as path from 'path';
@@ -489,13 +490,12 @@ export class MinecraftServer {
     generateDockerComposeConfig(): object {
         // Get server type specific configuration
         const serverTypeConfig = this.getServerTypeConfig();
-        const minecraftPath = process.env.FOLDER_PATH || process.env.MINECRAFT_PATH || '/minecraft';
 
         // Get email from the server config
         const userEmail = this.getUserEmail();
 
-        // Create the folder structure: env/email/uniqueId
-        const serverBasePath = `${minecraftPath}/${userEmail}`;
+        // Create the folder structure: host folder/owner/uniqueId (the host's view, used for bind mounts)
+        const serverBasePath = getServerHostBase(userEmail, '/minecraft');
 
         // Resolve networks from proxy IDs
         const proxyNetworks: { [key: string]: { external: boolean; name: string } } = {};
@@ -687,9 +687,9 @@ export class MinecraftServer {
      * Ensure server directory exists with proper permissions
      */
     async ensureServerDirectory(): Promise<void> {
-        const minecraftPath: string = process.env.FOLDER_PATH || process.env.MINECRAFT_PATH || '/minecraft-data';
         const userEmail = this.getUserEmail();
-        const serverBasePath = `${minecraftPath}/${userEmail}`;
+        // The app's own view of the folder, since this code uses the filesystem directly
+        const serverBasePath = getServerAppBase(userEmail, '/minecraft-data');
         const serverDir = `${serverBasePath}/${this.uniqueId}`;
 
         try {
@@ -1644,10 +1644,7 @@ export class MinecraftServer {
      * Get the server base path with the env/email/id structure
      */
     getServerBasePath(): string {
-        const minecraftPath = process.env.FOLDER_PATH || process.env.MINECRAFT_PATH || '/minecraft';
-        const userEmail = this.getUserEmail();
-
-        return `${minecraftPath}/${userEmail}/${this.uniqueId}`;
+        return `${getServerHostBase(this.getUserEmail(), '/minecraft')}/${this.uniqueId}`;
     }
 
     /**
