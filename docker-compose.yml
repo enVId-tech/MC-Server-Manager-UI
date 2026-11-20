@@ -1,13 +1,26 @@
-# Sample Docker Compose file for Minecraft Server Creator
-version: '3.8'
+# Docker Compose file for Minecraft Server Creator
+# Copy .env.example to stack.env and fill it in before starting.
 services:
   mc-server-creator:
-    ports:
-      - 3000:3000
     container_name: mc-server-creator
     image: envidtech/mc-server-creator:latest
+    build: .
+    restart: unless-stopped
+    ports:
+      - 3000:3000
     volumes:
       - ./mc-server-creator:/data
     env_file:
       - stack.env
-networks: {}
+    environment:
+      # Overrides MONGODB_URI from stack.env so the app talks to the bundled database
+      MONGODB_URI: mongodb://mongo:27017/minecraft-server-creator
+    depends_on:
+      - mongo
+
+  mongo:
+    container_name: mc-server-creator-mongo
+    image: mongo:8
+    restart: unless-stopped
+    volumes:
+      - ./mongo:/data/db
