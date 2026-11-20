@@ -5,6 +5,7 @@ import Server from '@/lib/objects/Server';
 import verificationService from '@/lib/server/verify';
 import BodyParser from '@/lib/db/bodyParser';
 import portainer from '@/lib/server/portainer';
+import { deleteServer } from '@/lib/server/deleteServer';
 
 // GET - Get all servers for admin management (admin only)
 export async function GET(request: NextRequest) {
@@ -202,6 +203,7 @@ export async function POST(request: NextRequest) {
             success: boolean;
             error?: string;
             message?: string;
+            details?: string[];
         }> = [];
 
         if (action === 'bulk-start') {
@@ -337,37 +339,26 @@ export async function POST(request: NextRequest) {
                         continue;
                     }
 
-                    // Delete from Portainer
-                    try {
-                        const environments = await portainer.getEnvironments();
-                        const environmentId = environments[0]?.Id;
-                        
-                        if (environmentId) {
-                            const containerName = `mc-${serverId}`;
-                            const container = await portainer.getContainerByIdentifier(containerName, environmentId);
-                            
-                            if (container) {
-                                if (container.State === 'running') {
-                                    await portainer.stopContainer(container.Id, environmentId);
-                                }
-                                await portainer.removeContainer(container.Id, environmentId, true, true);
-                            }
+                    // Use the same cleanup as a user-initiated deletion (containers, stacks, files and database
+                    // record). The folder belongs to the server's owner, not to the administrator.
+                    const owner = await User.findOne({ email: server.email });
+                    const deletion = await deleteServer(
+                        serverId,
+                        server.toObject(),
+                        (owner ?? { email: server.email }) as IUser,
+                        'admin-deletion'
+                    );
 
-                            // Also try to delete stack if it exists
-                            const stacks = await portainer.getStacks();
-                            const stack = stacks.find(s => s.Name === `minecraft-${serverId}`);
-                            if (stack) {
-                                await portainer.deleteStack(stack.Id, environmentId);
-                            }
-                        }
-                    } catch (portainerError) {
-                        console.warn(`Failed to cleanup Portainer resources for ${serverId}:`, portainerError);
+                    if (deletion.success) {
+                        results.push({ serverId, success: true, message: 'Server deleted successfully' });
+                    } else {
+                        results.push({
+                            serverId,
+                            success: false,
+                            error: deletion.error || 'Some cleanup operations failed',
+                            details: deletion.details
+                        });
                     }
-
-                    // Delete from database
-                    await Server.deleteOne({ uniqueId: serverId });
-                    
-                    results.push({ serverId, success: true, message: 'Server deleted successfully' });
                 } catch (error) {
                     results.push({ 
                         serverId, 
