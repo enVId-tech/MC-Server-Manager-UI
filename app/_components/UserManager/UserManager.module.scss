@@ -1,0 +1,162 @@
+@use '../../_variables.scss' as *;
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  color: $text-primary;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.searchForm {
+  display: flex;
+  gap: 0.5rem;
+
+  input {
+    background-color: $dark-form;
+    border: 1px solid $border-color;
+    border-radius: 8px;
+    color: $text-primary;
+    padding: 0.6rem 0.9rem;
+    min-width: 16rem;
+  }
+}
+
+.filters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.searchForm button,
+.filters button,
+.pagination button,
+.actions button {
+  background-color: rgba($accent-blue, 0.15);
+  border: 1px solid rgba($accent-blue, 0.3);
+  border-radius: 8px;
+  color: $accent-blue;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  transition: background-color 0.2s ease;
+
+  &:hover:not(:disabled) {
+    background-color: rgba($accent-blue, 0.3);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+.filters .activeFilter {
+  background-color: $accent-blue;
+  color: $white;
+}
+
+.message {
+  color: $text-secondary;
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  background-color: $dark-card;
+  border: 1px solid $border-color;
+  border-radius: 12px;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+
+  th,
+  td {
+    padding: 0.85rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid rgba($border-color, 0.5);
+    white-space: nowrap;
+  }
+
+  th {
+    color: $text-secondary;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.adminBadge,
+.activeBadge,
+.pendingBadge {
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15rem 0.6rem;
+}
+
+.adminBadge {
+  background-color: rgba($accent-orange, 0.2);
+  color: $accent-orange;
+  margin-left: 0.6rem;
+}
+
+.activeBadge {
+  background-color: rgba($success-green, 0.15);
+  color: $success-green;
+}
+
+.pendingBadge {
+  background-color: rgba($warning-yellow, 0.15);
+  color: $warning-yellow;
+}
+
+.limitInput {
+  background-color: $dark-form;
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  color: $text-primary;
+  padding: 0.35rem 0.5rem;
+  width: 5rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+
+  button {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.85rem;
+  }
+}
+
+.actions .dangerButton {
+  background-color: rgba($accent-red, 0.15);
+  border-color: rgba($accent-red, 0.3);
+  color: $error-red;
+
+  &:hover:not(:disabled) {
+    background-color: rgba($accent-red, 0.3);
+  }
+}
+
+.pagination {
+  align-items: center;
+  color: $text-secondary;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}

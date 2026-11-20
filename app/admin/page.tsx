@@ -3,9 +3,10 @@
 import React, { useState } from 'react';
 import DockerUpdateManager from '../_components/DockerUpdateManager/DockerUpdateManager';
 import AdminServerManager from '../_components/AdminServerManager/AdminServerManager';
+import UserManager from '../_components/UserManager/UserManager';
 import styles from './admin.module.scss';
 
-type AdminTab = 'servers' | 'docker' | 'settings';
+type AdminTab = 'servers' | 'users' | 'docker' | 'settings';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>('servers');
@@ -14,6 +15,8 @@ export default function AdminDashboard() {
     switch (activeTab) {
       case 'servers':
         return <AdminServerManager />;
+      case 'users':
+        return <UserManager />;
       case 'docker':
         return <DockerUpdateManager />;
       case 'settings':
@@ -22,11 +25,6 @@ export default function AdminDashboard() {
             <h2>System Settings</h2>
             <p>Additional admin settings will be implemented here.</p>
             <div className={styles.settingsGrid}>
-              <div className={styles.settingCard}>
-                <h3>User Management</h3>
-                <p>Manage user permissions and access controls</p>
-                <button className={styles.comingSoon} disabled>Coming Soon</button>
-              </div>
               <div className={styles.settingCard}>
                 <h3>System Monitoring</h3>
                 <p>Monitor system resources and performance</p>
@@ -64,6 +62,13 @@ export default function AdminDashboard() {
         >
           <span className={styles.tabIcon}>🛠️</span>
           Server Management
+        </button>
+        <button
+          className={`${styles.tab} ${activeTab === 'users' ? styles.active : ''}`}
+          onClick={() => setActiveTab('users')}
+        >
+          <span className={styles.tabIcon}>👥</span>
+          Users
         </button>
         <button
           className={`${styles.tab} ${activeTab === 'docker' ? styles.active : ''}`}
