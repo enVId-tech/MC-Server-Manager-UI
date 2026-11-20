@@ -673,6 +673,8 @@
   border-radius: 4px;
   transition: width 0.5s ease;
   position: relative;
+  // The shimmer sweeps across the fill only: without this it slides on past the end of the fill
+  overflow: hidden;
 
   &::after {
     content: '';
@@ -686,6 +688,10 @@
         rgba(255, 255, 255, 0.3),
         transparent);
     animation: shimmer 2s infinite;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
   }
 }
 
