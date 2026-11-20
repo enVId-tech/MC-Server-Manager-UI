@@ -1,7 +1,7 @@
 import pkg from 'mongoose';
 import type { ServerConfigData } from './ServerConfig.ts';
 
-export interface IServer extends Document {
+export interface IServer extends pkg.Document {
     email: string;
     uniqueId: string;
     isOnline: boolean;
