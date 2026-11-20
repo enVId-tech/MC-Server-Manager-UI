@@ -313,6 +313,20 @@ export default function Dashboard() {
         setDeletionProgress(0);
     };
 
+    // Let Escape close the delete dialog unless a deletion is already running
+    useEffect(() => {
+        if (!showDeleteModal) return;
+
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape' && !isDeleting && !isDownloading) {
+                handleCancelDelete();
+            }
+        };
+
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [showDeleteModal, isDeleting, isDownloading]);
+
     const formatServerType = (type: string) =>
         type ? type.charAt(0).toUpperCase() + type.slice(1).toLowerCase() : 'Unknown';
 
@@ -483,11 +497,16 @@ export default function Dashboard() {
             {/* Delete Confirmation Modal */}
             {showDeleteModal && serverToDelete && (
                 <div className={styles.modalOverlay}>
-                    <div className={styles.modalContent}>
+                    <div
+                        className={styles.modalContent}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="delete-dialog-title"
+                    >
                         {!isDeleting && !deletionSuccess ? (
                             // Confirmation State
                             <>
-                                <h2 className={styles.modalTitle}>⚠️ Delete Server</h2>
+                                <h2 id="delete-dialog-title" className={styles.modalTitle}>⚠️ Delete Server</h2>
                                 <div className={styles.modalWarning}>
                                     <p className={styles.modalText}>
                                         <strong>This action cannot be undone!</strong>
@@ -577,7 +596,7 @@ export default function Dashboard() {
                                 <div className={styles.deletingIcon}>
                                     <div className={styles.spinner}></div>
                                 </div>
-                                <h2 className={styles.modalTitle}>🗑️ Deleting Server</h2>
+                                <h2 id="delete-dialog-title" className={styles.modalTitle}>🗑️ Deleting Server</h2>
                                 <p className={styles.modalText}>
                                     Please wait while we permanently delete &quot;{serverToDelete.name}&quot;...
                                 </p>
@@ -609,7 +628,7 @@ export default function Dashboard() {
                                 <div className={styles.successIcon}>
                                     <div className={styles.checkmark}>✓</div>
                                 </div>
-                                <h2 className={styles.modalTitle}>Server Deleted Successfully!</h2>
+                                <h2 id="delete-dialog-title" className={styles.modalTitle}>Server Deleted Successfully!</h2>
                                 <p className={styles.modalText}>
                                     The server &quot;{serverToDelete.name}&quot; has been permanently deleted.
                                 </p>
