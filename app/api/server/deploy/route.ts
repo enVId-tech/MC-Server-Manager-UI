@@ -693,10 +693,10 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
 
                 // Upload server.properties directly via WebDAV
                 try {
-                    const webdavService = await import('@/lib/server/webdav');
+                    const serverStorage = await import('@/lib/server/storage');
                     const serverPath = getServerFolderPath(server, user.email);
-                    await webdavService.default.createDirectory(serverPath);
-                    await webdavService.default.uploadFile(`${serverPath}/server.properties`, propertiesContent);
+                    await serverStorage.default.createDirectory(serverPath);
+                    await serverStorage.default.uploadFile(`${serverPath}/server.properties`, propertiesContent);
                     console.log('Server properties uploaded successfully');
                 } catch (propertiesError) {
                     console.error('Failed to upload server.properties:', propertiesError);

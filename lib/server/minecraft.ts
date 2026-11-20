@@ -320,7 +320,7 @@ export type MinecraftPropertiesV1_21 = MinecraftPropertiesV1_20_2;
 import portainer from './portainer';
 import { PortainerContainer } from './portainer';
 import { proxyManager } from './proxy-manager';
-import webdavService from './webdav';
+import serverStorage from './storage';
 import yaml from 'yaml';
 import extractZip from 'extract-zip';
 import * as path from 'path';
@@ -970,14 +970,14 @@ export class MinecraftServer {
 
                 // Ensure the directory exists before uploading
                 const directoryPath = `${baseServerPath}/${userFolder}/${this.uniqueId}`;
-                const directoryExists = await webdavService.exists(directoryPath);
+                const directoryExists = await serverStorage.exists(directoryPath);
 
                 if (!directoryExists) {
                     console.log(`Creating directory for Docker Compose file: ${directoryPath}`);
-                    await webdavService.createDirectory(directoryPath);
+                    await serverStorage.createDirectory(directoryPath);
                 }
 
-                await webdavService.uploadFile(composePath, composeContent);
+                await serverStorage.uploadFile(composePath, composeContent);
 
                 return {
                     success: true,
@@ -1114,23 +1114,23 @@ export class MinecraftServer {
             const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${this.uniqueId}`;
 
             // Ensure server directory exists
-            await webdavService.createDirectory(serverPath);
+            await serverStorage.createDirectory(serverPath);
 
             switch (type) {
                 case 'plugins':
-                    await webdavService.createDirectory(`${serverPath}/plugins`);
+                    await serverStorage.createDirectory(`${serverPath}/plugins`);
                     break;
                 case 'mods':
-                    await webdavService.createDirectory(`${serverPath}/mods`);
+                    await serverStorage.createDirectory(`${serverPath}/mods`);
                     break;
                 case 'world':
-                    await webdavService.createDirectory(`${serverPath}/world`);
+                    await serverStorage.createDirectory(`${serverPath}/world`);
                     break;
             }
 
             for (const [relativePath, content] of Object.entries(files)) {
                 const fullPath = `${serverPath}/${relativePath}`;
-                await webdavService.uploadFile(fullPath, content);
+                await serverStorage.uploadFile(fullPath, content);
             }
 
             console.log(`Uploaded server files for ${this.serverName}`);
@@ -1338,39 +1338,39 @@ export class MinecraftServer {
             const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${this.uniqueId}`;
 
             // Ensure server directory exists
-            await webdavService.createDirectory(serverPath);
+            await serverStorage.createDirectory(serverPath);
 
             // Upload overworld files to the main world directory
             if (Object.keys(reorganizedFiles.overworld).length > 0) {
-                await webdavService.createDirectory(`${serverPath}/world`);
+                await serverStorage.createDirectory(`${serverPath}/world`);
                 
                 for (const [relativePath, content] of Object.entries(reorganizedFiles.overworld)) {
                     const fullPath = `${serverPath}/world/${relativePath}`;
-                    await webdavService.uploadFile(fullPath, content);
+                    await serverStorage.uploadFile(fullPath, content);
                 }
                 console.log(`Uploaded ${Object.keys(reorganizedFiles.overworld).length} overworld files`);
             }
 
             // Upload nether files to world_nether directory (Bukkit convention)
             if (Object.keys(reorganizedFiles.nether).length > 0) {
-                await webdavService.createDirectory(`${serverPath}/world_nether`);
-                await webdavService.createDirectory(`${serverPath}/world_nether/DIM-1`);
+                await serverStorage.createDirectory(`${serverPath}/world_nether`);
+                await serverStorage.createDirectory(`${serverPath}/world_nether/DIM-1`);
                 
                 for (const [relativePath, content] of Object.entries(reorganizedFiles.nether)) {
                     const fullPath = `${serverPath}/world_nether/DIM-1/${relativePath}`;
-                    await webdavService.uploadFile(fullPath, content);
+                    await serverStorage.uploadFile(fullPath, content);
                 }
                 console.log(`Uploaded ${Object.keys(reorganizedFiles.nether).length} nether files to world_nether/DIM-1`);
             }
 
             // Upload end files to world_the_end directory (Bukkit convention)
             if (Object.keys(reorganizedFiles.end).length > 0) {
-                await webdavService.createDirectory(`${serverPath}/world_the_end`);
-                await webdavService.createDirectory(`${serverPath}/world_the_end/DIM1`);
+                await serverStorage.createDirectory(`${serverPath}/world_the_end`);
+                await serverStorage.createDirectory(`${serverPath}/world_the_end/DIM1`);
                 
                 for (const [relativePath, content] of Object.entries(reorganizedFiles.end)) {
                     const fullPath = `${serverPath}/world_the_end/DIM1/${relativePath}`;
-                    await webdavService.uploadFile(fullPath, content);
+                    await serverStorage.uploadFile(fullPath, content);
                 }
                 console.log(`Uploaded ${Object.keys(reorganizedFiles.end).length} end files to world_the_end/DIM1`);
             }
@@ -1559,7 +1559,7 @@ export class MinecraftServer {
             for (const relativePath of paths) {
                 const fullPath = `${serverPath}/${relativePath}`;
                 try {
-                    const content = await webdavService.getFileContents(fullPath);
+                    const content = await serverStorage.getFileContents(fullPath);
                     files[relativePath] = content;
                 } catch (fileError) {
                     console.warn(`Could not download file ${relativePath}:`, fileError);
@@ -1700,12 +1700,12 @@ export class MinecraftServer {
             
             for (const path of pathsToDelete) {
                 try {
-                    const exists = await webdavService.exists(path);
+                    const exists = await serverStorage.exists(path);
                     if (exists) {
                         console.log(`Deleting WebDAV directory: ${path}`);
                         
                         // Get directory contents to delete recursively
-                        const items = await webdavService.getDirectoryContents(path);
+                        const items = await serverStorage.getDirectoryContents(path);
                         
                         // Delete all items in the directory
                         for (const item of items) {
@@ -1714,13 +1714,13 @@ export class MinecraftServer {
                             if (webdavItem.type === 'directory') {
                                 await this.deleteDirectoryRecursively(itemPath);
                             } else {
-                                await webdavService.deleteFile(itemPath);
+                                await serverStorage.deleteFile(itemPath);
                             }
                             deletedPaths.push(itemPath);
                         }
                         
                         // Delete the main directory
-                        await webdavService.deleteFile(path);
+                        await serverStorage.deleteFile(path);
                         deletedPaths.push(path);
                         console.log(`Successfully deleted WebDAV directory: ${path}`);
                     } else {
@@ -1753,7 +1753,7 @@ export class MinecraftServer {
      */
     private async deleteDirectoryRecursively(directoryPath: string): Promise<void> {
         try {
-            const items = await webdavService.getDirectoryContents(directoryPath);
+            const items = await serverStorage.getDirectoryContents(directoryPath);
             
             for (const item of items) {
                 const webdavItem = item as { filename: string; type: string };
@@ -1761,12 +1761,12 @@ export class MinecraftServer {
                 if (webdavItem.type === 'directory') {
                     await this.deleteDirectoryRecursively(itemPath);
                 } else {
-                    await webdavService.deleteFile(itemPath);
+                    await serverStorage.deleteFile(itemPath);
                 }
             }
             
             // Delete the directory itself after all contents are deleted
-            await webdavService.deleteFile(directoryPath);
+            await serverStorage.deleteFile(directoryPath);
         } catch (error) {
             console.warn(`Error deleting directory ${directoryPath}:`, error);
             throw error;

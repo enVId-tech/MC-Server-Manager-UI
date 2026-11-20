@@ -4,7 +4,7 @@
  * Waterfall is an improved fork of BungeeCord with better performance and features
  */
 
-import webdavService from '@/lib/server/webdav';
+import serverStorage from '@/lib/server/storage';
 import { BungeeCordServerConfig, BungeeCordConfig } from './bungeecord';
 import { buildServerHostname } from '@/lib/config/domain';
 import { getServerFolderPath } from '@/lib/server/serverPaths';
@@ -100,9 +100,9 @@ class WaterfallService {
             let properties: Record<string, string> = {};
             
             // Read existing properties if available
-            const propertiesExists = await webdavService.exists(propertiesPath);
+            const propertiesExists = await serverStorage.exists(propertiesPath);
             if (propertiesExists) {
-                const propertiesBuffer = await webdavService.getFileContents(propertiesPath);
+                const propertiesBuffer = await serverStorage.getFileContents(propertiesPath);
                 const propertiesContent = propertiesBuffer.toString('utf-8');
                 properties = this.parseProperties(propertiesContent);
             }
@@ -140,7 +140,7 @@ class WaterfallService {
                 .map(([key, value]) => `${key}=${value}`)
                 .join('\n');
             
-            await webdavService.uploadFile(propertiesPath, propertiesContent);
+            await serverStorage.uploadFile(propertiesPath, propertiesContent);
             details.push('Configured server.properties for Waterfall');
             
         } catch (error) {
@@ -172,13 +172,13 @@ class WaterfallService {
         const spigotYmlPath = `${serverBasePath}/spigot.yml`;
         
         try {
-            const spigotExists = await webdavService.exists(spigotYmlPath);
+            const spigotExists = await serverStorage.exists(spigotYmlPath);
             if (!spigotExists) {
                 details.push('spigot.yml not found, skipping Spigot configuration');
                 return;
             }
             
-            const spigotBuffer = await webdavService.getFileContents(spigotYmlPath);
+            const spigotBuffer = await serverStorage.getFileContents(spigotYmlPath);
             let spigotContent = spigotBuffer.toString('utf-8');
             
             if (serverConfig.modernForwarding) {
@@ -191,7 +191,7 @@ class WaterfallService {
                 details.push('Enabled BungeeCord mode in spigot.yml');
             }
             
-            await webdavService.uploadFile(spigotYmlPath, spigotContent);
+            await serverStorage.uploadFile(spigotYmlPath, spigotContent);
             details.push('Updated spigot.yml for Waterfall');
             
         } catch (error) {
@@ -216,7 +216,7 @@ class WaterfallService {
         
         let paperConfigPath: string | null = null;
         for (const path of paperConfigPaths) {
-            if (await webdavService.exists(path)) {
+            if (await serverStorage.exists(path)) {
                 paperConfigPath = path;
                 break;
             }
@@ -228,7 +228,7 @@ class WaterfallService {
         }
         
         try {
-            const paperBuffer = await webdavService.getFileContents(paperConfigPath);
+            const paperBuffer = await serverStorage.getFileContents(paperConfigPath);
             let paperContent = paperBuffer.toString('utf-8');
             
             if (serverConfig.modernForwarding && serverConfig.playerInfoForwardingMode === 'modern') {
@@ -247,7 +247,7 @@ class WaterfallService {
                 details.push('Configured Paper for legacy BungeeCord forwarding');
             }
             
-            await webdavService.uploadFile(paperConfigPath, paperContent);
+            await serverStorage.uploadFile(paperConfigPath, paperContent);
             details.push('Updated Paper configuration for Waterfall');
             
         } catch (error) {
@@ -337,7 +337,7 @@ class WaterfallService {
      */
     private async readWaterfallConfig(configPath: string = this.waterfallConfigPath): Promise<WaterfallConfig> {
         try {
-            await webdavService.getFileContents(configPath);
+            await serverStorage.getFileContents(configPath);
             return this.parseWaterfallConfig();
         } catch {
             // Return default configuration if file doesn't exist
@@ -351,7 +351,7 @@ class WaterfallService {
     private async writeWaterfallConfig(config: WaterfallConfig, configPath: string = this.waterfallConfigPath): Promise<void> {
         try {
             const yamlContent = this.serializeWaterfallConfig(config);
-            await webdavService.uploadFile(configPath, yamlContent);
+            await serverStorage.uploadFile(configPath, yamlContent);
         } catch (error) {
             throw new Error(`Failed to write Waterfall configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }

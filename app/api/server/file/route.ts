@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { IUser } from "@/lib/objects/User";
 import Server from "@/lib/objects/Server";
 import dbConnect from "@/lib/db/dbConnect";
-import webdavService from "@/lib/server/webdav";
+import serverStorage from "@/lib/server/storage";
 import verificationService from "@/lib/server/verify";
 import { getServerFolderPath } from '@/lib/server/serverPaths';
 
@@ -78,16 +78,13 @@ export async function GET(request: NextRequest) {
         // Get the WebDAV server base path from environment
         const serverPath = getServerFolderPath(server, user.email);
 
-        // Construct the full WebDAV URL
-        const baseWebDavUrl = process.env.WEBDAV_URL || "https://webdav.etran.dev/";
-        webdavService.updateUrl(baseWebDavUrl);
 
         try {
             // Combine server path with requested file path
             const fullFilePath = `${serverPath}${filePath}`;
             console.log(`Fetching file content for: ${fullFilePath}`);
 
-            const fileBuffer = await webdavService.getFileContents(fullFilePath);
+            const fileBuffer = await serverStorage.getFileContents(fullFilePath);
             const content = fileBuffer.toString('utf-8');
 
             // Check if the content is text-based
@@ -166,9 +163,6 @@ export async function POST(request: NextRequest) {
         // Get the WebDAV server base path from environment
         const serverPath = getServerFolderPath(server, user.email);
 
-        // Construct the full WebDAV URL
-        const baseWebDavUrl = process.env.WEBDAV_URL || "https://webdav.etran.dev/";
-        webdavService.updateUrl(baseWebDavUrl);
 
         try {
             // Combine server path with requested file path
@@ -178,9 +172,9 @@ export async function POST(request: NextRequest) {
             // Create backup of existing file if it exists
             const backupPath = `${fullFilePath}.backup.${Date.now()}`;
             try {
-                if (await webdavService.exists(fullFilePath)) {
-                    const existingContent = await webdavService.getFileContents(fullFilePath);
-                    await webdavService.uploadFile(backupPath, existingContent);
+                if (await serverStorage.exists(fullFilePath)) {
+                    const existingContent = await serverStorage.getFileContents(fullFilePath);
+                    await serverStorage.uploadFile(backupPath, existingContent);
                     console.log(`Backup created at: ${backupPath}`);
                 }
             } catch (backupError) {
@@ -189,11 +183,11 @@ export async function POST(request: NextRequest) {
             }
 
             // Save the file
-            await webdavService.uploadFile(fullFilePath, content);
+            await serverStorage.uploadFile(fullFilePath, content);
 
             // Remove backup if it was created
-            if (await webdavService.exists(backupPath)) {
-                await webdavService.deleteFile(backupPath);
+            if (await serverStorage.exists(backupPath)) {
+                await serverStorage.deleteFile(backupPath);
                 console.log(`Backup file deleted: ${backupPath}`);
             }
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { IUser } from "@/lib/objects/User";
 import Server from "@/lib/objects/Server";
 import dbConnect from "@/lib/db/dbConnect";
-import webdavService from "@/lib/server/webdav";
+import serverStorage from "@/lib/server/storage";
 import verificationService from "@/lib/server/verify";
 import { isProtectedPath } from "@/lib/config/proxies";
 import { getServerFolderPath } from '@/lib/server/serverPaths';
@@ -62,9 +62,6 @@ export async function POST(request: NextRequest) {
         // Get the WebDAV server base path from environment
         const serverPath = getServerFolderPath(server, user.email);
 
-        // Construct the full WebDAV URL
-        const baseWebDavUrl = process.env.WEBDAV_URL || "https://webdav.etran.dev/";
-        webdavService.updateUrl(baseWebDavUrl);
 
         try {
             // Combine server path with requested path and name
@@ -72,7 +69,7 @@ export async function POST(request: NextRequest) {
             console.log(`Creating ${type} at: ${fullPath}`);
 
             // Check if item already exists
-            if (await webdavService.exists(fullPath)) {
+            if (await serverStorage.exists(fullPath)) {
                 return NextResponse.json({ 
                     message: `${type === 'file' ? 'File' : 'Folder'} already exists at this location.` 
                 }, { status: 409 });
@@ -80,11 +77,11 @@ export async function POST(request: NextRequest) {
 
             if (type === 'folder') {
                 // Create directory
-                await webdavService.createDirectory(fullPath);
+                await serverStorage.createDirectory(fullPath);
             } else {
                 // Create file with content (empty if not provided)
                 const fileContent = content || '';
-                await webdavService.uploadFile(fullPath, fileContent);
+                await serverStorage.uploadFile(fullPath, fileContent);
             }
 
             return NextResponse.json({
@@ -170,9 +167,6 @@ export async function DELETE(request: NextRequest) {
         // Get the WebDAV server base path from environment
         const serverPath = getServerFolderPath(server, user.email);
 
-        // Construct the full WebDAV URL
-        const baseWebDavUrl = process.env.WEBDAV_URL || "https://webdav.etran.dev/";
-        webdavService.updateUrl(baseWebDavUrl);
 
         try {
             // Combine server path with requested path
@@ -180,7 +174,7 @@ export async function DELETE(request: NextRequest) {
             console.log(`Deleting ${type || 'item'} at: ${fullPath}`);
 
             // Check if item exists
-            if (!(await webdavService.exists(fullPath))) {
+            if (!(await serverStorage.exists(fullPath))) {
                 return NextResponse.json({ 
                     message: 'Item not found at this location.' 
                 }, { status: 404 });
@@ -191,18 +185,18 @@ export async function DELETE(request: NextRequest) {
                 try {
                 const backupPath = `${fullPath}.deleted.${Date.now()}`;
 
-                const existingContent = await webdavService.getFileContents(fullPath);
-                await webdavService.uploadFile(backupPath, existingContent);
+                const existingContent = await serverStorage.getFileContents(fullPath);
+                await serverStorage.uploadFile(backupPath, existingContent);
                 console.log(`Backup created at: ${backupPath}`);
 
                 // Delete the file
                 console.log(`Deleting file: ${fullPath}`);
-                await webdavService.deleteFile(fullPath);
+                await serverStorage.deleteFile(fullPath);
 
                 // Delete the backup file if it exists
-                const backupExists = await webdavService.exists(backupPath)
+                const backupExists = await serverStorage.exists(backupPath)
                 if (backupExists) {
-                    await webdavService.deleteFile(backupPath);
+                    await serverStorage.deleteFile(backupPath);
                     console.log(`Backup file deleted: ${backupPath}`);
                 }
                 } catch (backupError) {
@@ -213,7 +207,7 @@ export async function DELETE(request: NextRequest) {
                     });
                 }
             } else if (type === 'folder') {
-                await webdavService.deleteDirectory(fullPath);
+                await serverStorage.deleteDirectory(fullPath);
             } else {
                 return NextResponse.json({
                     message: 'Invalid type specified. Use "file" or "folder".'

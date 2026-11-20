@@ -330,7 +330,7 @@ async function configureServerForMultiProxy(
         while (!filesReady && attempts < maxAttempts) {
             try {
                 const serverBasePath = getServerFolderPath(server, user.email);
-                filesReady = await webdavService.exists(`${serverBasePath}/server.properties`);
+                filesReady = await serverStorage.exists(`${serverBasePath}/server.properties`);
                 if (!filesReady) {
                     await new Promise(resolve => setTimeout(resolve, 3000));
                     attempts++;
@@ -508,5 +508,5 @@ async function testServerProxyCompatibility(
     return { compatible, recommendations, warnings };
 }
 
-// Import webdavService for file operations
-import webdavService from '@/lib/server/webdav';
+// Import serverStorage for file operations
+import serverStorage from '@/lib/server/storage';

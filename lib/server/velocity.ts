@@ -1,4 +1,4 @@
-import webdavService from '@/lib/server/webdav';
+import serverStorage from '@/lib/server/storage';
 import portainer from '@/lib/server/portainer';
 import { buildServerHostname } from '@/lib/config/domain';
 
@@ -124,11 +124,11 @@ class VelocityService {
         const serverPropertiesPath = `${serverBasePath}/server.properties`;
         
         // Check if server.properties exists
-        const propertiesExist = await webdavService.exists(serverPropertiesPath);
+        const propertiesExist = await serverStorage.exists(serverPropertiesPath);
         
         let propertiesContent = '';
         if (propertiesExist) {
-            const propertiesBuffer = await webdavService.getFileContents(serverPropertiesPath);
+            const propertiesBuffer = await serverStorage.getFileContents(serverPropertiesPath);
             propertiesContent = propertiesBuffer.toString('utf-8');
         }
         
@@ -174,7 +174,7 @@ class VelocityService {
         const updatedContent = this.generateServerProperties(properties);
         
         // Upload updated server.properties
-        await webdavService.uploadFile(serverPropertiesPath, updatedContent);
+        await serverStorage.uploadFile(serverPropertiesPath, updatedContent);
         details.push('Updated server.properties with Velocity settings');
     }
 
@@ -202,13 +202,13 @@ class VelocityService {
         const spigotYmlPath = `${serverBasePath}/spigot.yml`;
         
         try {
-            const spigotExists = await webdavService.exists(spigotYmlPath);
+            const spigotExists = await serverStorage.exists(spigotYmlPath);
             if (!spigotExists) {
                 details.push('spigot.yml not found, skipping Spigot configuration');
                 return;
             }
             
-            const spigotBuffer = await webdavService.getFileContents(spigotYmlPath);
+            const spigotBuffer = await serverStorage.getFileContents(spigotYmlPath);
             let spigotContent = spigotBuffer.toString('utf-8');
             
             if (serverConfig.playerInfoForwardingMode === 'legacy') {
@@ -217,7 +217,7 @@ class VelocityService {
                 details.push('Enabled BungeeCord mode in spigot.yml');
             }
             
-            await webdavService.uploadFile(spigotYmlPath, spigotContent);
+            await serverStorage.uploadFile(spigotYmlPath, spigotContent);
             
         } catch (error) {
             details.push(`Warning: Could not configure spigot.yml - ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -234,12 +234,12 @@ class VelocityService {
     ): Promise<void> {
         // Try modern Paper configuration first (paper-global.yml)
         let paperConfigPath = `${serverBasePath}/config/paper-global.yml`;
-        let paperExists = await webdavService.exists(paperConfigPath);
+        let paperExists = await serverStorage.exists(paperConfigPath);
         
         if (!paperExists) {
             // Fallback to legacy paper.yml
             paperConfigPath = `${serverBasePath}/paper.yml`;
-            paperExists = await webdavService.exists(paperConfigPath);
+            paperExists = await serverStorage.exists(paperConfigPath);
         }
         
         if (!paperExists) {
@@ -250,7 +250,7 @@ class VelocityService {
         }
         
         try {
-            const paperBuffer = await webdavService.getFileContents(paperConfigPath);
+            const paperBuffer = await serverStorage.getFileContents(paperConfigPath);
             let paperContent = paperBuffer.toString('utf-8');
             
             // Only modify existing Paper configuration if it already exists
@@ -266,7 +266,7 @@ class VelocityService {
                     }
                     
                     details.push('Updated existing Paper configuration for modern Velocity forwarding');
-                    await webdavService.uploadFile(paperConfigPath, paperContent);
+                    await serverStorage.uploadFile(paperConfigPath, paperContent);
                 } else {
                     details.push('Paper configuration exists but lacks proxy sections - relying on server.properties for Velocity setup');
                 }
@@ -276,7 +276,7 @@ class VelocityService {
                 if (paperContent.includes('proxies:') || paperContent.includes('bungee')) {
                     paperContent = this.updateYamlValue(paperContent, 'proxies.bungee-cord.online-mode', 'true');
                     details.push('Updated existing Paper configuration for legacy BungeeCord forwarding');
-                    await webdavService.uploadFile(paperConfigPath, paperContent);
+                    await serverStorage.uploadFile(paperConfigPath, paperContent);
                 } else {
                     details.push('Paper configuration exists but lacks proxy sections - relying on server.properties for legacy setup');
                 }
@@ -298,7 +298,7 @@ class VelocityService {
     ): Promise<void> {
         try {
             // Check if config file exists
-            const exists = await webdavService.exists(configPath);
+            const exists = await serverStorage.exists(configPath);
             
             if (!exists) {
                 details.push(`Velocity configuration file not found at ${configPath}. Creating default...`);
@@ -306,17 +306,17 @@ class VelocityService {
                 // Ensure directory exists
                 const configDir = configPath.substring(0, configPath.lastIndexOf('/'));
                 if (configDir) {
-                    await webdavService.createDirectory(configDir);
+                    await serverStorage.createDirectory(configDir);
                 }
                 
                 // Create default config
                 const defaultConfig = this.getDefaultVelocityConfig();
                 const configContent = this.generateVelocityConfig(defaultConfig);
-                await webdavService.uploadFile(configPath, configContent);
+                await serverStorage.uploadFile(configPath, configContent);
             }
 
             // Read current config
-            const configBuffer = await webdavService.getFileContents(configPath);
+            const configBuffer = await serverStorage.getFileContents(configPath);
             const configContent = configBuffer.toString('utf-8');
             
             // Parse TOML (simple parsing for now, ideally use a TOML library)
@@ -343,7 +343,7 @@ class VelocityService {
                 // Update existing entry
                 const updatedServersContent = serversContent.replace(existingEntryRegex, serverEntry);
                 const newConfigContent = configContent.replace(serversContent, updatedServersContent);
-                await webdavService.uploadFile(configPath, newConfigContent);
+                await serverStorage.uploadFile(configPath, newConfigContent);
             } else {
                 details.push(`Adding server ${serverConfig.serverName} to velocity.toml...`);
                 // Add new entry above the `try` list when there is one, so it stays a valid server definition
@@ -352,7 +352,7 @@ class VelocityService {
                     ? `${serversContent.slice(0, tryIndex)}${serverEntry}\n${serversContent.slice(tryIndex)}`
                     : `${serversContent.trimEnd()}\n${serverEntry}\n\n`;
                 const newConfigContent = configContent.replace(serversContent, newServersContent);
-                await webdavService.uploadFile(configPath, newConfigContent);
+                await serverStorage.uploadFile(configPath, newConfigContent);
             }
 
             // 2. Add to [forced-hosts] if subdomain is provided
@@ -377,7 +377,7 @@ class VelocityService {
         details: string[]
     ): Promise<void> {
         try {
-            const configBuffer = await webdavService.getFileContents(configPath);
+            const configBuffer = await serverStorage.getFileContents(configPath);
             let configContent = configBuffer.toString('utf-8');
             
             // Look for try = [...]
@@ -405,7 +405,7 @@ class VelocityService {
                     }
                     
                     configContent = configContent.replace(tryRegex, `try = [${newList}]`);
-                    await webdavService.uploadFile(configPath, configContent);
+                    await serverStorage.uploadFile(configPath, configContent);
                 }
             }
         } catch (error) {
@@ -427,7 +427,7 @@ class VelocityService {
         }
 
         try {
-            const configBuffer = await webdavService.getFileContents(configPath);
+            const configBuffer = await serverStorage.getFileContents(configPath);
             const configContent = configBuffer.toString('utf-8');
             // \Z does not exist in JavaScript regular expressions, so the end of the file is matched with $
             const forcedHostsSectionRegex = /\[forced-hosts\]([\s\S]*?)(?=\n\[|$)/;
@@ -450,12 +450,12 @@ class VelocityService {
                     hostEntry
                 );
                 const newConfigContent = configContent.replace(sectionContent, updatedSection);
-                await webdavService.uploadFile(configPath, newConfigContent);
+                await serverStorage.uploadFile(configPath, newConfigContent);
             } else {
                 details.push(`Adding forced host for ${serverConfig.subdomain}...`);
                 const newSection = sectionContent.trimEnd() + '\n' + hostEntry + '\n\n';
                 const newConfigContent = configContent.replace(sectionContent, newSection);
-                await webdavService.uploadFile(configPath, newConfigContent);
+                await serverStorage.uploadFile(configPath, newConfigContent);
             }
         } catch (error) {
             details.push(`Warning: Failed to add forced host: ${error}`);
@@ -647,14 +647,14 @@ class VelocityService {
     public async readVelocityConfig(configPath?: string): Promise<VelocityConfig> {
         const targetPath = configPath || this.velocityConfigPath;
         try {
-            const configExists = await webdavService.exists(targetPath);
+            const configExists = await serverStorage.exists(targetPath);
             
             if (!configExists) {
                 // Return default configuration if file doesn't exist
                 return this.getDefaultVelocityConfig();
             }
             
-            const configBuffer = await webdavService.getFileContents(targetPath);
+            const configBuffer = await serverStorage.getFileContents(targetPath);
             const configContent = configBuffer.toString('utf-8');
             
             // Parse TOML configuration (simple implementation)
@@ -671,7 +671,7 @@ class VelocityService {
     private async writeVelocityConfig(config: VelocityConfig): Promise<void> {
         try {
             const configContent = this.generateVelocityConfig(config);
-            await webdavService.uploadFile(this.velocityConfigPath, configContent);
+            await serverStorage.uploadFile(this.velocityConfigPath, configContent);
         } catch (error) {
             throw new Error(`Failed to write Velocity configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }

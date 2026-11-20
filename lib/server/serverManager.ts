@@ -1,7 +1,7 @@
 import Server from '@/lib/objects/Server';
 import User from '@/lib/objects/User';
 import portainer from './portainer';
-import webdavService from './webdav';
+import serverStorage from './storage';
 import dbConnect from '@/lib/db/dbConnect';
 import PortManager from '@/lib/server/portManager';
 import type { PortAllocationResult } from '@/lib/server/portManager';
@@ -156,12 +156,12 @@ export class MinecraftServerManager {
 
             for (const folderPath of foldersToCreate) {
                 try {
-                    await webdavService.createDirectory(folderPath);
+                    await serverStorage.createDirectory(folderPath);
                     createdFolders.push(folderPath);
                     console.log(`✓ Created folder: ${folderPath}`);
                 } catch (error) {
                     // Check if folder already exists
-                    const exists = await webdavService.exists(folderPath);
+                    const exists = await serverStorage.exists(folderPath);
                     if (exists) {
                         console.log(`✓ Folder already exists: ${folderPath}`);
                         createdFolders.push(folderPath); // Track for rollback even if it existed
@@ -179,7 +179,7 @@ export class MinecraftServerManager {
             // Verify all critical folders exist
             const criticalFolders = [serverPath, `${serverPath}/data`, `${serverPath}/world`];
             for (const folder of criticalFolders) {
-                const exists = await webdavService.exists(folder);
+                const exists = await serverStorage.exists(folder);
                 if (!exists) {
                     throw new Error(`Critical folder ${folder} was not created successfully`);
                 }
@@ -201,7 +201,7 @@ export class MinecraftServerManager {
             for (const [fileName, content] of Object.entries(initialFiles)) {
                 try {
                     const filePath = `${serverPath}/${fileName}`;
-                    await webdavService.uploadFile(filePath, content);
+                    await serverStorage.uploadFile(filePath, content);
                     uploadedFiles.push(filePath);
                     console.log(`✓ Created file: ${fileName}`);
                 } catch (fileError) {
@@ -214,7 +214,7 @@ export class MinecraftServerManager {
             if (isModdedServer) {
                 try {
                     const modsReadme = `# Mods Folder\n\nPlace your ${serverType} mods (.jar files) in this folder.\n\nFor ${serverType} servers, do not place plugins here - mods and plugins are not compatible.\n`;
-                    await webdavService.uploadFile(`${serverPath}/mods/README.md`, modsReadme);
+                    await serverStorage.uploadFile(`${serverPath}/mods/README.md`, modsReadme);
                     uploadedFiles.push(`${serverPath}/mods/README.md`);
                 } catch (error) {
                     console.warn('Could not create mods README:', error);
@@ -222,7 +222,7 @@ export class MinecraftServerManager {
             } else if (isPluginServer) {
                 try {
                     const pluginsReadme = `# Plugins Folder\n\nPlace your ${serverType} plugins (.jar files) in this folder.\n\nFor ${serverType} servers, do not place mods here - use plugins instead.\n`;
-                    await webdavService.uploadFile(`${serverPath}/plugins/README.md`, pluginsReadme);
+                    await serverStorage.uploadFile(`${serverPath}/plugins/README.md`, pluginsReadme);
                     uploadedFiles.push(`${serverPath}/plugins/README.md`);
                 } catch (error) {
                     console.warn('Could not create plugins README:', error);
@@ -236,7 +236,7 @@ export class MinecraftServerManager {
                 // Delete uploaded files
                 for (const filePath of uploadedFiles.reverse()) {
                     try {
-                        await webdavService.deleteFile(filePath);
+                        await serverStorage.deleteFile(filePath);
                     } catch (deleteError) {
                         console.warn(`Could not delete file ${filePath} during rollback:`, deleteError);
                     }
@@ -245,7 +245,7 @@ export class MinecraftServerManager {
                 // Delete created folders (in reverse order)
                 for (const folderPath of createdFolders.reverse()) {
                     try {
-                        await webdavService.deleteDirectory(folderPath);
+                        await serverStorage.deleteDirectory(folderPath);
                     } catch (deleteError) {
                         console.warn(`Could not delete folder ${folderPath} during rollback:`, deleteError);
                     }

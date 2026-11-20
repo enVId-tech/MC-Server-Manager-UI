@@ -214,15 +214,15 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
             try {
                 details.push('Renaming server files directory...');
 
-                const webdavService = await import('@/lib/server/webdav');
+                const serverStorage = await import('@/lib/server/storage');
                 const serverBasePath = getServerFolderPath(server as { uniqueId: string; folderPath?: string }, user.email);
 
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
                 const deletedFolderPath = `${serverBasePath.substring(0, serverBasePath.lastIndexOf('/'))}/DELETED-${reason}-${timestamp}-${server.uniqueId}`;
 
-                const exists = await webdavService.default.exists(serverBasePath);
+                const exists = await serverStorage.default.exists(serverBasePath);
                 if (exists) {
-                    await webdavService.default.moveDirectory(serverBasePath, deletedFolderPath);
+                    await serverStorage.default.moveDirectory(serverBasePath, deletedFolderPath);
                     details.push(`Server folder renamed from: ${serverBasePath}`);
                     details.push(`Server folder renamed to: ${deletedFolderPath}`);
                 } else {
@@ -237,10 +237,10 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
             // 3. Delete WebDAV server folder
             try {
                 details.push('Deleting server files directory...');
-                const webdavService = await import('@/lib/server/webdav');
+                const serverStorage = await import('@/lib/server/storage');
                 const serverBasePath = getServerFolderPath(server as { uniqueId: string; folderPath?: string }, user.email);
 
-                await webdavService.default.deleteDirectory(serverBasePath);
+                await serverStorage.default.deleteDirectory(serverBasePath);
                 details.push(`Server folder deleted: ${serverBasePath}`);
             } catch (webdavError) {
                 details.push(`Warning: WebDAV folder delete failed - ${webdavError instanceof Error ? webdavError.message : 'Unknown error'}`);

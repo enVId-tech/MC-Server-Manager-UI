@@ -10,7 +10,7 @@
 import { VelocityServerConfig } from './velocity';
 import portainer from './portainer';
 import { getDefinedProxies, reloadProxies, ProxyDefinition } from '@/lib/config/proxies';
-import webdavService from './webdav';
+import serverStorage from './storage';
 import velocityService from './velocity';
 import path from 'path';
 import Server from '@/lib/objects/Server';
@@ -803,7 +803,7 @@ export class ProxyManager {
         // Create directory using WebDAV (directory in the actual server filesystem)
         const webdavConfigDir = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft/velocity-test'}/${def.configPath.split('/')[0]}`;
         try {
-            await webdavService.createDirectory(webdavConfigDir);
+            await serverStorage.createDirectory(webdavConfigDir);
             details.push(`Created config directory: ${configDir}`);
         } catch (e) {
             // Ignore if exists
@@ -812,7 +812,7 @@ export class ProxyManager {
         // Check if config file exists using WebDAV, if not create default
         const webdavConfigPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft/velocity-test'}/${def.configPath}`;
         try {
-            await webdavService.getFileContents(webdavConfigPath);
+            await serverStorage.getFileContents(webdavConfigPath);
             details.push(`Config file already exists: ${def.configPath}`);
         } catch {
             details.push(`Creating default configuration for ${def.name}...`);
@@ -875,13 +875,13 @@ export class ProxyManager {
             }
 
             const configContent = velocityService.generateVelocityConfig(velocityConfig);
-            await webdavService.uploadFile(webdavConfigPath, configContent);
+            await serverStorage.uploadFile(webdavConfigPath, configContent);
             details.push(`Created default config: ${def.configPath}`);
 
             // Also create forwarding.secret
             const webdavSecretPath = `${webdavConfigDir}/forwarding.secret`;
             const secret = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-            await webdavService.uploadFile(webdavSecretPath, secret);
+            await serverStorage.uploadFile(webdavSecretPath, secret);
             details.push(`Created forwarding.secret`);
         }
 

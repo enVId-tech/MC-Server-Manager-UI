@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Server from "@/lib/objects/Server";
 import dbConnect from "@/lib/db/dbConnect";
-import webdavService from "@/lib/server/webdav";
+import serverStorage from "@/lib/server/storage";
 import { IUser } from "@/lib/objects/User";
 import verificationService from "@/lib/server/verify";
 import { getServerFolderPath } from '@/lib/server/serverPaths';
@@ -55,16 +55,13 @@ export async function GET(request: NextRequest) {
         // Get the WebDAV server base path from environment
         const serverPath = getServerFolderPath(server, user.email);
 
-        // Construct the full WebDAV URL
-        const baseWebDavUrl = process.env.WEBDAV_URL || "https://webdav.etran.dev/";
-        webdavService.updateUrl(baseWebDavUrl);
 
         try {
             // Combine server path with requested path
             const fullPath = path === '/' ? serverPath : `${serverPath}${path}`;
             console.log(`Fetching directory contents for path: ${fullPath}`);
 
-            const contents = await webdavService.getDirectoryContents(fullPath);
+            const contents = await serverStorage.getDirectoryContents(fullPath);
 
             // Transform the storage response to match our interface
             const files = contents.map((item) => {

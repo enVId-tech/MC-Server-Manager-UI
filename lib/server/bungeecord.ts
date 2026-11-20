@@ -3,7 +3,7 @@
  * Handles configuration and registration of Minecraft servers with BungeeCord proxy
  */
 
-import webdavService from '@/lib/server/webdav';
+import serverStorage from '@/lib/server/storage';
 import { VelocityServerConfig } from './velocity';
 import { buildServerHostname } from '@/lib/config/domain';
 import { getServerFolderPath } from '@/lib/server/serverPaths';
@@ -118,9 +118,9 @@ class BungeeCordService {
             let properties: Record<string, string> = {};
             
             // Read existing properties if available
-            const propertiesExists = await webdavService.exists(propertiesPath);
+            const propertiesExists = await serverStorage.exists(propertiesPath);
             if (propertiesExists) {
-                const propertiesBuffer = await webdavService.getFileContents(propertiesPath);
+                const propertiesBuffer = await serverStorage.getFileContents(propertiesPath);
                 const propertiesContent = propertiesBuffer.toString('utf-8');
                 properties = this.parseProperties(propertiesContent);
             }
@@ -152,7 +152,7 @@ class BungeeCordService {
                 .map(([key, value]) => `${key}=${value}`)
                 .join('\n');
             
-            await webdavService.uploadFile(propertiesPath, propertiesContent);
+            await serverStorage.uploadFile(propertiesPath, propertiesContent);
             details.push('Configured server.properties for BungeeCord');
             
         } catch (error) {
@@ -184,20 +184,20 @@ class BungeeCordService {
         const spigotYmlPath = `${serverBasePath}/spigot.yml`;
         
         try {
-            const spigotExists = await webdavService.exists(spigotYmlPath);
+            const spigotExists = await serverStorage.exists(spigotYmlPath);
             if (!spigotExists) {
                 details.push('spigot.yml not found, skipping Spigot configuration');
                 return;
             }
             
-            const spigotBuffer = await webdavService.getFileContents(spigotYmlPath);
+            const spigotBuffer = await serverStorage.getFileContents(spigotYmlPath);
             let spigotContent = spigotBuffer.toString('utf-8');
             
             // Enable BungeeCord mode in spigot.yml
             spigotContent = this.updateYamlValue(spigotContent, 'settings.bungeecord', 'true');
             details.push('Enabled BungeeCord mode in spigot.yml');
             
-            await webdavService.uploadFile(spigotYmlPath, spigotContent);
+            await serverStorage.uploadFile(spigotYmlPath, spigotContent);
             details.push('Updated spigot.yml for BungeeCord');
             
         } catch (error) {
@@ -222,7 +222,7 @@ class BungeeCordService {
         
         let paperConfigPath: string | null = null;
         for (const path of paperConfigPaths) {
-            if (await webdavService.exists(path)) {
+            if (await serverStorage.exists(path)) {
                 paperConfigPath = path;
                 break;
             }
@@ -234,14 +234,14 @@ class BungeeCordService {
         }
         
         try {
-            const paperBuffer = await webdavService.getFileContents(paperConfigPath);
+            const paperBuffer = await serverStorage.getFileContents(paperConfigPath);
             let paperContent = paperBuffer.toString('utf-8');
             
             // Configure BungeeCord forwarding in Paper
             paperContent = this.updateYamlValue(paperContent, 'proxies.bungee-cord.online-mode', 'true');
             paperContent = this.updateYamlValue(paperContent, 'settings.velocity-support.enabled', 'false');
             
-            await webdavService.uploadFile(paperConfigPath, paperContent);
+            await serverStorage.uploadFile(paperConfigPath, paperContent);
             details.push('Updated Paper configuration for BungeeCord');
             
         } catch (error) {
@@ -323,7 +323,7 @@ class BungeeCordService {
      */
     private async readBungeeCordConfig(configPath: string = this.bungeeCordConfigPath): Promise<BungeeCordConfig> {
         try {
-            await webdavService.getFileContents(configPath);
+            await serverStorage.getFileContents(configPath);
             return this.parseBungeeCordConfig();
         } catch {
             // Return default configuration if file doesn't exist
@@ -337,7 +337,7 @@ class BungeeCordService {
     private async writeBungeeCordConfig(config: BungeeCordConfig, configPath: string = this.bungeeCordConfigPath): Promise<void> {
         try {
             const yamlContent = this.serializeBungeeCordConfig(config);
-            await webdavService.uploadFile(configPath, yamlContent);
+            await serverStorage.uploadFile(configPath, yamlContent);
         } catch (error) {
             throw new Error(`Failed to write BungeeCord configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
