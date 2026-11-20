@@ -12,6 +12,13 @@ const eslintConfig = defineConfig([
       "@next/next/no-img-element": "off",
     },
   },
+  {
+    // Manual test scripts that talk to real Portainer/WebDAV servers and are not part of the application
+    files: ["scripts/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
   globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "node_modules/**"]),
 ]);
 
