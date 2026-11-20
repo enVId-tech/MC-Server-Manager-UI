@@ -54,9 +54,11 @@ class WebDavService {
             username?: string;
             password?: string;
         } = {
-            // For development only - disable SSL certificate validation
+            // Certificate validation is only skipped in development or when WEBDAV_REJECT_UNAUTHORIZED=false
+            // (same convention as PORTAINER_REJECT_UNAUTHORIZED)
             httpsAgent: new https.Agent({
-                rejectUnauthorized: false
+                rejectUnauthorized: process.env.WEBDAV_REJECT_UNAUTHORIZED === 'false' ? false :
+                    (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) ? false : true
             })
         };
 
@@ -97,12 +99,11 @@ class WebDavService {
     public async getDirectoryContents(path: string = '/'): Promise<unknown[]> {
         try {
             // Check if we have a valid URL before attempting connection
-            if (this.currentUrl === "https://example.com/" || !this.currentUrl.startsWith('https://')) {
+            if (this.currentUrl === "https://example.com/" || !/^https?:\/\//.test(this.currentUrl)) {
                 throw new Error('WebDAV URL is not properly configured. Please set WEBDAV_URL in your environment variables.');
             }
 
-            const contents = await this.client.getDirectoryContents(path);
-            return Array.isArray(contents) ? contents : contents.data; // Ensure it returns an array
+            return await this.client.getDirectoryContents(path);
         } catch (error) {
             // Provide more helpful error messages based on the error type
             if (error instanceof Error) {
@@ -369,8 +370,8 @@ class WebDavService {
      */
     public async exists(path: string): Promise<boolean> {
         try {
-            const stat = await this.client.stat(path);
-            console.log(`📁 Exists check for ${path}: EXISTS (type: ${(stat as any).type})`);
+            await this.client.stat(path);
+            console.log(`📁 Exists check for ${path}: EXISTS`);
             return true;
         } catch (error) {
             console.log(`📁 Exists check for ${path}: DOES NOT EXIST`);
