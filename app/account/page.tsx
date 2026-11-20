@@ -34,8 +34,8 @@ export default function AccountPage() {
     const router = useRouter();
 
     const [userProfile, setUserProfile] = useState<UserProfile>({
-        email: 'user@example.com',
-        joinDate: '00-00-00T00:00:00Z', // Placeholder date
+        email: '',
+        joinDate: '',
         totalServers: 0,
         activeServers: 0
     });
@@ -46,63 +46,66 @@ export default function AccountPage() {
         confirmPassword: ''
     });
 
-    const fetchAccountSettings = useCallback(async () => {
-        try {
-            const response = await fetch('/api/account', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+    const fetchAccountSettings = useCallback(() => {
+        return fetch('/api/account', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Failed to fetch account settings');
+                }
+                return response.json();
+            })
+            .then((data) => {
+                const ownedServers: ServerData[] = data.ownedServers ?? [];
+
+                setUserProfile({
+                    email: data.user.email ?? '',
+                    joinDate: data.user.createdAt ?? '',
+                    totalServers: ownedServers.length,
+                    activeServers: ownedServers.filter((server) => server.isOnline).length
+                });
+            })
+            .catch((error) => {
+                console.error('Error fetching account settings:', error);
+            })
+            .finally(() => {
+                setFullyLoaded(true);
             });
-            if (!response.ok) {
-                throw new Error('Failed to fetch account settings');
-            }
-            // Assuming the response contains user data in the format { user: UserProfile }
-            const data = await response.json();
+    }, []);
 
-            setUserProfile({
-                email: data.user.email || userProfile.email,
-                joinDate: data.user.createdAt || userProfile.joinDate,
-                totalServers: data.ownedServers.length || userProfile.totalServers,
-                activeServers: data.ownedServers.filter((server: ServerData) => server.isOnline).length || userProfile.activeServers
-            });
-        } catch (error) {
-            console.error('Error fetching account settings:', error);
-        }
-    }, [userProfile.email, userProfile.joinDate, userProfile.totalServers, userProfile.activeServers]);
-
-
-    // Fetch user data on component mount
+    // Fetch user data on component mount and keep checking that the session is still valid
     useEffect(() => {
-        const checkAuth = () => {
-            const res = fetch('/api/auth/check', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            });
+        const checkAuth = async () => {
+            try {
+                const response = await fetch('/api/auth/check', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
 
-            res.then(response => {
                 if (!response.ok) {
                     router.push('/'); // Redirect to home page if not authenticated
                 }
-            }).catch(error => {
+            } catch (error) {
                 console.error('Error checking authentication:', error);
-            });
+            }
+        };
 
-            setFullyLoaded(true);
-        }
-        // Fetch initial server settings from the API
-        fetchAccountSettings();
+        // Fetch initial account settings from the API
+        void fetchAccountSettings();
 
-        const interval = setInterval(() => {
-            checkAuth();
-        }, 30 * 1000); // Check every 30 seconds
+        const interval = setInterval(checkAuth, 30 * 1000); // Check every 30 seconds
+        const onStorage = () => { void checkAuth(); };
 
-        window.addEventListener('storage', checkAuth);
+        window.addEventListener('storage', onStorage);
 
         return () => {
-            window.removeEventListener('storage', checkAuth);
+            window.removeEventListener('storage', onStorage);
             clearInterval(interval);
         };
     }, [router, fetchAccountSettings]);
@@ -118,18 +121,28 @@ export default function AccountPage() {
                 },
                 body: JSON.stringify({
                     email: userProfile.email,
-
                 })
             });
 
+            const data = await response.json().catch(() => ({}));
+
             if (!response.ok) {
-                throw new Error('Failed to save profile');
+                throw new Error(data.message || 'Failed to save profile');
             }
 
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-            console.log('Profile saved:', userProfile);
+            showNotification({
+                type: 'success',
+                title: 'Profile Saved',
+                message: 'Your email address was updated'
+            });
+            await fetchAccountSettings();
         } catch (error) {
             console.error('Error saving profile:', error);
+            showNotification({
+                type: 'error',
+                title: 'Profile Update Failed',
+                message: error instanceof Error ? error.message : 'Failed to save profile'
+            });
         } finally {
             setIsSaving(false);
         }
@@ -157,16 +170,19 @@ export default function AccountPage() {
                     newPassword: passwords.newPassword
                 })
             });
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to change password');
+            }
+
+            // Only clear the form once the password was really changed
             setPasswords({
                 currentPassword: '',
                 newPassword: '',
                 confirmPassword: ''
             });
-
-            if (!response.ok) {
-                throw new Error('Failed to change password');
-            }
             showNotification({
                 type: 'success',
                 title: 'Password Changed',
@@ -177,7 +193,7 @@ export default function AccountPage() {
             showNotification({
                 type: 'error',
                 title: 'Password Change Failed',
-                message: 'Failed to change password'
+                message: error instanceof Error ? error.message : 'Failed to change password'
             });
         } finally {
             setIsSaving(false);
@@ -215,7 +231,6 @@ export default function AccountPage() {
 
         setIsDeleting(true);
         try {
-            // TODO: API call to delete account
             const response = await fetch('/api/account', {
                 method: 'DELETE',
                 headers: {
@@ -228,7 +243,8 @@ export default function AccountPage() {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to delete account');
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.message || 'Failed to delete account');
             }
 
             // Clear localStorage and redirect
@@ -245,7 +261,7 @@ export default function AccountPage() {
             showNotification({
                 type: 'error',
                 title: 'Account Deletion Failed',
-                message: 'Failed to delete account. Please try again.'
+                message: error instanceof Error ? error.message : 'Failed to delete account. Please try again.'
             });
         } finally {
             setIsDeleting(false);
@@ -308,11 +324,11 @@ export default function AccountPage() {
                                 <div className={styles.statsGrid}>
                                     <div className={styles.statCard}>
                                         <h4>Member Since</h4>
-                                        <p>{new Date(userProfile.joinDate).toLocaleDateString('en-US', {
+                                        <p>{userProfile.joinDate ? new Date(userProfile.joinDate).toLocaleDateString('en-US', {
                                             year: 'numeric',
                                             month: 'long',
                                             day: 'numeric'
-                                        })}</p>
+                                        }) : '—'}</p>
                                     </div>
                                     <div className={styles.statCard}>
                                         <h4>Total Servers</h4>
