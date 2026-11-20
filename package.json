@@ -15,7 +15,8 @@
     "test:folder-archiving": "tsx scripts/test-folder-archiving.ts",
     "test:player-detection": "tsx scripts/test-player-detection.ts",
     "monitor:resources": "tsx scripts/resource-monitor.ts",
-    "test:local-storage": "tsx scripts/test-local-storage.ts"
+    "test:local-storage": "tsx scripts/test-local-storage.ts",
+    "test:itzg-catalog": "tsx scripts/test-itzg-catalog.ts"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",
