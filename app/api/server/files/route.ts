@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
         const server = await Server.findOne({
             email: user.email,
             $or: [
+                { uniqueId: domainName },
                 { subdomainName: domainName },
                 { serverName: domainName }
             ]
@@ -44,11 +45,6 @@ export async function GET(request: NextRequest) {
             console.log(`Server not found for user ${user.email} with identifier: ${domainName}`);
             return NextResponse.json({
                 message: 'Server not found.',
-                debug: {
-                    userEmail: user.email,
-                    domainName: domainName,
-                    uniqueId: server.uniqueId
-                }
             }, { status: 404 });
         }
 
