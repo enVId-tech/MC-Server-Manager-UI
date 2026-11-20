@@ -6,7 +6,8 @@ import bcrypt from 'bcrypt';
 import verificationService from '@/lib/server/verify';
 import { deleteServer } from "@/lib/server/deleteServer";
 
-const EMAIL_PATTERN = /.+@.+\..+/;
+// Emails end up in folder names, so path separators are not allowed
+const EMAIL_PATTERN = /^(?!\.+@)[^\s@/\\]+@[^\s@/\\]+\.[^\s@/\\]+$/;
 const MIN_PASSWORD_LENGTH = 6;
 
 // PUT request to update the email and/or password of the signed in user.

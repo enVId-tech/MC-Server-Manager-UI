@@ -29,7 +29,7 @@ const UserSchema: pkg.Schema = new pkg.Schema({
         unique: true,
         trim: true,
         lowercase: true,
-        match: [/.+\@.+\..+/, 'Please enter a valid email address.'],
+        match: [/^(?!\.+@)[^\s@/\\]+@[^\s@/\\]+\.[^\s@/\\]+$/, 'Please enter a valid email address.'],
     },
     password: {
         type: String,
