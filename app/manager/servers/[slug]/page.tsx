@@ -417,7 +417,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              uniqueId: uniqueId,
+              serverSlug: resolvedParams.slug,
               path: file.path,
               type: file.type
             })
