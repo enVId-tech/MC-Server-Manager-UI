@@ -5,6 +5,7 @@ import dbConnect from "@/lib/db/dbConnect";
 import webdavService from "@/lib/server/webdav";
 import verificationService from "@/lib/server/verify";
 import { isProtectedPath } from "@/lib/config/proxies";
+import { getServerFolderPath } from '@/lib/server/serverPaths';
 
 export async function POST(request: NextRequest) {
     await dbConnect();
@@ -59,9 +60,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get the WebDAV server base path from environment
-        const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
-        const userFolder = user.email.split('@')[0];
-        const serverPath = `${baseServerPath}/${userFolder}/${server.uniqueId}`;
+        const serverPath = getServerFolderPath(server, user.email);
 
         // Construct the full WebDAV URL
         const baseWebDavUrl = process.env.WEBDAV_URL || "https://webdav.etran.dev/";
@@ -169,9 +168,7 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Get the WebDAV server base path from environment
-        const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
-        const userFolder = user.email.split('@')[0];
-        const serverPath = `${baseServerPath}/${userFolder}/${server.uniqueId}`;
+        const serverPath = getServerFolderPath(server, user.email);
 
         // Construct the full WebDAV URL
         const baseWebDavUrl = process.env.WEBDAV_URL || "https://webdav.etran.dev/";

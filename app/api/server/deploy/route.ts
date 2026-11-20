@@ -13,6 +13,7 @@ import { definedProxies } from "@/lib/config/proxies";
 import { proxyManager } from "@/lib/server/proxy-manager";
 import { promises as fs } from 'fs';
 import path from 'path';
+import { getServerFolderPath } from '@/lib/server/serverPaths';
 
 // Interface for server config as stored in database (with FileInfo instead of AnalyzedFile)
 interface DatabaseServerConfig {
@@ -692,8 +693,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                 // Upload server.properties directly via WebDAV
                 try {
                     const webdavService = await import('@/lib/server/webdav');
-                    const userEmail = user.email.split('@')[0] || 'default-user';
-                    const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${server.uniqueId}`;
+                    const serverPath = getServerFolderPath(server, user.email);
                     await webdavService.default.createDirectory(serverPath);
                     await webdavService.default.uploadFile(`${serverPath}/server.properties`, propertiesContent);
                     console.log('Server properties uploaded successfully');
