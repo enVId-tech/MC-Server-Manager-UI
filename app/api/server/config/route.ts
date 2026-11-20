@@ -39,9 +39,10 @@ export async function GET() {
         // without that collection) falls back to the built in defaults
         const configOptions = await getCreateConfig();
 
-        // Remove MongoDB-specific fields before the stored document is merged with the defaults
+        // Remove MongoDB-specific fields before the stored document is merged with the defaults.
+        // Versions and server types stored by older setups are dropped too, they are resolved live now
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { _id, __v, createdAt, updatedAt, ...storedConfig } = (configOptions ?? {}) as Record<string, unknown>;
+        const { _id, __v, createdAt, updatedAt, versions, serverTypes, ...storedConfig } = (configOptions ?? {}) as Record<string, unknown>;
         const options = await resolveCreateOptions(storedConfig as Partial<CreateOptions>);
 
         return NextResponse.json({ ...storedConfig, ...options, serverDomain: getServerDomain() }, { status: 200 });

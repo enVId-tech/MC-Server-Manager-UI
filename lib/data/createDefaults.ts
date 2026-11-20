@@ -1,8 +1,21 @@
-import { getMinecraftVersions } from '@/lib/server/versionManifest';
+import { SERVER_TYPES } from '@/lib/data/itzg';
+import { getVersionsForType } from '@/lib/server/versionProviders';
+
+export interface ServerTypeOption {
+    id: string;
+    name: string;
+    family?: string;
+    description?: string;
+    supportsPlugins?: boolean;
+    supportsMods?: boolean;
+    /** The Minecraft version comes from the modpack, so no version is chosen */
+    versionFromPack?: boolean;
+}
 
 export interface CreateOptions {
+    /** Versions of the first server type. The wizard loads the list of other types from /api/server/versions */
     versions: string[];
-    serverTypes: { id: string; name: string }[];
+    serverTypes: ServerTypeOption[];
     worldTypes: { id: string; name: string }[];
     gameModes: { value: string; label: string }[];
     difficulties: { value: string; label: string }[];
@@ -13,16 +26,7 @@ export interface CreateOptions {
  * Options the server creation wizard offers when nothing has been customised in the `create` collection.
  * The ids match what convertClientConfigToServerConfig understands.
  */
-export const DEFAULT_CREATE_OPTIONS: Omit<CreateOptions, 'versions'> = {
-    serverTypes: [
-        { id: 'vanilla', name: 'Vanilla' },
-        { id: 'paper', name: 'Paper' },
-        { id: 'spigot', name: 'Spigot' },
-        { id: 'bukkit', name: 'Bukkit' },
-        { id: 'purpur', name: 'Purpur' },
-        { id: 'forge', name: 'Forge' },
-        { id: 'fabric', name: 'Fabric' },
-    ],
+export const DEFAULT_CREATE_OPTIONS: Omit<CreateOptions, 'versions' | 'serverTypes'> = {
     worldTypes: [
         { id: 'default', name: 'Default' },
         { id: 'flat', name: 'Superflat' },
@@ -53,15 +57,32 @@ export const DEFAULT_CREATE_OPTIONS: Omit<CreateOptions, 'versions'> = {
 };
 
 /**
+ * Server types the wizard offers. They come from the itzg catalog, never from the database, so new
+ * types and their rules show up with the code.
+ */
+export const SERVER_TYPE_OPTIONS: ServerTypeOption[] = SERVER_TYPES.map(definition => ({
+    id: definition.id,
+    name: definition.name,
+    family: definition.family,
+    description: definition.description,
+    supportsPlugins: definition.supportsPlugins,
+    supportsMods: definition.supportsMods,
+    versionFromPack: definition.versionFromPack,
+}));
+
+/**
  * Combine the options stored in the database with the defaults: every list that an administrator stored wins,
  * everything that is missing (including a completely empty database) falls back to the defaults.
+ *
+ * Versions and server types are the exception. They are always resolved live (see lib/server/versionProviders.ts
+ * and lib/data/itzg), so anything an older setup stored under those names is ignored.
  */
 export async function resolveCreateOptions(stored: Partial<CreateOptions> | null): Promise<CreateOptions> {
     const pick = <T>(value: T[] | undefined, fallback: T[]): T[] => (Array.isArray(value) && value.length > 0 ? value : fallback);
 
     return {
-        versions: pick(stored?.versions, await getMinecraftVersions()),
-        serverTypes: pick(stored?.serverTypes, DEFAULT_CREATE_OPTIONS.serverTypes),
+        versions: (await getVersionsForType(SERVER_TYPE_OPTIONS[0].id)).versions,
+        serverTypes: SERVER_TYPE_OPTIONS,
         worldTypes: pick(stored?.worldTypes, DEFAULT_CREATE_OPTIONS.worldTypes),
         gameModes: pick(stored?.gameModes, DEFAULT_CREATE_OPTIONS.gameModes),
         difficulties: pick(stored?.difficulties, DEFAULT_CREATE_OPTIONS.difficulties),
