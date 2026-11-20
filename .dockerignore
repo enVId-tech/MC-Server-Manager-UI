@@ -39,3 +39,10 @@ CLI/*
 
 data
 data/*
+# Never bake secrets or local state into the image
+.env*
+!.env.example
+stack.env
+.next
+mc-server-creator
+mongo
