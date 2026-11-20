@@ -32,6 +32,11 @@ const MIME_TYPES: Record<string, string> = {
 export interface LocalStorageOptions {
     /** Owner applied to everything this class creates, for example the 1000:1000 user the Minecraft containers run as */
     owner?: { uid: number; gid: number };
+    /**
+     * More folders on this machine that may be reached, for servers that already existed somewhere else
+     * (IMPORT_SCAN_PATHS). Virtual paths that start with one of them are used as the real path.
+     */
+    extraRoots?: string[];
 }
 
 /**
@@ -73,11 +78,16 @@ export class LocalStorage implements ServerStorage {
     public readonly kind = 'local' as const;
     private readonly root: string;
     private readonly owner?: { uid: number; gid: number };
-    private realRootPromise: Promise<string> | null = null;
+    private readonly extraRoots: string[];
+    private readonly realRootPromises = new Map<string, Promise<string>>();
     private warnedAboutOwner = false;
 
     public constructor(rootPath: string, options: LocalStorageOptions = {}) {
         this.owner = options.owner;
+        this.extraRoots = (options.extraRoots ?? [])
+            .filter(entry => entry && path.isAbsolute(entry))
+            .map(entry => path.resolve(entry))
+            .filter(entry => entry !== path.parse(entry).root);
         if (!rootPath || !path.isAbsolute(rootPath)) {
             throw new Error('LOCAL_STORAGE_PATH must be an absolute path.');
         }
@@ -97,17 +107,35 @@ export class LocalStorage implements ServerStorage {
         return this.toAbsolute(virtualPath);
     }
 
-    private getRealRoot(): Promise<string> {
-        if (!this.realRootPromise) {
-            this.realRootPromise = fs
-                .mkdir(this.root, { recursive: true, mode: DIRECTORY_MODE })
-                .then(() => fs.realpath(this.root))
+    /** Folders on this machine this storage may touch: the storage root and any extra roots. */
+    public get allowedRoots(): string[] {
+        return [this.root, ...this.extraRoots];
+    }
+
+    /** The allowed root that contains an absolute path (the most specific one), if any. */
+    private rootFor(absolute: string): string | undefined {
+        return this.allowedRoots
+            .filter(candidate => isWithin(candidate, absolute))
+            .sort((a, b) => b.length - a.length)[0];
+    }
+
+    private isRoot(absolute: string): boolean {
+        return this.allowedRoots.includes(absolute);
+    }
+
+    private getRealRoot(root: string = this.root): Promise<string> {
+        let promise = this.realRootPromises.get(root);
+        if (!promise) {
+            // Only the main storage folder is created on demand; extra roots must already exist
+            promise = (root === this.root ? fs.mkdir(root, { recursive: true, mode: DIRECTORY_MODE }).then(() => undefined) : Promise.resolve())
+                .then(() => fs.realpath(root))
                 .catch(error => {
-                    this.realRootPromise = null;
+                    this.realRootPromises.delete(root);
                     throw error;
                 });
+            this.realRootPromises.set(root, promise);
         }
-        return this.realRootPromise;
+        return promise;
     }
 
     private normalizeVirtual(virtualPath: string): string {
@@ -123,6 +151,11 @@ export class LocalStorage implements ServerStorage {
 
     private toAbsolute(virtualPath: string): string {
         const normalized = this.normalizeVirtual(virtualPath);
+        // A path that already points into one of the extra roots is the real path
+        const direct = path.join(path.sep, ...normalized.split('/').filter(Boolean));
+        if (this.extraRoots.some(extra => isWithin(extra, direct))) {
+            return direct;
+        }
         const absolute = path.join(this.root, ...normalized.split('/').filter(Boolean));
         if (!isWithin(this.root, absolute)) {
             throw storageError('Path is outside the storage folder.', 'EACCES', 403);
@@ -139,7 +172,8 @@ export class LocalStorage implements ServerStorage {
      */
     private async resolveSafe(virtualPath: string, followFinal = true): Promise<string> {
         const absolute = this.toAbsolute(virtualPath);
-        const realRoot = await this.getRealRoot();
+        const root = this.rootFor(absolute) ?? this.root;
+        const realRoot = await this.getRealRoot(root);
 
         let probe = followFinal ? absolute : path.dirname(absolute);
         // Walk up until something exists, then check where it really points
@@ -155,7 +189,7 @@ export class LocalStorage implements ServerStorage {
                     throw error;
                 }
                 const parent = path.dirname(probe);
-                if (parent === probe || !isWithin(this.root, parent)) {
+                if (parent === probe || !isWithin(root, parent)) {
                     return absolute;
                 }
                 probe = parent;
@@ -223,7 +257,7 @@ export class LocalStorage implements ServerStorage {
     }
 
     private assertNotRoot(absolute: string, action: string): void {
-        if (absolute === this.root) {
+        if (this.isRoot(absolute)) {
             throw storageError(`Refusing to ${action} the storage root.`, 'EACCES', 403);
         }
     }
@@ -233,7 +267,7 @@ export class LocalStorage implements ServerStorage {
         try {
             const absolute = await this.resolveSafe(virtualDir);
             const names = await fs.readdir(absolute);
-            const realRoot = await this.getRealRoot();
+            const realRoot = await this.getRealRoot(this.rootFor(absolute) ?? this.root);
             const entries: StorageEntry[] = [];
 
             for (const name of names) {
@@ -335,8 +369,9 @@ export class LocalStorage implements ServerStorage {
 
     public async exists(checkPath: string): Promise<boolean> {
         try {
-            if (this.toAbsolute(checkPath) === this.root) {
-                await this.getRealRoot();
+            const target = this.toAbsolute(checkPath);
+            if (this.isRoot(target)) {
+                await this.getRealRoot(target);
                 return true;
             }
             const absolute = await this.resolveSafe(checkPath, false);
