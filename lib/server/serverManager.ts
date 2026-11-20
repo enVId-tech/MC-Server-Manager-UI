@@ -1,3 +1,4 @@
+import { supportsMods, supportsPlugins } from '@/lib/data/itzg';
 import Server from '@/lib/objects/Server';
 import User from '@/lib/objects/User';
 import portainer from './portainer';
@@ -127,8 +128,8 @@ export class MinecraftServerManager {
             const serverPath = `${baseServerPath}/${userFolder}/${uniqueId}`;
 
             // Determine if server supports mods or plugins
-            const isModdedServer = ['FORGE', 'FABRIC', 'NEOFORGE'].includes(serverType?.toUpperCase() || '');
-            const isPluginServer = ['SPIGOT', 'PAPER', 'PURPUR', 'BUKKIT'].includes(serverType?.toUpperCase() || '');
+            const isModdedServer = supportsMods(serverType);
+            const isPluginServer = supportsPlugins(serverType);
 
             // Build folder structure based on server type
             const foldersToCreate = [
@@ -141,10 +142,11 @@ export class MinecraftServerManager {
                 `${serverPath}/logs`
             ];
 
-            // Add appropriate folder for mods or plugins (not both)
+            // Add the folders the server type uses (hybrids use both)
             if (isModdedServer) {
                 foldersToCreate.push(`${serverPath}/mods`);
-            } else if (isPluginServer) {
+            }
+            if (isPluginServer) {
                 foldersToCreate.push(`${serverPath}/plugins`);
             }
 
@@ -213,15 +215,16 @@ export class MinecraftServerManager {
             // Create server type specific files
             if (isModdedServer) {
                 try {
-                    const modsReadme = `# Mods Folder\n\nPlace your ${serverType} mods (.jar files) in this folder.\n\nFor ${serverType} servers, do not place plugins here - mods and plugins are not compatible.\n`;
+                    const modsReadme = `# Mods Folder\n\nPlace your ${serverType} mods (.jar files) in this folder.\n\n${isPluginServer ? `${serverType} servers run plugins as well, but those belong in the plugins folder.` : `For ${serverType} servers, do not place plugins here - mods and plugins are not compatible.`}\n`;
                     await serverStorage.uploadFile(`${serverPath}/mods/README.md`, modsReadme);
                     uploadedFiles.push(`${serverPath}/mods/README.md`);
                 } catch (error) {
                     console.warn('Could not create mods README:', error);
                 }
-            } else if (isPluginServer) {
+            }
+            if (isPluginServer) {
                 try {
-                    const pluginsReadme = `# Plugins Folder\n\nPlace your ${serverType} plugins (.jar files) in this folder.\n\nFor ${serverType} servers, do not place mods here - use plugins instead.\n`;
+                    const pluginsReadme = `# Plugins Folder\n\nPlace your ${serverType} plugins (.jar files) in this folder.\n\n${isModdedServer ? `${serverType} servers run mods as well, but those belong in the mods folder.` : `For ${serverType} servers, do not place mods here - use plugins instead.`}\n`;
                     await serverStorage.uploadFile(`${serverPath}/plugins/README.md`, pluginsReadme);
                     uploadedFiles.push(`${serverPath}/plugins/README.md`);
                 } catch (error) {
