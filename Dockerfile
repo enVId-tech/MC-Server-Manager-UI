@@ -1,23 +1,30 @@
-# Use an official node image as the base image
-FROM node:latest
+# Use the current Node LTS release
+FROM node:24-bookworm-slim
 
-# 1. Update system certificates inside the container
-RUN apt-get update && apt-get install -y ca-certificates && update-ca-certificates
+# Update system certificates so Portainer and WebDAV servers with private CAs can be trusted
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && update-ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Set the working directory in the container
 WORKDIR /nextapp
 
-COPY . /nextapp
+# Install dependencies first so they are cached until the lockfile changes
+COPY package.json package-lock.json ./
+RUN npm ci
 
-# 2. Set the environment variable so it applies to build AND runtime
+COPY . .
+
+# Apply to both the build and the runtime
 ENV NODE_OPTIONS="--use-system-ca"
-
-RUN npm install
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
 
-# Make port 3000 available to the world outside this container
+# Keep proxy definitions on the mounted volume
+ENV PROXIES_CONFIG_PATH=/data/proxies.yaml
+
 EXPOSE 3000
 
-# Run app when the container launches
 CMD ["npm", "start"]
