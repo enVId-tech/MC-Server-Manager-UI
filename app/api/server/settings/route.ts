@@ -5,6 +5,7 @@ import { IUser } from '@/lib/objects/User';
 import verificationService from '@/lib/server/verify';
 import portainer from '@/lib/server/portainer';
 import { createMinecraftServerFromRecord } from '@/lib/server/minecraft';
+import { getContainerName } from '@/lib/server/containerNames';
 import {
     getRequiredJavaVersion,
     getServerType,
@@ -124,13 +125,22 @@ export async function PATCH(request: NextRequest) {
                 const environmentId = environments[0].Id;
                 portainer.DefaultEnvironmentId = environmentId;
 
-                const instance = createMinecraftServerFromRecord(server, environmentId, user.email);
+                if (server.imported) {
+                    // The container of an imported server is defined elsewhere, so it is not rebuilt here: a restart
+                    // makes the server read the changed server.properties.
+                    const container = await portainer.getContainerByIdentifier(getContainerName(server), environmentId);
+                    if (!container) throw new Error('The container of this server was not found.');
+                    await portainer.restartContainer(container.Id, environmentId);
+                    applied = true;
+                } else {
+                    const instance = createMinecraftServerFromRecord(server, environmentId, user.email);
 
-                const stack = await portainer.getStackByName(`minecraft-${server.uniqueId}`);
-                if (!stack) throw new Error('The container stack of this server was not found. Redeploy the server first.');
+                    const stack = await portainer.getStackByName(`minecraft-${server.uniqueId}`);
+                    if (!stack) throw new Error('The container stack of this server was not found. Redeploy the server first.');
 
-                await portainer.updateStack(stack.Id, instance.generateDockerComposeYaml(), environmentId, false);
-                applied = true;
+                    await portainer.updateStack(stack.Id, instance.generateDockerComposeYaml(), environmentId, false);
+                    applied = true;
+                }
             } catch (error) {
                 applyError = error instanceof Error ? error.message : 'Unknown error';
                 console.error('Failed to apply server settings:', error);

@@ -451,6 +451,9 @@ export class DockerImageUpdater {
             if (!server) {
                 throw new Error('Server not found in database');
             }
+            if (server.imported) {
+                throw new Error('This server was imported with its own container. Update its image where that container is defined.');
+            }
 
             // Recreate container using existing MinecraftServer class
             const { createMinecraftServerFromRecord } = await import('./minecraft');

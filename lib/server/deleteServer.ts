@@ -3,6 +3,7 @@ import Server from "@/lib/objects/Server";
 import { IUser } from "@/lib/objects/User";
 import { FileInfo } from "@/lib/objects/ServerConfig";
 import { getServerFolderPath } from "@/lib/server/serverPaths";
+import { getContainerName } from '@/lib/server/containerNames';
 
 interface DatabaseServerConfig {
     name: string;
@@ -56,6 +57,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
     details?: string[];
 }> {
     const details: string[] = [];
+    const imported = server.imported === true;
     let hasErrors = false;
     // Set when the container or stack could not be removed. The files and the database record are kept then,
     // otherwise a server that is still running would lose its data and could not be deleted again.
@@ -90,13 +92,11 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
 
             // Try to find and delete containers
             const containers = await portainer.getContainers(portainerEnvironmentId);
-            const serverContainers = containers.filter(container =>
-                container.Names.some(name =>
-                    name.includes(`mc-${server.uniqueId}`) ||
-                    name.includes(`minecraft-${server.uniqueId}`) ||
-                    name.includes(server.uniqueId as string)
-                )
-            );
+            // An imported server owns exactly one container by name; matching on parts of the name could hit others
+            const matchesServer = (name: string): boolean => imported
+                ? name.replace(/^\//, '') === getContainerName(server)
+                : name.includes(getContainerName(server)) || name.includes(`minecraft-${server.uniqueId}`) || name.includes(server.uniqueId as string);
+            const serverContainers = containers.filter(container => container.Names.some(matchesServer));
 
             if (serverContainers.length > 0) {
                 details.push(`Found ${serverContainers.length} container(s) to remove`);
@@ -133,7 +133,8 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
 
             // Try to find and delete stacks
             const stacks = await portainer.getStacks();
-            const serverStacks = stacks.filter(stack =>
+            // The stack of an imported server was not made here and may hold other services, so it is left alone
+            const serverStacks = imported ? [] : stacks.filter(stack =>
                 stack.Name === `minecraft-${server.uniqueId}` ||
                 stack.Name.includes(server.uniqueId as string)
             );
@@ -159,7 +160,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
 
             // Make sure nothing of this server is left running
             const remaining = (await portainer.getContainers(portainerEnvironmentId)).filter(container =>
-                container.Names.some(name => name.includes(`mc-${server.uniqueId}`) || name.includes(`minecraft-${server.uniqueId}`) || name.includes(server.uniqueId as string))
+                container.Names.some(matchesServer)
             );
             if (remaining.length > 0) {
                 details.push(`Warning: ${remaining.length} container(s) of this server are still present`);
@@ -183,7 +184,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
                 const velocityService = await import('@/lib/server/velocity');
                 
                 // Try to remove the server from Velocity configuration
-                const serverName = server.serverName as string || `mc-${server.uniqueId}`;
+                const serverName = server.serverName as string || getContainerName(server);
                 const removalResult = await velocityService.default.removeServerFromVelocityConfig(
                     serverName,
                     server.uniqueId as string
@@ -223,7 +224,10 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
             };
         }
 
-        if (!process.env.DELETE_SERVER_FOLDERS || process.env.DELETE_SERVER_FOLDERS.toLowerCase() !== 'true') {
+        if (imported) {
+            // The folder of an imported server existed before this app. It is never renamed or deleted here.
+            details.push('The server files were left where they are (this server was imported).');
+        } else if (!process.env.DELETE_SERVER_FOLDERS || process.env.DELETE_SERVER_FOLDERS.toLowerCase() !== 'true') {
             // 3. Rename WebDAV server folder instead of deleting
             try {
                 details.push('Renaming server files directory...');

@@ -15,6 +15,7 @@ import velocityService from './velocity';
 import path from 'path';
 import Server from '@/lib/objects/Server';
 import { createMinecraftServerFromRecord } from '@/lib/server/minecraft';
+import { getContainerName } from '@/lib/server/containerNames';
 
 export type ProxyType = 'velocity' | 'bungeecord' | 'waterfall';
 
@@ -699,7 +700,9 @@ export class ProxyManager {
 
             // 4. Handle Missing (DB exists, Container missing)
             for (const server of dbServers) {
-                const containerName = `mc-${server.uniqueId}`;
+                // Imported servers keep the container they came with; this app has no definition to recreate it from
+                if (server.imported) continue;
+                const containerName = getContainerName(server);
                 const exists = serverContainers.some(c => c.Names.some(n => n.includes(containerName)));
                 if (exists) continue;
 
@@ -846,7 +849,7 @@ export class ProxyManager {
                     const allServers = await Server.find({});
                     for (const server of allServers) {
                         if (server.uniqueId && server.serverName) {
-                            const serverAddress = `mc-${server.uniqueId}:25565`;
+                            const serverAddress = `${getContainerName(server)}:25565`;
                             velocityConfig.servers[server.serverName] = { address: serverAddress };
 
                             // Add to try list for connection attempts
