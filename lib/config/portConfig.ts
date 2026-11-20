@@ -38,8 +38,8 @@ export const IMPORTANT_PORTS: ImportantPort[] = [
  * Default port ranges for different environments
  */
 export const PORT_RANGES = {
-  MINECRAFT_SERVERS: { start: 25566, end: 25595 }, // Main range for Minecraft servers
-  MINECRAFT_RCON: { start: 35566, end: 35595 }, // RCON ports
+  MINECRAFT_SERVERS: { start: 25566, end: 25999 }, // Main range for Minecraft servers, filled upwards from the port after the default one
+  MINECRAFT_RCON: { start: 35566, end: 35999 }, // RCON ports
   VELOCITY_PROXY: { start: 25500, end: 25564 }, // Velocity proxy servers
   DEVELOPMENT: { start: 26000, end: 26999 }, // Development/testing
   SYSTEM_RESERVED: { start: 1, end: 1023 }, // System reserved ports

@@ -2,6 +2,7 @@ import dbConnect from '@/lib/db/dbConnect';
 import User from '@/lib/objects/User';
 import Server from '@/lib/objects/Server';
 import portainer from '@/lib/server/portainer';
+import { checkPortOnNetwork } from '@/lib/server/portProbe';
 import { 
   PORT_RANGES, 
   getImportantPortNumbers, 
@@ -28,7 +29,7 @@ export interface PortAvailabilityCheck {
   port: number;
   available: boolean;
   reason?: string;
-  conflictType?: 'container' | 'database' | 'important' | 'reserved_range' | 'user_reserved';
+  conflictType?: 'container' | 'database' | 'important' | 'reserved_range' | 'user_reserved' | 'network' | 'pending';
 }
 
 /**
@@ -36,7 +37,47 @@ export interface PortAvailabilityCheck {
  * Handles all port allocation logic with comprehensive conflict checking
  */
 export class PortManager {
-  
+
+  /**
+   * Ports handed out that are not in the database yet. A server record is created after its port is chosen, so
+   * without this two servers created at the same time would be given the same port. Entries expire by themselves.
+   */
+  private static pendingPorts = new Map<number, number>();
+  private static readonly PENDING_TTL_MS = 15 * 60 * 1000;
+
+  /** Allocations run one after another so that each one sees the ports reserved by the one before it */
+  private static allocationQueue: Promise<unknown> = Promise.resolve();
+
+  private static containerPortCache: { environmentId: number; at: number; ports: Set<number> } | null = null;
+
+  /** Published container ports. Cached for a moment because an allocation checks many candidate ports in a row. */
+  private static async getContainerPorts(environmentId: number): Promise<Set<number>> {
+    const cached = this.containerPortCache;
+    if (cached && cached.environmentId === environmentId && Date.now() - cached.at < 3000) {
+      return cached.ports;
+    }
+    const ports = new Set(await portainer.getUsedPorts(environmentId));
+    this.containerPortCache = { environmentId, at: Date.now(), ports };
+    return ports;
+  }
+
+  private static isPending(port: number): boolean {
+    const expires = this.pendingPorts.get(port);
+    if (expires === undefined) return false;
+    if (expires < Date.now()) {
+      this.pendingPorts.delete(port);
+      return false;
+    }
+    return true;
+  }
+
+  private static reservePending(...ports: (number | undefined)[]): void {
+    const expires = Date.now() + this.PENDING_TTL_MS;
+    for (const port of ports) {
+      if (port !== undefined) this.pendingPorts.set(port, expires);
+    }
+  }
+
   /**
    * Check if a port is available considering all constraints
    */
@@ -60,8 +101,8 @@ export class PortManager {
       }
 
       // 2. Check if port is being used by containers
-      const containerUsedPorts = await portainer.getUsedPorts(environmentId);
-      if (containerUsedPorts.includes(port)) {
+      const containerUsedPorts = await this.getContainerPorts(environmentId);
+      if (containerUsedPorts.has(port)) {
         return {
           port,
           available: false,
@@ -117,7 +158,29 @@ export class PortManager {
         }
       }
 
-      // 5. Port is available
+      // 5. Check ports that were just handed out to a server that is still being created
+      if (this.isPending(port)) {
+        return {
+          port,
+          available: false,
+          reason: `Port ${port} was just reserved for a server that is being created`,
+          conflictType: 'pending'
+        };
+      }
+
+      // 6. Check what is really listening on the network. Containers started outside the manager and other
+      // services never show up in Portainer's list for this environment or in the database.
+      const network = await checkPortOnNetwork(port);
+      if (!network.free) {
+        return {
+          port,
+          available: false,
+          reason: network.reason,
+          conflictType: 'network'
+        };
+      }
+
+      // 7. Port is available
       return {
         port,
         available: true,
@@ -137,10 +200,28 @@ export class PortManager {
   /**
    * Allocate a port for a user with all safety checks
    */
-  static async allocatePort(
-    userEmail: string, 
-    needsRcon: boolean = false, 
+  static allocatePort(
+    userEmail: string,
+    needsRcon: boolean = false,
     environmentId: number = 1,
+    preferredPort?: number
+  ): Promise<PortAllocationResult> {
+    const run = async (): Promise<PortAllocationResult> => {
+      const result = await this.findFreePorts(userEmail, needsRcon, environmentId, preferredPort);
+      if (result.success) this.reservePending(result.port, result.rconPort);
+      return result;
+    };
+
+    // One allocation at a time, and a failed one must not block the ones queued behind it
+    const queued = this.allocationQueue.then(run, run);
+    this.allocationQueue = queued.catch(() => undefined);
+    return queued;
+  }
+
+  private static async findFreePorts(
+    userEmail: string,
+    needsRcon: boolean,
+    environmentId: number,
     preferredPort?: number
   ): Promise<PortAllocationResult> {
     try {
