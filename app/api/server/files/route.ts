@@ -66,21 +66,21 @@ export async function GET(request: NextRequest) {
 
             const contents = await webdavService.getDirectoryContents(fullPath);
 
-            // Transform the WebDAV response to match our interface
-            const files = (contents as Record<string, unknown>[]).map((item) => {
-                const itemPath = item.filename as string;
+            // Transform the storage response to match our interface
+            const files = contents.map((item) => {
+                const itemPath = item.filename;
                 // Remove the server path prefix to get relative path
                 const relativePath = itemPath.replace(serverPath, '') || '/';
 
                 return {
-                    name: item.basename as string,
+                    name: item.basename,
                     type: item.type === 'directory' ? 'folder' as const : 'file' as const,
                     path: relativePath,
-                    size: (item.size as number) || 0,
-                    lastModified: item.lastmod ? new Date(item.lastmod as string) : new Date(),
-                    mimeType: (item.mime as string) || 'application/octet-stream',
-                    isReadable: isReadableFile(item.basename as string),
-                    isEditable: isEditableFile(item.basename as string)
+                    size: item.size || 0,
+                    lastModified: item.lastmod ? new Date(item.lastmod) : new Date(),
+                    mimeType: item.mime || 'application/octet-stream',
+                    isReadable: isReadableFile(item.basename),
+                    isEditable: isEditableFile(item.basename)
                 };
             });
 
