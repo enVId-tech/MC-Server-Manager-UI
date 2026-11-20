@@ -237,6 +237,7 @@ export default function ServerGenerator() {
   const [gameModes, setGameModes] = useState<{ value: string; label: string }[]>([]);
   const [difficulties, setDifficulties] = useState<{ value: string; label: string }[]>([]);
   const [worldFeatures, setWorldFeatures] = useState<{ name: string; label: string; enabled?: boolean }[]>([]);
+  const [serverDomain, setServerDomain] = useState('');
   // const [serverOptions, setServerOptions] = useState<{ name: string; label: string }[]>([]);
   const [error, setError] = useState<{
     title?: string;
@@ -279,6 +280,7 @@ export default function ServerGenerator() {
       setGameModes(data.gameModes || []);
       setDifficulties(data.difficulties || []);
       setWorldFeatures(data.worldFeatures || []);
+      setServerDomain(data.serverDomain || '');
       // setServerOptions(data.serverOptions || []);
 
       // Initialize serverConfig with any missing properties from the fetched options
@@ -1622,7 +1624,7 @@ export default function ServerGenerator() {
                     <p><strong>Server Name:</strong> {serverConfig.name}</p>
                     <p><strong>Server Type:</strong> {serverConfig.serverType.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>
                     <p><strong>Minecraft Version:</strong> {serverConfig.version}</p>
-                    <p><strong>Connection:</strong> {serverConfig.subdomain}.mc.etran.dev</p>
+                    <p><strong>Connection:</strong> {serverConfig.subdomain}.{serverDomain}</p>
                   </div>
                 )}
                 <p className={styles.redirectMessage}>
@@ -1750,10 +1752,10 @@ export default function ServerGenerator() {
                     placeholder="Choose a subdomain (e.g. myserver)"
                     maxLength={50}
                   />
-                  <span>.mc.etran.dev</span>
+                  <span>.{serverDomain}</span>
                 </div>
                 <div className={styles.fullAddress}>
-                  <strong>Full Address:</strong> <span>{serverConfig.subdomain || <em>subdomain</em>}.mc.etran.dev</span>
+                  <strong>Full Address:</strong> <span>{serverConfig.subdomain || <em>subdomain</em>}.{serverDomain}</span>
                 </div>
               </div>
 
