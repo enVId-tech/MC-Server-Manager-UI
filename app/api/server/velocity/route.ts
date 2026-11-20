@@ -9,6 +9,7 @@ import { proxyManager } from "@/lib/server/proxy-manager";
 
 import { IServer } from "@/lib/objects/Server";
 import { IUser } from "@/lib/objects/User";
+import { getContainerName } from '@/lib/server/containerNames';
 
 export async function POST(request: NextRequest) {
     await dbConnect();
@@ -79,7 +80,7 @@ async function configureServerForVelocity(server: IServer, user: IUser) {
         const containers = await portainer.getContainers(environmentId);
         const serverContainer = containers.find(container =>
             container.Names.some(name => 
-                name.includes(`mc-${server.uniqueId}`) ||
+                name.includes(getContainerName(server)) ||
                 name.includes(`minecraft-${server.uniqueId}`)
             )
         );
@@ -158,7 +159,7 @@ async function configureServerForVelocity(server: IServer, user: IUser) {
         const velocityConfig = {
             serverId: server.uniqueId,
             serverName: server.serverName,
-            address: `mc-${server.uniqueId}:25565`, // Container name:port for internal network
+            address: `${getContainerName(server)}:25565`, // Container name:port for internal network
             port: server.port || 25565,
             motd: server.serverConfig?.motd || server.serverName,
             restrictedToProxy: true,

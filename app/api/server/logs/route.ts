@@ -4,6 +4,7 @@ import { IUser } from "@/lib/objects/User";
 import Server from "@/lib/objects/Server";
 import portainer from "@/lib/server/portainer";
 import verificationService from "@/lib/server/verify";
+import { getContainerName } from '@/lib/server/containerNames';
 
 export async function GET(request: NextRequest) {
     await dbConnect();
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
         // Use server's stored environment ID, or auto-discover a valid one
         const storedEnvId = server.environmentId || (process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null);
         const environmentId = await portainer.getValidEnvironmentId(storedEnvId);
-        const containerName = `mc-${server.uniqueId}`;
+        const containerName = getContainerName(server);
         
         // Find container ID
         const container = await portainer.getContainerByIdentifier(containerName, environmentId);

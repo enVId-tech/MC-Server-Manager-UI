@@ -9,6 +9,7 @@ import portainer from "@/lib/server/portainer";
 import { IServer } from "@/lib/objects/Server";
 import { IUser } from "@/lib/objects/User";
 import { getServerFolderPath } from '@/lib/server/serverPaths';
+import { getContainerName } from '@/lib/server/containerNames';
 
 export async function GET(request: NextRequest) {
     try {
@@ -306,7 +307,7 @@ async function configureServerForMultiProxy(
             throw new Error('Portainer environment ID not configured');
         }
         
-        const containerName = `mc-${server.uniqueId}`;
+        const containerName = getContainerName(server);
         
         // Find the container
         const containers = await portainer.axiosInstance.get(
@@ -360,7 +361,7 @@ async function configureServerForMultiProxy(
         const serverProxyConfig: ServerProxyConfig = {
             serverId: server.uniqueId,
             serverName: server.serverName,
-            address: `mc-${server.uniqueId}:25565`, // Container name:port for internal network
+            address: `${getContainerName(server)}:25565`, // Container name:port for internal network
             port: server.port || 25565,
             motd: server.serverConfig?.motd || server.serverName,
             restrictedToProxy: true,

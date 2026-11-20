@@ -5,6 +5,7 @@ import Server from "@/lib/objects/Server";
 import portainer from "@/lib/server/portainer";
 import verificationService from "@/lib/server/verify";
 import { Readable } from 'stream';
+import { getContainerName } from '@/lib/server/containerNames';
 
 export async function GET(
     request: NextRequest,
@@ -36,7 +37,7 @@ export async function GET(
         }
 
         // Get container
-        const containerIdentifier = `mc-${server.uniqueId}`;
+        const containerIdentifier = getContainerName(server);
         const container = await portainer.getContainerByIdentifier(containerIdentifier);
         
         if (!container) {

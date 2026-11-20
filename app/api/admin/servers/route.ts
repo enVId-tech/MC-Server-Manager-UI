@@ -6,6 +6,7 @@ import verificationService from '@/lib/server/verify';
 import BodyParser from '@/lib/db/bodyParser';
 import portainer from '@/lib/server/portainer';
 import { deleteServer } from '@/lib/server/deleteServer';
+import { getContainerName } from '@/lib/server/containerNames';
 
 // GET - Get all servers for admin management (admin only)
 function escapeRegExp(value: string): string {
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
                 const containers = await portainer.getContainers(environmentId);
                 
                 serversWithStatus = servers.filter(server => {
-                    const containerName = `mc-${server.uniqueId}`;
+                    const containerName = getContainerName(server);
                     const container = containers.find(c => 
                         c.Names && c.Names.some(name => name.includes(containerName))
                     );
@@ -115,7 +116,7 @@ export async function GET(request: NextRequest) {
                     const environmentId = environments[0]?.Id;
                     
                     if (environmentId) {
-                        const containerName = `mc-${server.uniqueId}`;
+                        const containerName = getContainerName(server);
                         const container = await portainer.getContainerByIdentifier(containerName, environmentId);
                         
                         if (container) {

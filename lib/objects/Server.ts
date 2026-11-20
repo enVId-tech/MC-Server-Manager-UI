@@ -17,6 +17,15 @@ export interface IServer extends pkg.Document {
     lastDeploymentError?: string;
     lastDeploymentAt?: Date;
     deployedAt?: Date;
+    /** Docker container name. Servers created here use mc-<uniqueId>; imported servers keep the name they already had */
+    containerName?: string;
+    /** True for servers that existed before this app and were added to the dashboard */
+    imported?: boolean;
+    importedFrom?: {
+        source: 'docker' | 'folder';
+        /** The server folder as Docker sees it */
+        hostPath?: string;
+    };
     createdAt: Date;
     serverConfig: ServerConfigData;
 }
@@ -89,6 +98,12 @@ const ServerSchema: pkg.Schema = new pkg.Schema({
     lastDeploymentError: { type: String, required: false },
     lastDeploymentAt: { type: Date, required: false },
     deployedAt: { type: Date, required: false },
+    containerName: { type: String, required: false },
+    imported: { type: Boolean, required: false, default: false },
+    importedFrom: {
+        source: { type: String, enum: ['docker', 'folder'], required: false },
+        hostPath: { type: String, required: false },
+    },
     createdAt: {
         type: Date,
         default: Date.now,

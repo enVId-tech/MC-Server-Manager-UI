@@ -1,6 +1,7 @@
 import portainer from './portainer';
 import Server from '@/lib/objects/Server';
 import dbConnect from '@/lib/db/dbConnect';
+import { getContainerName } from '@/lib/server/containerNames';
 
 interface ResourceStats {
     containerId: string;
@@ -163,7 +164,7 @@ export class ResourceMonitor {
             }
 
             const environmentId = environments[0].Id;
-            const containerIdentifier = `mc-${server.uniqueId}`;
+            const containerIdentifier = getContainerName(server);
 
             // Get container
             const container = await portainer.getContainerByIdentifier(containerIdentifier, environmentId);
@@ -319,7 +320,7 @@ export class ResourceMonitor {
             }
 
             const environmentId = environments[0].Id;
-            const containerIdentifier = `mc-${server.uniqueId}`;
+            const containerIdentifier = getContainerName(server);
             const container = await portainer.getContainerByIdentifier(containerIdentifier, environmentId);
             
             if (!container) {

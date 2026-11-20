@@ -5,6 +5,7 @@ import Server from "@/lib/objects/Server";
 import portainer from "@/lib/server/portainer";
 import verificationService from "@/lib/server/verify";
 import { isSingleLineCommand, shellQuote } from '@/lib/server/shell';
+import { getContainerName } from '@/lib/server/containerNames';
 
 export async function POST(request: NextRequest) {
     await dbConnect();
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
         // Auto-discover valid environment ID
         const storedEnvId = server.environmentId || (process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : null);
         const environmentId = await portainer.getValidEnvironmentId(storedEnvId);
-        const containerName = `mc-${server.uniqueId}`;
+        const containerName = getContainerName(server);
         
         // Find container ID
         const container = await portainer.getContainerByIdentifier(containerName, environmentId);

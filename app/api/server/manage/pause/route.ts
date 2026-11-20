@@ -4,6 +4,7 @@ import Server from "@/lib/objects/Server";
 import portainer from "@/lib/server/portainer";
 import { IUser } from "@/lib/objects/User";
 import verificationService from "@/lib/server/verify";
+import { getContainerName } from '@/lib/server/containerNames';
 
 export async function POST(request: NextRequest) {
     await dbConnect();
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get container by server uniqueId (containers are named mc-{uniqueId})
-        const containerIdentifier = `mc-${server.uniqueId}`;
+        const containerIdentifier = getContainerName(server);
         const container = await portainer.getContainerByIdentifier(containerIdentifier, portainerEnvironmentId);
         
         if (!container) {
