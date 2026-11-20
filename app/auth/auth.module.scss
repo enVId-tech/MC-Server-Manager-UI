@@ -91,6 +91,16 @@
     }
   }
 
+  .field-hint {
+    margin-top: 0.4rem;
+    font-size: 0.8rem;
+    color: $text-secondary;
+  }
+
+  input::placeholder {
+    color: rgba($text-secondary, 0.6);
+  }
+
   .message {
     padding: 0.75rem;
     margin-top: 1.5rem;
@@ -151,10 +161,15 @@
       width: auto;
     }
 
-    &:hover {
+    &:hover:not(:disabled) {
       background-color: color.scale(#3182ce, $lightness: 5%);
       color: #ffffff;
       transform: translateY(-2px);
+    }
+
+    &:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
     }
   }
 }

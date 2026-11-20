@@ -4,13 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import loginBg from '@/public/auth-bg.png';
+import PasswordInput from '@/app/_components/Inputs/PasswordInput/PasswordInput';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [submitting, setSubmitting] = useState(false);
     const router = useRouter();
-    const [fullyLoaded, setFullyLoaded] = useState(false);
 
     // Set up an effect to check if the user is already logged in
     useEffect(() => {
@@ -31,8 +32,6 @@ export default function LoginPage() {
             }).catch(error => {
                 console.error('Error checking authentication:', error);
             });
-
-            setFullyLoaded(true);
         }
 
         checkAuth();
@@ -46,6 +45,8 @@ export default function LoginPage() {
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
         event.preventDefault();
+        setError('');
+        setSubmitting(true);
 
         try {
             const response = await fetch('/api/auth/login', {
@@ -71,6 +72,8 @@ export default function LoginPage() {
         } catch (error) {
             console.error('Login error:', error);
             setError('An unexpected error occurred');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -85,25 +88,26 @@ export default function LoginPage() {
                         id="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
+                        autoComplete="email"
+                        placeholder="you@example.com"
+                        autoFocus
                         required
                     />
                 </div>
                 <div className="form-group">
                     <label htmlFor="password">Password</label>
-                    <input
-                        type="password"
+                    <PasswordInput
                         id="password"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
+                        onChange={setPassword}
+                        autoComplete="current-password"
+                        placeholder="Your password"
                     />
                 </div>
-                {fullyLoaded && (
-                    <button type="submit" className="button button--primary" style={{ width: '100%' }}>
-                        Log In
-                    </button>
-                )}
-                {error && <p className="message message--error">{error}</p>}
+                <button type="submit" className="button button--primary" style={{ width: '100%' }} disabled={submitting}>
+                    {submitting ? 'Logging in…' : 'Log In'}
+                </button>
+                {error && <p className="message message--error" role="alert">{error}</p>}
                 <p className="redirect-link">
                     Don&#39;t have an account? <Link href="/auth/signup">Sign Up</Link>
                 </p>
