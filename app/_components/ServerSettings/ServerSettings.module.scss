@@ -1,0 +1,107 @@
+@use "../../variables" as *;
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.summary,
+.hint,
+.state {
+  margin: 0;
+  color: $text-secondary;
+  font-family: $body-font;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.state {
+  padding: 2rem;
+  text-align: center;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+
+  button {
+    padding: 0.55rem 1.1rem;
+    border-radius: 8px;
+    font-family: $body-font;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $accent-blue;
+      outline-offset: 2px;
+    }
+  }
+
+  .primary {
+    border: 1px solid $accent-blue;
+    background: $accent-blue;
+    color: #fff;
+  }
+
+  .secondary {
+    border: 1px solid $border-color;
+    background: transparent;
+    color: $text-primary;
+  }
+}
+
+.feedback {
+  padding: 0.7rem 1rem;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  font-family: $body-font;
+  font-size: 0.9rem;
+
+  &.success { border-color: #2e9d5b; color: #6fdc9b; }
+  &.error { border-color: #c0443f; color: #f08a86; }
+  &.info { color: $text-secondary; }
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-bottom: 1px solid $border-color;
+}
+
+.tab {
+  padding: 0.6rem 1rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: $text-secondary;
+  font-family: $body-font;
+  font-size: 0.9rem;
+  cursor: pointer;
+
+  &.active {
+    border-bottom-color: $accent-blue;
+    color: $text-primary;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent-blue;
+    outline-offset: -2px;
+  }
+}

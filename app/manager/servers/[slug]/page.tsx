@@ -19,7 +19,8 @@ import {
   FaTerminal,
   FaListAlt,
   FaSync,
-  FaSpinner
+  FaSpinner,
+  FaCog
 } from 'react-icons/fa';
 import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
@@ -28,6 +29,7 @@ import serverManager from '@/public/server-manager-bg.png';
 import { VscDebugRestart } from 'react-icons/vsc';
 import { HiDownload } from 'react-icons/hi';
 import { FiCpu } from 'react-icons/fi';
+import ServerSettings from '@/app/_components/ServerSettings/ServerSettings';
 
 interface FileItem {
   name: string;
@@ -181,7 +183,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     }
   }, [resolvedParams.slug]);
 
-  const [activeTab, setActiveTab] = useState<'files' | 'info' | 'notes' | 'logs' | 'console'>('files');
+  const [activeTab, setActiveTab] = useState<'files' | 'info' | 'notes' | 'logs' | 'console' | 'settings'>('files');
 
   // Fetch files from WebDAV
   const fetchFiles = useCallback(async (path: string) => {
@@ -1342,6 +1344,12 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                 <FaTerminal /> Console
               </button>
               <button
+                className={`${styles.tabButton} ${activeTab === 'settings' ? styles.active : ''}`}
+                onClick={() => setActiveTab('settings')}
+              >
+                <FaCog /> Settings
+              </button>
+              <button
                 className={`${styles.tabButton} ${activeTab === 'info' ? styles.active : ''}`}
                 onClick={() => setActiveTab('info')}
               >
@@ -1357,6 +1365,8 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
 
             {/* Tab Content */}
             <div className={styles.tabContent}>
+              {activeTab === 'settings' && <ServerSettings serverSlug={resolvedParams.slug} />}
+
               {activeTab === 'files' && (
                 <div className={styles.fileEditor}>
                   {selectedFile ? (
