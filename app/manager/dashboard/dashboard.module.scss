@@ -266,6 +266,11 @@
     }
   }
 
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
   &.danger {
     background-color: rgba($accent-red, 0.1);
     color: color.scale($accent-red, $lightness: 15%);

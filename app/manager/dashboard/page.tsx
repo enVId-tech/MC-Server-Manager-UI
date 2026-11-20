@@ -40,6 +40,7 @@ export default function Dashboard() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [deletionSuccess, setDeletionSuccess] = useState(false);
     const [deletionProgress, setDeletionProgress] = useState(0);
+    const [busyServerIds, setBusyServerIds] = useState<Set<string>>(new Set());
     const router = useRouter();
 
     useEffect(() => {
@@ -110,17 +111,52 @@ export default function Dashboard() {
     }, [router]);
 
 
-    const handleStartServer = (id: string) => {
-        setServers(servers.map(server =>
-            server.id === id ? { ...server, status: 'online' } : server
-        ));
+    const setServerPower = async (id: string, action: 'start' | 'stop') => {
+        const server = servers.find(candidate => candidate.id === id);
+        if (!server || busyServerIds.has(id)) return;
+
+        setBusyServerIds(current => new Set(current).add(id));
+        try {
+            const response = await fetch(`/api/server/manage/${action}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uniqueId: id }),
+            });
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(data.message || `Failed to ${action} the server.`);
+            }
+
+            setServers(current => current.map(candidate =>
+                candidate.id === id
+                    ? { ...candidate, status: action === 'start' ? 'online' : 'offline', players: action === 'stop' ? 0 : candidate.players }
+                    : candidate
+            ));
+            showNotification({
+                type: 'success',
+                title: action === 'start' ? 'Server Started' : 'Server Stopped',
+                message: `${server.name} was ${action === 'start' ? 'started' : 'stopped'}.`,
+            });
+        } catch (error) {
+            console.error(`Error trying to ${action} server:`, error);
+            showNotification({
+                type: 'error',
+                title: action === 'start' ? 'Could Not Start Server' : 'Could Not Stop Server',
+                message: error instanceof Error ? error.message : `Failed to ${action} the server.`,
+            });
+        } finally {
+            setBusyServerIds(current => {
+                const next = new Set(current);
+                next.delete(id);
+                return next;
+            });
+        }
     };
 
-    const handleStopServer = (id: string) => {
-        setServers(servers.map(server =>
-            server.id === id ? { ...server, status: 'offline', players: 0 } : server
-        ));
-    };
+    const handleStartServer = (id: string) => setServerPower(id, 'start');
+
+    const handleStopServer = (id: string) => setServerPower(id, 'stop');
 
     const handleDeleteServer = (id: string) => {
         const serverToSet = servers.find(server => server.id === id);
@@ -326,22 +362,24 @@ export default function Dashboard() {
                                     {server.status === 'offline' ? (
                                         <button
                                             className={`${styles.button} ${styles.primary}`}
+                                            disabled={busyServerIds.has(server.id)}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleStartServer(server.id);
                                             }}
                                         >
-                                            Start
+                                            {busyServerIds.has(server.id) ? 'Starting…' : 'Start'}
                                         </button>
                                     ) : (
                                         <button
                                             className={`${styles.button} ${styles.secondary}`}
+                                            disabled={busyServerIds.has(server.id)}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleStopServer(server.id);
                                             }}
                                         >
-                                            Stop
+                                            {busyServerIds.has(server.id) ? 'Stopping…' : 'Stop'}
                                         </button>
                                     )}
                                     <button
