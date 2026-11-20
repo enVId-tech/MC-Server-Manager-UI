@@ -1,0 +1,320 @@
+@use "../../variables" as *;
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+
+  .search {
+    flex: 1 1 14rem;
+    min-width: 0;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid $border-color;
+    border-radius: 8px;
+    background: $dark-form;
+    color: $text-primary;
+    font-family: $body-font;
+    font-size: 0.9rem;
+
+    &:focus-visible {
+      outline: 2px solid $accent-blue;
+      outline-offset: 1px;
+    }
+  }
+
+  .count {
+    color: $text-secondary;
+    font-family: $body-font;
+    font-size: 0.85rem;
+  }
+
+  .expertToggle {
+    padding: 0.5rem 0.9rem;
+    border: 1px solid $border-color;
+    border-radius: 8px;
+    background: transparent;
+    color: $text-primary;
+    font-family: $body-font;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+
+    &:hover {
+      border-color: $accent-blue;
+    }
+
+    &[aria-pressed="true"] {
+      border-color: $accent-blue;
+      background: rgba($accent-blue, 0.15);
+    }
+  }
+}
+
+.platform {
+  border: 1px solid $border-color;
+  border-radius: 10px;
+  background: rgba($white, 0.03);
+  padding: 0.75rem 1rem;
+
+  .platformRow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.75rem;
+    font-family: $body-font;
+    font-size: 0.9rem;
+    color: $text-primary;
+  }
+
+  .platformLabel {
+    font-weight: 600;
+    min-width: 3rem;
+  }
+
+  .lockNote {
+    margin-left: auto;
+    color: $text-secondary;
+    font-size: 0.8rem;
+  }
+}
+
+.empty {
+  color: $text-secondary;
+  font-family: $body-font;
+  padding: 1rem 0;
+}
+
+.group {
+  border: 1px solid $border-color;
+  border-radius: 10px;
+  background: rgba($white, 0.02);
+
+  > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1rem;
+    cursor: pointer;
+    font-family: $body-font;
+    font-weight: 600;
+    color: $text-primary;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &::before {
+      content: "▸";
+      margin-right: 0.6rem;
+      color: $text-secondary;
+      transition: transform 0.2s ease;
+    }
+
+    > span:first-child {
+      flex: 1;
+    }
+  }
+
+  &[open] > summary::before {
+    transform: rotate(90deg);
+  }
+
+  .groupCount {
+    min-width: 1.6rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: rgba($white, 0.08);
+    color: $text-secondary;
+    font-size: 0.75rem;
+    text-align: center;
+  }
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: 1.25rem 1.5rem;
+  padding: 0.25rem 1rem 1.25rem;
+}
+
+.field,
+.fieldWide {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid $border-color;
+    border-radius: 8px;
+    background: $dark-form;
+    color: $text-primary;
+    font-family: $body-font;
+    font-size: 0.9rem;
+
+    &:focus-visible {
+      outline: 2px solid $accent-blue;
+      outline-offset: 1px;
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  textarea {
+    resize: vertical;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85rem;
+  }
+}
+
+.fieldWide {
+  grid-column: 1 / -1;
+}
+
+.fieldHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+
+  label {
+    margin: 0;
+    font-family: $body-font;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: $text-primary;
+  }
+
+  .reset {
+    padding: 0.1rem 0.5rem;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: $accent-blue;
+    font-family: $body-font;
+    font-size: 0.78rem;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba($accent-blue, 0.15);
+    }
+  }
+}
+
+.segmented {
+  display: flex;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  overflow: hidden;
+
+  button {
+    flex: 1;
+    padding: 0.5rem 0.4rem;
+    border: none;
+    border-right: 1px solid $border-color;
+    background: $dark-form;
+    color: $text-secondary;
+    font-family: $body-font;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+
+    &:last-child {
+      border-right: none;
+    }
+
+    &:hover:not(:disabled) {
+      color: $text-primary;
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+  }
+
+  .segmentActive {
+    background: $accent-blue;
+    color: $white;
+  }
+}
+
+.help {
+  margin: 0;
+  color: $text-secondary;
+  font-family: $body-font;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  color: $text-secondary;
+  font-family: $body-font;
+  font-size: 0.72rem;
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: rgba($text-secondary, 0.85);
+  }
+}
+
+.lockedList {
+  list-style: none;
+  margin: 0;
+  padding: 0 1rem 1rem;
+  display: grid;
+  gap: 0.6rem;
+  color: $text-primary;
+  font-family: $body-font;
+  font-size: 0.85rem;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.75rem;
+    align-items: baseline;
+  }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: $text-secondary;
+    font-size: 0.78rem;
+  }
+
+  span {
+    color: $text-secondary;
+    flex-basis: 100%;
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: $mobile) {
+  .fields {
+    grid-template-columns: 1fr;
+    padding: 0.25rem 0.75rem 1rem;
+  }
+
+  .toolbar .expertToggle {
+    width: 100%;
+  }
+}
