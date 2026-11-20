@@ -65,6 +65,23 @@ select {
   }
 }
 
+// Keyboard focus indicator that matches the accent colour
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid #63b3ed;
+  outline-offset: 2px;
+}
+
+::selection {
+  background-color: rgba($accent-blue, 0.45);
+  color: $white;
+}
+
+// Dark, slim scrollbars so scrollable panels blend into the theme
+* {
+  scrollbar-width: thin;
+  scrollbar-color: $border-color transparent;
+}
+
 // Responsive text scaling
 html {
   font-size: 14px;
