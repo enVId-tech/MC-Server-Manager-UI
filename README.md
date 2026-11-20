@@ -130,6 +130,7 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 | `PORTAINER_URL`, `PORTAINER_USERNAME`, `PORTAINER_PASSWORD`, `PORTAINER_ENV_ID` | Portainer access used to create and manage containers |
 | `PORTAINER_REJECT_UNAUTHORIZED` | Set to `false` to accept self-signed Portainer certificates |
 | `STORAGE_BACKEND` | `local` or `webdav`. Defaults to local when `LOCAL_STORAGE_PATH` is set |
+| `CONTAINER_UID`, `CONTAINER_GID` | User the Minecraft containers run as (default `1000:1000`). Set it to the owner of your storage folder, otherwise the image fails with `AccessDeniedException: /data/server.properties` |
 | `LOCAL_STORAGE_PATH`, `LOCAL_STORAGE_HOST_PATH`, `LOCAL_STORAGE_OWNER` | Local storage folder, the same folder as the Docker host sees it (when the app is containerised), and an optional `uid:gid` for created files |
 | `WEBDAV_URL`, `WEBDAV_USERNAME`, `WEBDAV_PASSWORD`, `WEBDAV_SERVER_BASE_PATH` | WebDAV storage for server files |
 | `WEBDAV_REJECT_UNAUTHORIZED` | Set to `false` to accept self-signed WebDAV certificates |

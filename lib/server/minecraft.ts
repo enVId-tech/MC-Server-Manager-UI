@@ -510,6 +510,15 @@ export class MinecraftServer {
      * CONTAINER_DNS: comma separated DNS servers for every Minecraft container, for example `1.1.1.1,8.8.8.8`.
      * CONTAINER_DNS_SEARCH=none removes the search domains Docker copies from the host.
      */
+    /**
+     * The user the Minecraft container runs as. It has to be able to write the server folder, so set
+     * CONTAINER_UID / CONTAINER_GID to the owner of your storage (for example 3000) when it is not 1000.
+     */
+    private getContainerUser(): { uid: string; gid: string } {
+        const numeric = (value: string | undefined, fallback: string) => (value && /^\d+$/.test(value.trim()) ? value.trim() : fallback);
+        return { uid: numeric(process.env.CONTAINER_UID, '1000'), gid: numeric(process.env.CONTAINER_GID, '1000') };
+    }
+
     private getDnsSettings(): { dns?: string[]; dns_search?: string[] } {
         const servers = (process.env.CONTAINER_DNS ?? '')
             .split(',')
@@ -583,7 +592,7 @@ export class MinecraftServer {
                     restart: 'unless-stopped',
                     stdin_open: true,
                     tty: true,
-                    user: '1000:1000', // Explicitly set the user and group
+                    user: `${this.getContainerUser().uid}:${this.getContainerUser().gid}`, // Explicitly set the user and group
                     networks: [
                         'minecraft-network',
                         ...proxyNetworkNames
@@ -674,8 +683,8 @@ export class MinecraftServer {
         const platform: Record<string, string> = {
             EULA: this.config.EULA ? 'TRUE' : 'FALSE',
             TYPE: definition.type,
-            UID: '1000', // Set user ID for file permissions
-            GID: '1000', // Set group ID for file permissions
+            UID: this.getContainerUser().uid, // Set user ID for file permissions
+            GID: this.getContainerUser().gid, // Set group ID for file permissions
             EXEC_DIRECTLY: 'true', // Run Minecraft directly to avoid permission issues
             SETUP_ONLY: 'false', // Don't exit after setup
             FIX_PERMISSIONS: 'true', // Auto-fix file permissions on startup
@@ -761,8 +770,8 @@ export class MinecraftServer {
 
             // Try to set ownership to 1000:1000 if we have permissions (Docker environment)
             try {
-                await execAsync(`chown -R 1000:1000 "${serverDir}"`);
-                console.log(`✅ Set ownership of ${serverDir} to 1000:1000`);
+                await execAsync(`chown -R ${this.getContainerUser().uid}:${this.getContainerUser().gid} "${serverDir}"`);
+                console.log(`✅ Set ownership of ${serverDir} to the container user`);
             } catch (chownError) {
                 console.warn(`⚠️ Could not set ownership (this is normal in some environments): ${chownError}`);
                 // Try alternative approach - set permissions to be more permissive
