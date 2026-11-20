@@ -844,6 +844,9 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
       title: 'Delete Server',
       message: `Are you sure you want to delete the server "${resolvedParams.slug}"? This action cannot be undone. ${serverStats.status === 'starting' ? 'The server is still starting, so it will be stopped first. ' : ''}Its container, proxy entry and all associated data will be removed.`,
       confirmText: 'Delete Forever',
+      // Same safeguard as the server list: the address has to be typed, so a stray click cannot delete a server
+      requireText: resolvedParams.slug,
+      requireTextPrompt: 'To confirm deletion, type the server address:',
       cancelText: 'Cancel',
       variant: 'danger',
       onConfirm: async () => {

@@ -1,8 +1,70 @@
 'use client';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FaCheck, FaTimes, FaExclamationTriangle, FaInfoCircle } from 'react-icons/fa';
-import { useNotifications } from '@/lib/contexts/NotificationContext';
+import { useNotifications, type ConfirmDialogData } from '@/lib/contexts/NotificationContext';
 import styles from './NotificationSystem.module.scss';
+
+/** Body and buttons of the confirmation dialog. Keyed by the dialog so the typed text starts empty every time. */
+const ConfirmDialogBody: React.FC<{ dialog: ConfirmDialogData; onClose: () => void }> = ({ dialog, onClose }) => {
+    const [typed, setTyped] = useState('');
+    const mismatch = dialog.requireText !== undefined && typed !== dialog.requireText;
+
+    return (
+        <>
+            <div className={styles.dialogContent}>
+                <p id="confirm-dialog-message" className={styles.dialogMessage}>{dialog.message}</p>
+                {dialog.requireText !== undefined && (
+                    <div className={styles.dialogConfirmText}>
+                        <label htmlFor="confirm-dialog-input" className={styles.dialogConfirmPrompt}>
+                            {dialog.requireTextPrompt ?? 'To confirm, type:'}
+                        </label>
+                        <p className={styles.dialogConfirmValue}><strong>{dialog.requireText}</strong></p>
+                        <input
+                            id="confirm-dialog-input"
+                            type="text"
+                            autoFocus
+                            autoComplete="off"
+                            spellCheck={false}
+                            className={`${styles.dialogInput} ${typed && mismatch ? styles.invalid : ''}`}
+                            value={typed}
+                            placeholder={dialog.requireText}
+                            onChange={(event) => setTyped(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter' && !mismatch) {
+                                    dialog.onConfirm();
+                                    onClose();
+                                }
+                            }}
+                        />
+                        {typed && mismatch && <p className={styles.dialogInputError}>This does not match</p>}
+                    </div>
+                )}
+            </div>
+            <div className={styles.dialogActions}>
+                <button
+                    autoFocus={dialog.requireText === undefined}
+                    className={`${styles.dialogButton} ${styles.cancel}`}
+                    onClick={() => {
+                        dialog.onCancel?.();
+                        onClose();
+                    }}
+                >
+                    {dialog.cancelText}
+                </button>
+                <button
+                    disabled={mismatch}
+                    className={`${styles.dialogButton} ${styles.confirm} ${dialog.variant === 'danger' ? styles.danger : ''}`}
+                    onClick={() => {
+                        dialog.onConfirm();
+                        onClose();
+                    }}
+                >
+                    {dialog.confirmText}
+                </button>
+            </div>
+        </>
+    );
+};
 
 const NotificationSystem: React.FC = () => {
     const { notifications, confirmDialog, removeNotification, hideConfirmDialog } = useNotifications();
@@ -97,33 +159,7 @@ const NotificationSystem: React.FC = () => {
                         <div className={styles.dialogHeader}>
                             <h3 id="confirm-dialog-title" className={styles.dialogTitle}>{confirmDialog.title}</h3>
                         </div>
-                        <div className={styles.dialogContent}>
-                            <p id="confirm-dialog-message" className={styles.dialogMessage}>{confirmDialog.message}</p>
-                        </div>
-                        <div className={styles.dialogActions}>
-                            <button
-                                autoFocus
-                                className={`${styles.dialogButton} ${styles.cancel}`}
-                                onClick={() => {
-                                    if (confirmDialog.onCancel) {
-                                        confirmDialog.onCancel();
-                                    }
-                                    hideConfirmDialog();
-                                }}
-                            >
-                                {confirmDialog.cancelText}
-                            </button>
-                            <button
-                                className={`${styles.dialogButton} ${styles.confirm} ${confirmDialog.variant === 'danger' ? styles.danger : ''
-                                    }`}
-                                onClick={() => {
-                                    confirmDialog.onConfirm();
-                                    hideConfirmDialog();
-                                }}
-                            >
-                                {confirmDialog.confirmText}
-                            </button>
-                        </div>
+                        <ConfirmDialogBody key={confirmDialog.id} dialog={confirmDialog} onClose={hideConfirmDialog} />
                     </div>
                 </div>
             )}

@@ -16,6 +16,10 @@ export interface ConfirmDialogData {
     confirmText?: string;
     cancelText?: string;
     variant?: 'default' | 'danger';
+    /** The user has to type exactly this text before the confirm button works (for irreversible actions) */
+    requireText?: string;
+    /** Sentence shown above the input, defaults to a generic one */
+    requireTextPrompt?: string;
     onConfirm: () => void;
     onCancel?: () => void;
 }
