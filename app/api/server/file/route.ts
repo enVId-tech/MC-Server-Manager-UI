@@ -4,6 +4,7 @@ import Server from "@/lib/objects/Server";
 import dbConnect from "@/lib/db/dbConnect";
 import webdavService from "@/lib/server/webdav";
 import verificationService from "@/lib/server/verify";
+import { getServerFolderPath } from '@/lib/server/serverPaths';
 
 // Helper function to determine if a file is readable
 function isReadableFile(filename: string): boolean {
@@ -75,9 +76,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Get the WebDAV server base path from environment
-        const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
-        const userFolder = user.email.split('@')[0];
-        const serverPath = `${baseServerPath}/${userFolder}/${server.uniqueId}`;
+        const serverPath = getServerFolderPath(server, user.email);
 
         // Construct the full WebDAV URL
         const baseWebDavUrl = process.env.WEBDAV_URL || "https://webdav.etran.dev/";
@@ -165,9 +164,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get the WebDAV server base path from environment
-        const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
-        const userFolder = user.email.split('@')[0];
-        const serverPath = `${baseServerPath}/${userFolder}/${server.uniqueId}`;
+        const serverPath = getServerFolderPath(server, user.email);
 
         // Construct the full WebDAV URL
         const baseWebDavUrl = process.env.WEBDAV_URL || "https://webdav.etran.dev/";

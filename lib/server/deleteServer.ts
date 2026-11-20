@@ -2,6 +2,7 @@ import portainer from "@/lib/server/portainer";
 import Server from "@/lib/objects/Server";
 import { IUser } from "@/lib/objects/User";
 import { FileInfo } from "@/lib/objects/ServerConfig";
+import { getServerFolderPath } from "@/lib/server/serverPaths";
 
 interface DatabaseServerConfig {
     name: string;
@@ -197,11 +198,10 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
                 details.push('Renaming server files directory...');
 
                 const webdavService = await import('@/lib/server/webdav');
-                const userEmail = user.email.split('@')[0] || 'default-user';
-                const serverBasePath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${server.uniqueId}`;
+                const serverBasePath = getServerFolderPath(server as { uniqueId: string; folderPath?: string }, user.email);
 
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                const deletedFolderPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/DELETED-${reason}-${timestamp}-${server.uniqueId}`;
+                const deletedFolderPath = `${serverBasePath.substring(0, serverBasePath.lastIndexOf('/'))}/DELETED-${reason}-${timestamp}-${server.uniqueId}`;
 
                 const exists = await webdavService.default.exists(serverBasePath);
                 if (exists) {
@@ -221,8 +221,7 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
             try {
                 details.push('Deleting server files directory...');
                 const webdavService = await import('@/lib/server/webdav');
-                const userEmail = user.email.split('@')[0] || 'default-user';
-                const serverBasePath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${server.uniqueId}`;
+                const serverBasePath = getServerFolderPath(server as { uniqueId: string; folderPath?: string }, user.email);
 
                 await webdavService.default.deleteDirectory(serverBasePath);
                 details.push(`Server folder deleted: ${serverBasePath}`);
