@@ -100,6 +100,16 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Invalid subdomain format. Only lowercase letters, numbers, and hyphens are allowed." }, { status: 400 });
         }
 
+        // Enforce the per user server quota (administrators are not limited)
+        if (!user.isAdmin) {
+            const ownedServerCount = await Server.countDocuments({ email: user.email });
+            if (ownedServerCount >= user.maxServers) {
+                return NextResponse.json({
+                    error: `You have reached your limit of ${user.maxServers} server${user.maxServers === 1 ? '' : 's'}. Delete a server or ask an administrator to raise your limit.`
+                }, { status: 403 });
+            }
+        }
+
         // Check if there is a server with the same name in the user's account
         const existingNameServer = await Server.findOne({
             email: user.email,
