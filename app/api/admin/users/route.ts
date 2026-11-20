@@ -125,7 +125,7 @@ export async function PATCH(request: NextRequest) {
             update.sessionToken = null;
         }
 
-        const updated = await User.findByIdAndUpdate(userId, { $set: update }, { new: true })
+        const updated = await User.findByIdAndUpdate(userId, { $set: update }, { returnDocument: 'after' })
             .select('email isActive isAdmin maxServers');
 
         if (!updated) {
