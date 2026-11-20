@@ -1,94 +1,101 @@
 'use client';
 
-import React, { useState } from 'react';
-import DockerUpdateManager from '../_components/DockerUpdateManager/DockerUpdateManager';
-import AdminServerManager from '../_components/AdminServerManager/AdminServerManager';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  FaChartPie,
+  FaCog,
+  FaDocker,
+  FaNetworkWired,
+  FaPlug,
+  FaServer,
+  FaUsers,
+} from 'react-icons/fa';
 import UserManager from '../_components/UserManager/UserManager';
+import OverviewSection from './_sections/OverviewSection';
+import ServersSection from './_sections/ServersSection';
+import VelocitySection from './_sections/VelocitySection';
+import PortsSection from './_sections/PortsSection';
+import DockerSection from './_sections/DockerSection';
+import SettingsSection from './_sections/SettingsSection';
+import { useAdminData } from './_sections/shared';
 import styles from './admin.module.scss';
 
-type AdminTab = 'servers' | 'users' | 'docker' | 'settings';
+type Section = 'overview' | 'servers' | 'velocity' | 'ports' | 'users' | 'docker' | 'settings';
+
+const SECTIONS: Array<{ id: Section; label: string; icon: React.ReactNode }> = [
+  { id: 'overview', label: 'Overview', icon: <FaChartPie /> },
+  { id: 'servers', label: 'Servers', icon: <FaServer /> },
+  { id: 'velocity', label: 'Velocity', icon: <FaPlug /> },
+  { id: 'ports', label: 'Ports', icon: <FaNetworkWired /> },
+  { id: 'users', label: 'Users', icon: <FaUsers /> },
+  { id: 'docker', label: 'Docker updates', icon: <FaDocker /> },
+  { id: 'settings', label: 'Settings', icon: <FaCog /> },
+];
+
+function sectionFromHash(): Section {
+  const hash = typeof window === 'undefined' ? '' : window.location.hash.replace('#', '');
+  return SECTIONS.some(section => section.id === hash) ? (hash as Section) : 'overview';
+}
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<AdminTab>('servers');
+  const [section, setSection] = useState<Section>('overview');
+  const system = useAdminData<{ counts: { pendingUsers: number } }>('/api/admin/system');
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'servers':
-        return <AdminServerManager />;
-      case 'users':
-        return <UserManager />;
-      case 'docker':
-        return <DockerUpdateManager />;
-      case 'settings':
-        return (
-          <div className={styles.settingsPanel}>
-            <h2>System Settings</h2>
-            <p>Additional admin settings will be implemented here.</p>
-            <div className={styles.settingsGrid}>
-              <div className={styles.settingCard}>
-                <h3>System Monitoring</h3>
-                <p>Monitor system resources and performance</p>
-                <button className={styles.comingSoon} disabled>Coming Soon</button>
-              </div>
-              <div className={styles.settingCard}>
-                <h3>Backup Management</h3>
-                <p>Configure automatic backups and retention policies</p>
-                <button className={styles.comingSoon} disabled>Coming Soon</button>
-              </div>
-              <div className={styles.settingCard}>
-                <h3>Security Settings</h3>
-                <p>Configure security policies and access controls</p>
-                <button className={styles.comingSoon} disabled>Coming Soon</button>
-              </div>
-            </div>
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
+  // The section lives in the address, so a reload or a shared link opens the same page
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read the address once on the client
+    setSection(sectionFromHash());
+    const onHashChange = () => setSection(sectionFromHash());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  const navigate = useCallback((next: string) => {
+    window.location.hash = next;
+    setSection(sectionFromHash());
+  }, []);
+
+  const pending = system.data?.counts.pendingUsers ?? 0;
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <h1>Admin Dashboard</h1>
-        <p className={styles.subtitle}>Manage servers, Docker infrastructure, and system settings</p>
-      </div>
-
-      <nav className={styles.tabNavigation}>
-        <button
-          className={`${styles.tab} ${activeTab === 'servers' ? styles.active : ''}`}
-          onClick={() => setActiveTab('servers')}
-        >
-          <span className={styles.tabIcon}>🛠️</span>
-          Server Management
-        </button>
-        <button
-          className={`${styles.tab} ${activeTab === 'users' ? styles.active : ''}`}
-          onClick={() => setActiveTab('users')}
-        >
-          <span className={styles.tabIcon}>👥</span>
-          Users
-        </button>
-        <button
-          className={`${styles.tab} ${activeTab === 'docker' ? styles.active : ''}`}
-          onClick={() => setActiveTab('docker')}
-        >
-          <span className={styles.tabIcon}>🐳</span>
-          Docker Updates
-        </button>
-        <button
-          className={`${styles.tab} ${activeTab === 'settings' ? styles.active : ''}`}
-          onClick={() => setActiveTab('settings')}
-        >
-          <span className={styles.tabIcon}>⚙️</span>
-          System Settings
-        </button>
+    <div className={styles.page}>
+    <div className={styles.shell}>
+      <nav className={styles.sidebar} aria-label="Admin sections">
+        <h2 className={styles.sidebarTitle}>Admin</h2>
+        {SECTIONS.map(item => (
+          <button
+            key={item.id}
+            className={`${styles.navItem} ${section === item.id ? styles.active : ''}`}
+            onClick={() => navigate(item.id)}
+            aria-current={section === item.id ? 'page' : undefined}
+          >
+            <span className={styles.navIcon}>{item.icon}</span>
+            {item.label}
+            {item.id === 'users' && pending > 0 && <span className={styles.navBadge}>{pending}</span>}
+          </button>
+        ))}
       </nav>
 
-      <main className={styles.tabContent}>
-        {renderTabContent()}
+      <main className={styles.main}>
+        {section === 'overview' && <OverviewSection onNavigate={navigate} />}
+        {section === 'servers' && <ServersSection />}
+        {section === 'velocity' && <VelocitySection />}
+        {section === 'ports' && <PortsSection />}
+        {section === 'users' && (
+          <>
+            <div className={styles.pageHeader}>
+              <div>
+                <h1>Users</h1>
+                <p>Approve new accounts, set server limits and manage administrators.</p>
+              </div>
+            </div>
+            <UserManager />
+          </>
+        )}
+        {section === 'docker' && <DockerSection />}
+        {section === 'settings' && <SettingsSection />}
       </main>
+    </div>
     </div>
   );
 }
