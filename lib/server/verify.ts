@@ -53,8 +53,12 @@ class VerificationService {
                 return { status: 401, message: 'Invalid session token.' };
             }
 
-            return { status: 200, decoded: decoded };
+            return { status: 200, decoded: decoded, token: token.token };
         } catch (error) {
+            // Expired or malformed tokens are the client's problem, not a server error
+            if (error instanceof jwt.JsonWebTokenError) {
+                return { status: 401, message: error instanceof jwt.TokenExpiredError ? 'Session expired.' : 'Invalid session token.' };
+            }
             console.error('Error verifying account:', error);
             return { status: 500, message: 'Internal server error.' };
         }
@@ -80,6 +84,12 @@ class VerificationService {
 
             const user: IUser | null = await User.findById((decoded as { id: string }).id);
             if (!user) {
+                return null;
+            }
+
+            // The token must still be the one stored on the user, otherwise it was invalidated by a
+            // logout or by a newer login and must not be accepted anymore
+            if (!user.sessionToken || user.sessionToken !== verificationResult.token) {
                 return null;
             }
 
