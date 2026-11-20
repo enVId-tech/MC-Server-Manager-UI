@@ -194,6 +194,9 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
                     if (removalResult.details) {
                         details.push(...removalResult.details);
                     }
+                    // Make the running proxy forget the server without disconnecting anybody
+                    const reload = await velocityService.default.reloadProxies(portainerEnvironmentId);
+                    details.push(...reload.details);
                 } else {
                     details.push(`Warning: Velocity configuration cleanup failed - ${removalResult.error || 'Unknown error'}`);
                     if (removalResult.details) {

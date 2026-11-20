@@ -1076,18 +1076,127 @@ show-plugins = false
     }
 
     /**
-     * Reload Velocity configuration
-     * @param containerId - The ID of the Velocity container
-     * @param environmentId - The ID of the Portainer environment
+     * Sends a command to the console of a Velocity container.
+     *
+     * Velocity has no remote console of its own, so the command goes in through the process input: the helper of
+     * the itzg proxy images when the image has it, otherwise a write to the input of the main process, which works
+     * when the container was started with stdin open (stdin_open: true).
      */
-    async reloadVelocity(containerId: string, environmentId: number = 1): Promise<void> {
+    async sendConsoleCommand(
+        containerId: string,
+        command: string,
+        environmentId: number = 1
+    ): Promise<{ sent: boolean; error?: string }> {
+        const quoted = `'${command.replace(/'/g, `'\\''`)}'`;
+        const script = [
+            `if command -v mc-send-to-console >/dev/null 2>&1; then mc-send-to-console ${quoted}`,
+            `elif [ -w /proc/1/fd/0 ]; then printf '%s\\n' ${quoted} > /proc/1/fd/0`,
+            `else echo "no console input available" >&2; exit 3; fi`,
+        ].join('; ');
+
         try {
-            // Execute 'velocity reload' command in the container
-            await portainer.executeCommand(containerId, 'velocity reload', environmentId);
-            console.log(`Velocity configuration reloaded for container ${containerId}`);
+            const result = await portainer.executeCommand(containerId, script, environmentId);
+            if (result.exitCode !== 0) {
+                return { sent: false, error: `The proxy has no console input (exit code ${result.exitCode}). Start it with stdin_open: true.` };
+            }
+            return { sent: true };
         } catch (error) {
-            console.error(`Failed to reload Velocity for container ${containerId}:`, error);
-            // Don't throw, as this is often a non-critical operation (config might auto-reload)
+            return { sent: false, error: error instanceof Error ? error.message : 'Unknown error' };
+        }
+    }
+
+    /**
+     * Makes a running Velocity read velocity.toml again without disconnecting anybody.
+     *
+     * `velocity reload` re-reads the server list, the try order, forced hosts, motd and similar settings and leaves
+     * every connection alone, so servers can be added and removed while players are online. Things that Velocity
+     * only reads at startup (the bind port, forwarding mode and secret) need a restart, but this manager never
+     * changes those.
+     *
+     * When the command cannot be delivered the result says so. A restart is only done when
+     * VELOCITY_RELOAD_FALLBACK is `restart` (the default), because it disconnects every player on the proxy.
+     */
+    async reloadVelocity(
+        containerId: string,
+        environmentId: number = 1
+    ): Promise<{ success: boolean; method: 'reload' | 'restart' | 'none'; confirmed: boolean; details: string[] }> {
+        const details: string[] = [];
+        const countReloads = async () => {
+            try {
+                const logs = await portainer.getContainerLogs(containerId, environmentId, 200);
+                return (logs.match(/reload/gi) ?? []).length;
+            } catch {
+                return null;
+            }
+        };
+
+        const before = await countReloads();
+        const sent = await this.sendConsoleCommand(containerId, 'velocity reload', environmentId);
+
+        if (sent.sent) {
+            // Velocity answers a reload in its console, which tells a delivered command from a swallowed one
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            const after = await countReloads();
+            const confirmed = before !== null && after !== null && after > before;
+            details.push(confirmed
+                ? 'Velocity reloaded its configuration without disconnecting players'
+                : 'Sent "velocity reload" to Velocity (no confirmation found in its log yet)');
+            return { success: true, method: 'reload', confirmed, details };
+        }
+
+        details.push(`Could not send the reload command: ${sent.error}`);
+
+        if ((process.env.VELOCITY_RELOAD_FALLBACK ?? 'restart').toLowerCase() !== 'restart') {
+            details.push('Velocity was not restarted (VELOCITY_RELOAD_FALLBACK is not "restart"); the new configuration applies at its next restart');
+            return { success: false, method: 'none', confirmed: false, details };
+        }
+
+        try {
+            await portainer.restartContainer(containerId, environmentId, 10);
+            details.push('Restarted Velocity to apply the configuration. Players on the proxy were disconnected');
+            return { success: true, method: 'restart', confirmed: true, details };
+        } catch (error) {
+            details.push(`Restarting Velocity failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            return { success: false, method: 'none', confirmed: false, details };
+        }
+    }
+
+    /**
+     * Applies the current velocity.toml on every Velocity proxy the manager knows: the ones defined in the proxies
+     * file, or any running container that looks like Velocity when none is defined.
+     */
+    async reloadProxies(environmentId: number = 1): Promise<{ success: boolean; details: string[] }> {
+        const details: string[] = [];
+
+        try {
+            const { getDefinedProxies } = await import('@/lib/config/proxies');
+            const hosts = getDefinedProxies().filter(proxy => proxy.type === 'velocity').map(proxy => proxy.host);
+
+            const containers = await portainer.getContainers(environmentId);
+            const targets = containers.filter(container => {
+                if (container.State !== 'running') return false;
+                if (hosts.length > 0) {
+                    return container.Names.some(name => hosts.includes(name.replace(/^\//, '')));
+                }
+                return /velocity/i.test(container.Image) || container.Names.some(name => /velocity/i.test(name));
+            });
+
+            if (targets.length === 0) {
+                details.push('No running Velocity proxy was found to reload; the configuration applies when one starts');
+                return { success: false, details };
+            }
+
+            let allOk = true;
+            for (const target of targets) {
+                const name = target.Names[0]?.replace(/^\//, '') ?? target.Id;
+                const result = await this.reloadVelocity(target.Id, environmentId);
+                details.push(`${name}: ${result.details.join('. ')}`);
+                allOk = allOk && result.success;
+            }
+            return { success: allOk, details };
+        } catch (error) {
+            details.push(`Could not reload Velocity: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            return { success: false, details };
         }
     }
 }

@@ -17,7 +17,8 @@
     "monitor:resources": "tsx scripts/resource-monitor.ts",
     "test:local-storage": "tsx scripts/test-local-storage.ts",
     "test:itzg-catalog": "tsx scripts/test-itzg-catalog.ts",
-    "test:port-probe": "tsx scripts/test-port-probe.ts"
+    "test:port-probe": "tsx scripts/test-port-probe.ts",
+    "test:velocity-reload": "tsx scripts/test-velocity-reload.ts"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",

@@ -387,8 +387,8 @@ export class ProxyManager {
                 const container = containers.find(c => c.Names.some(n => n.includes(proxy.host)));
 
                 if (container) {
-                    await velocityService.reloadVelocity(container.Id);
-                    result.details?.push(`Triggered reload for Velocity container ${container.Id}`);
+                    const reload = await velocityService.reloadVelocity(container.Id);
+                    result.details?.push(...reload.details);
                 }
             } catch (e) {
                 console.warn(`Failed to reload proxy ${proxy.id}:`, e);
@@ -894,6 +894,8 @@ services:
     image: envidtech/velocity:latest
     container_name: ${def.host}
     restart: on-failure:5
+    # the manager reloads the proxy by writing "velocity reload" to its console, which needs stdin
+    stdin_open: true
     ports:
       - "${def.port}:25565"
     volumes:

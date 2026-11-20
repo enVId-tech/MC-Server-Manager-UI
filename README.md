@@ -152,8 +152,15 @@ npm run lint       # eslint
 npm run build      # production build
 npm run test:itzg-catalog   # option catalog, version rules, version parsers, config file helpers
 npm run test:local-storage  # local storage backend
+npm run test:port-probe     # network check used when allocating ports
+npm run test:velocity-reload  # reloading Velocity without disconnecting players
 ```
 
+
+## Ports and Velocity
+
+- New servers get the next free port above 25565. Each candidate is checked against Portainer's containers, the database, ports just handed out to servers that are still being created, and the network itself (a connection attempt on `127.0.0.1` and the Portainer host, see `PORT_CHECK_HOSTS`).
+- When a server is added or removed the manager updates `velocity.toml` and sends `velocity reload` to the proxy console. Velocity re-reads its server list without disconnecting anyone. The proxy container needs `stdin_open: true` (proxies created by the manager have it) or the `mc-send-to-console` helper. If the command cannot be delivered the proxy is restarted, which does disconnect players; set `VELOCITY_RELOAD_FALLBACK=none` to never do that.
 
 ## Local file storage
 

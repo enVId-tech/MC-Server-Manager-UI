@@ -1441,6 +1441,20 @@ export class PortainerApiClient {
     }
 
     /**
+     * Exit code of a finished exec instance. Docker only reports it when asked, so without this every command
+     * looked successful. Unknown (the inspect call failed) is reported as 0 as before.
+     */
+    private async getExecExitCode(execId: string, environmentId: number): Promise<number> {
+        try {
+            const inspect = await this.axiosInstance.get(`/api/endpoints/${environmentId}/docker/exec/${execId}/json`);
+            const code = inspect.data?.ExitCode;
+            return typeof code === 'number' ? code : 0;
+        } catch {
+            return 0;
+        }
+    }
+
+    /**
      * Execute a command in a running container
      * @param containerId - The ID of the container
      * @param command - The command to execute
@@ -1480,7 +1494,7 @@ export class PortainerApiClient {
 
             return {
                 output: startResponse.data,
-                exitCode: 0
+                exitCode: await this.getExecExitCode(execId, environmentId)
             };
         } catch (error) {
             // If we get a 404, it might be that the environment ID is invalid/stale.
@@ -1522,7 +1536,7 @@ export class PortainerApiClient {
 
                         return {
                             output: startResponse.data,
-                            exitCode: 0
+                            exitCode: await this.getExecExitCode(execId, newEnvId)
                         };
                     }
                 } catch (retryError) {

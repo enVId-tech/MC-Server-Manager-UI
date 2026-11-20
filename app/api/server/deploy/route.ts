@@ -986,7 +986,14 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                                 `/api/endpoints/${portainerEnvironmentId}/docker/containers/${serverContainer.Id}/start`
                             );
                             
-                            await updateStep(serverId, 'velocity', 'completed', 100, 'Velocity integration configured successfully');
+                            // velocity.toml changed: make the running proxy read it. This is a reload, so players that are
+                            // connected through the proxy stay connected (see VelocityService.reloadVelocity).
+                            await updateStep(serverId, 'velocity', 'running', 90, 'Reloading the Velocity proxy...');
+                            const reload = await velocityService.reloadProxies(portainerEnvironmentId);
+                            reload.details.forEach(line => console.log(`[Deploy] ${line}`));
+
+                            await updateStep(serverId, 'velocity', 'completed', 100,
+                                reload.success ? 'Velocity updated and reloaded without disconnecting players' : 'Velocity configuration saved, but the proxy could not be reloaded');
                         } else {
                             throw new Error(configResult.error || 'Failed to configure Velocity');
                         }

@@ -182,10 +182,13 @@ async function configureServerForVelocity(server: IServer, user: IUser) {
             `/api/endpoints/${environmentId}/docker/containers/${containerId}/start`
         );
 
+        // Let the running proxy pick up the new server without disconnecting its players
+        const reload = await velocityService.reloadProxies(environmentId);
+
         return NextResponse.json({
             success: true,
             message: 'Server successfully configured for Velocity proxy',
-            details: configResult.details,
+            details: [...(configResult.details ?? []), ...reload.details],
             velocityConfig: {
                 serverName: velocityConfig.serverName,
                 address: velocityConfig.address,
