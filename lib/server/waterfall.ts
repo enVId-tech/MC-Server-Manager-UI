@@ -7,6 +7,7 @@
 import webdavService from '@/lib/server/webdav';
 import { BungeeCordServerConfig, BungeeCordConfig } from './bungeecord';
 import { buildServerHostname } from '@/lib/config/domain';
+import { getServerFolderPath } from '@/lib/server/serverPaths';
 
 export interface WaterfallServerConfig extends BungeeCordServerConfig {
     // Waterfall-specific configurations
@@ -63,7 +64,7 @@ class WaterfallService {
             details.push(`Starting Waterfall server configuration (Config: ${targetConfigPath})...`);
             
             // Get server path
-            const serverBasePath = `/servers/${userEmail}/${uniqueId}`;
+            const serverBasePath = getServerFolderPath({ uniqueId }, userEmail);
             
             // Configure server.properties for Waterfall
             await this.configureServerProperties(serverBasePath, serverConfig, details);

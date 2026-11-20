@@ -8,6 +8,7 @@ import portainer from "@/lib/server/portainer";
 
 import { IServer } from "@/lib/objects/Server";
 import { IUser } from "@/lib/objects/User";
+import { getServerFolderPath } from '@/lib/server/serverPaths';
 
 export async function GET(request: NextRequest) {
     try {
@@ -328,7 +329,7 @@ async function configureServerForMultiProxy(
         
         while (!filesReady && attempts < maxAttempts) {
             try {
-                const serverBasePath = `/servers/${user.email}/${server.uniqueId}`;
+                const serverBasePath = getServerFolderPath(server, user.email);
                 filesReady = await webdavService.exists(`${serverBasePath}/server.properties`);
                 if (!filesReady) {
                     await new Promise(resolve => setTimeout(resolve, 3000));
