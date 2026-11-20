@@ -54,6 +54,9 @@ test-files/*
 uploads
 uploads/*
 
-# json
-*.yaml
-*.yml
+# local proxy definitions (copy lib/config/proxies.example.yaml to create it)
+/lib/config/proxies.yaml
+
+# other local yaml
+*.local.yaml
+*.local.yml
