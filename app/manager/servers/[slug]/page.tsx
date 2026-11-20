@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, use, useCallback } from 'react';
+import React, { useState, useEffect, use, useCallback, useRef } from 'react';
 import {
   FaFolder,
   FaFile,
@@ -187,6 +187,8 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
     }
   }, [resolvedParams.slug]);
 
+  const consoleOutputRef = useRef<HTMLDivElement>(null);
+  const logsContentRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'files' | 'info' | 'notes' | 'logs' | 'console' | 'settings'>('files');
 
   // Fetch files from WebDAV
@@ -247,6 +249,12 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   }, [uniqueId, showNotification]);
 
   // Send command to server console
+  // Show the newest output when logs change or a tab opens
+  useEffect(() => {
+    const target = activeTab === 'console' ? consoleOutputRef.current : activeTab === 'logs' ? logsContentRef.current : null;
+    if (target) target.scrollTop = target.scrollHeight;
+  }, [logs, activeTab]);
+
   const handleSendCommand = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!consoleInput.trim() || !uniqueId) return;
@@ -1459,7 +1467,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                       {logsLoading ? <FaSpinner className={styles.spinning} /> : <FaSync />} Refresh
                     </button>
                   </div>
-                  <div className={styles.logsContent}>
+                  <div className={styles.logsContent} ref={logsContentRef}>
                     <pre>{logs || 'No logs available'}</pre>
                   </div>
                 </div>
@@ -1474,7 +1482,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                       {serverStats.status}
                     </div>
                   </div>
-                  <div className={styles.consoleOutput}>
+                  <div className={styles.consoleOutput} ref={consoleOutputRef}>
                     <pre>{logs || 'No console output available'}</pre>
                   </div>
                   <form onSubmit={handleSendCommand} className={styles.consoleInputForm}>
@@ -1716,152 +1724,6 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                       <div className={styles.note}>
                         <strong>Download Backup:</strong> Create a backup of your server files for safekeeping.
                       </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'logs' && (
-                <div className={styles.serverLogs}>
-                  <h3>Server Logs</h3>
-
-                  <div className={styles.logsContent}>
-                    {logsLoading ? (
-                      <div className={styles.loadingState}>
-                        <FaCircle className={styles.loadingSpinner} />
-                        <p>Loading logs...</p>
-                      </div>
-                    ) : (
-                      <>
-                        {logs ? (
-                          <pre className={styles.logsViewer}>{logs}</pre>
-                        ) : (
-                          <div className={styles.emptyState}>
-                            <FaFolder className={styles.emptyIcon} />
-                            <p>No logs found</p>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  <div className={styles.logsActions}>
-                    <button
-                      className={styles.refreshButton}
-                      onClick={async () => {
-                        setLogsLoading(true);
-                        try {
-                          const response = await fetch(`/api/server/logs?uniqueId=${encodeURIComponent(resolvedParams.slug)}`);
-                          
-                          if (!response.ok) {
-                            throw new Error('Failed to fetch logs');
-                          }
-      
-                          const data = await response.json();
-                          setLogs(data.logs || '');
-                        } catch (error) {
-                          console.error('Error fetching logs:', error);
-                          showNotification({
-                            type: 'error',
-                            title: 'Error',
-                            message: 'Failed to fetch logs: ' + (error instanceof Error ? error.message : 'Unknown error')
-                          });
-                        } finally {
-                          setLogsLoading(false);
-                        }
-                      }}
-                    >
-                      <FaSync /> Refresh Logs
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'console' && (
-                <div className={styles.serverConsole}>
-                  <h3>Server Console</h3>
-
-                  <div className={styles.consoleContent}>
-                    <div className={styles.consoleOutput}>
-                      {logsLoading ? (
-                        <div className={styles.loadingState}>
-                          <FaCircle className={styles.loadingSpinner} />
-                          <p>Loading console output...</p>
-                        </div>
-                      ) : (
-                        <pre className={styles.consoleViewer}>{logs}</pre>
-                      )}
-                    </div>
-
-                    <div className={styles.consoleInputContainer}>
-                      <input
-                        type="text"
-                        placeholder="Enter command..."
-                        value={consoleInput}
-                        onChange={(e) => setConsoleInput(e.target.value)}
-                        className={styles.consoleInput}
-                        disabled={isSendingCommand}
-                      />
-                      <button
-                        className={styles.sendButton}
-                        onClick={async () => {
-                          if (!consoleInput.trim()) return;
-
-                          setIsSendingCommand(true);
-                          showNotification({
-                            type: 'info',
-                            message: 'Sending command...'
-                          });
-
-                          try {
-                            const response = await fetch('/api/server/console', {
-                              method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json',
-                              },
-                              body: JSON.stringify({
-                                uniqueId: uniqueId,
-                                command: consoleInput.trim()
-                              })
-                            });
-
-                            const data = await response.json();
-
-                            if (!response.ok) {
-                              throw new Error(data.message || 'Failed to send command');
-                            }
-
-                            setConsoleInput('');
-                            showNotification({
-                              type: 'success',
-                              title: 'Command Sent',
-                              message: 'Your command has been sent to the server.'
-                            });
-
-                            // Optionally, refresh logs or console output here
-                            setLogsLoading(true);
-                            const logsResponse = await fetch(`/api/server/logs?uniqueId=${encodeURIComponent(resolvedParams.slug)}`);
-                            const logsData = await logsResponse.json();
-                            setLogs(logsData.logs || '');
-                          } catch (error) {
-                            showNotification({
-                              type: 'error',
-                              title: 'Command Error',
-                              message: error instanceof Error ? error.message : 'Failed to send command'
-                            });
-                            console.error('Error sending command:', error);
-                          } finally {
-                            setIsSendingCommand(false);
-                            setLogsLoading(false);
-                          }
-                        }}
-                      >
-                        {isSendingCommand ? (
-                          <FaSpinner className={styles.spinning} />
-                        ) : (
-                          <FaTerminal />
-                        )}
-                      </button>
                     </div>
                   </div>
                 </div>
