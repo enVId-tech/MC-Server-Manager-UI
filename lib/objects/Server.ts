@@ -55,15 +55,16 @@ const ServerSchema: pkg.Schema = new pkg.Schema({
     port: {
         type: Number,
         required: [true, 'Server port is required.'],
-        min: [25565, 'Port must be at least 25565.'],
-        max: [25595, 'Port must be at most 25595.'],
+        min: [1024, 'Port must be at least 1024.'],
+        max: [65535, 'Port must be at most 65535.'],
         unique: true,
     },
     rconPort: {
         type: Number,
         required: false,
-        min: [25565, 'RCON port must be at least 25565.'],
-        max: [25595, 'RCON port must be at most 25595.'],
+        // RCON ports are allocated from their own range (see PORT_RANGES), which lies above the game port range
+        min: [1024, 'RCON port must be at least 1024.'],
+        max: [65535, 'RCON port must be at most 65535.'],
     },
     environmentId: {
         type: Number,
