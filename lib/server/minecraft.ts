@@ -321,7 +321,7 @@ import portainer from './portainer';
 import { PortainerContainer } from './portainer';
 import { proxyManager } from './proxy-manager';
 import webdavService from './webdav';
-import yaml from 'js-yaml';
+import yaml from 'yaml';
 import extractZip from 'extract-zip';
 import * as path from 'path';
 import { promises as fs } from 'fs';
@@ -680,7 +680,7 @@ export class MinecraftServer {
      */
     generateDockerComposeYaml(): string {
         const config = this.generateDockerComposeConfig();
-        return yaml.dump(config, { indent: 2, lineWidth: -1 });
+        return yaml.stringify(config, { indent: 2, lineWidth: 0 });
     }
 
     /**
