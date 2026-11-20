@@ -311,6 +311,12 @@
   }
 }
 
+.fieldHint {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+  color: $text-secondary;
+}
+
 .subdomain {
   display: flex;
   align-items: center;

@@ -108,6 +108,8 @@ interface WorldType {
   name: string;
 }
 
+const SUBDOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
 export default function ServerGenerator() {
   const [activeTab, setActiveTab] = useState('general');
   const [serverConfig, setServerConfig] = useState<ClientServerConfig>({
@@ -392,6 +394,9 @@ export default function ServerGenerator() {
       newValue = (e.target as HTMLInputElement).checked;
     } else if (type === 'range' || name === 'maxPlayers') {
       newValue = parseInt(value);
+    } else if (name === 'subdomain') {
+      // Only lowercase letters, digits and hyphens can appear in a hostname label
+      newValue = value.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^-+/, '');
     } else {
       newValue = value;
     }
@@ -1118,6 +1123,20 @@ export default function ServerGenerator() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null); // Clear any previous errors
+
+    // Only the active tab is rendered, so the browser can not check required fields on the others
+    const basicsError = !serverConfig.name.trim()
+      ? 'Give your server a name.'
+      : !SUBDOMAIN_PATTERN.test(serverConfig.subdomain)
+        ? 'Choose an address using letters, numbers and hyphens (it can not start or end with a hyphen).'
+        : null;
+
+    if (basicsError) {
+      setActiveTab('general');
+      setError({ title: 'Check Your Settings', message: basicsError, type: 'warning' });
+      return;
+    }
+
     setIsCreating(true); // Show loading screen
     setCreationProgress(0);
     setCurrentStep('Initializing server creation...');
@@ -1751,9 +1770,16 @@ export default function ServerGenerator() {
                     required
                     placeholder="Choose a subdomain (e.g. myserver)"
                     maxLength={50}
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    aria-describedby="subdomain-hint"
                   />
                   <span>.{serverDomain}</span>
                 </div>
+                <p id="subdomain-hint" className={styles.fieldHint}>
+                  Players join with this address. Use lowercase letters, numbers and hyphens.
+                </p>
                 <div className={styles.fullAddress}>
                   <strong>Full Address:</strong> <span>{serverConfig.subdomain || <em>subdomain</em>}.{serverDomain}</span>
                 </div>
