@@ -4,6 +4,8 @@ import path from 'path';
 import AdmZip from 'adm-zip';
 import extract from 'extract-zip';
 import * as nbt from 'prismarine-nbt';
+import { randomUUID } from 'crypto';
+import { requireUser } from '@/lib/server/auth';
 
 interface FileAnalysisResult {
   type: 'world' | 'plugin' | 'mod' | 'resource-pack' | 'datapack' | 'unknown';
@@ -65,6 +67,12 @@ interface FileAnalysisResult {
 
 export async function POST(request: NextRequest) {
   try {
+    // Analysing unpacks uploaded archives on the server, so it is only available to signed in users
+    const auth = await requireUser(request);
+    if (auth.response) {
+      return auth.response;
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     
@@ -73,17 +81,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Create temporary directory for analysis
-    const tempDir = path.join(process.cwd(), 'temp', 'analysis', Date.now().toString());
+    const tempDir = path.join(process.cwd(), 'temp', 'analysis', randomUUID());
     await fs.mkdir(tempDir, { recursive: true });
 
     try {
-      // Save uploaded file
-      const filePath = path.join(tempDir, file.name);
+      // Save uploaded file. The client controls the file name, so only its last path segment is used
+      const safeFileName = path.basename(file.name);
+      const filePath = path.join(tempDir, safeFileName);
       const bytes = await file.arrayBuffer();
       await fs.writeFile(filePath, Buffer.from(bytes));
 
       // Analyze the file
-      const analysis = await analyzeFile(filePath, file.name);
+      const analysis = await analyzeFile(filePath, safeFileName);
 
       return NextResponse.json({ analysis });
     } finally {
