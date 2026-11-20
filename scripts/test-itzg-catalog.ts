@@ -21,6 +21,13 @@ import {
     sanitizeOverrides,
     splitOptionValues,
 } from '../lib/data/itzg';
+import {
+    limitToType,
+    parseForgePromotions,
+    parseLoaderMetaVersions,
+    parseNeoForgeVersions,
+    parseProjectVersions,
+} from '../lib/data/itzg/versionSources';
 
 let failures = 0;
 
@@ -235,6 +242,37 @@ check('values are read from the stored field and split back out', () => {
     const { form, overrides } = splitOptionValues({ MAX_PLAYERS: 10, LEVEL_TYPE: 'AMPLIFIED', TZ: 'UTC' });
     assert.deepEqual(form, { maxPlayers: 10, worldType: 'amplified' });
     assert.deepEqual(overrides, { TZ: 'UTC' });
+});
+
+console.log('Version sources');
+check('paper style project lists keep releases and sort newest first', () => {
+    assert.deepEqual(
+        parseProjectVersions({ versions: ['1.8.8', '1.20.4', '1.21', '1.21-pre1', '1.20.10', '1.21.1'] }),
+        ['1.21.1', '1.21', '1.20.10', '1.20.4', '1.8.8']
+    );
+    assert.deepEqual(parseProjectVersions(null), []);
+});
+check('fabric style lists drop unstable versions', () => {
+    assert.deepEqual(
+        parseLoaderMetaVersions([{ version: '1.21.4', stable: true }, { version: '25w01a', stable: false }, { version: '1.20.1', stable: true }, { version: '1.21.5-rc1', stable: true }]),
+        ['1.21.4', '1.20.1']
+    );
+});
+check('forge promotions give each version once', () => {
+    assert.deepEqual(
+        parseForgePromotions({ promos: { '1.20.1-latest': 'a', '1.20.1-recommended': 'b', '1.12.2-latest': 'c', '1.7.10_pre4-latest': 'd' } }),
+        ['1.20.1', '1.12.2']
+    );
+});
+check('neoforge versions are mapped to the minecraft version', () => {
+    assert.deepEqual(
+        parseNeoForgeVersions({ versions: ['20.4.1', '21.0.3', '21.1.5', '21.1.6', '21.4.5-beta', '26.1.2'] }),
+        ['26.1', '1.21.1', '1.21', '1.20.4']
+    );
+});
+check('versions are limited to what a platform can run', () => {
+    assert.deepEqual(limitToType(['1.21', '1.19.4', '1.18.2'], { minVersion: '1.19.4' }), ['1.21', '1.19.4']);
+    assert.deepEqual(limitToType(['1.21', '1.12'], {}), ['1.21', '1.12']);
 });
 
 if (failures > 0) {
