@@ -32,9 +32,12 @@ interface Server {
 
 interface ServersResponse {
   servers: Server[];
-  totalServers: number;
-  totalPages: number;
-  currentPage: number;
+  pagination: {
+    page: number;
+    limit: number;
+    totalServers: number;
+    totalPages: number;
+  };
 }
 
 interface BulkActionResult {
@@ -92,8 +95,8 @@ export default function AdminServerManager() {
 
       const data: ServersResponse = await response.json();
       setServers(data.servers);
-      setTotalPages(data.totalPages);
-      setTotalServers(data.totalServers);
+      setTotalPages(Math.max(1, data.pagination.totalPages));
+      setTotalServers(data.pagination.totalServers);
     } catch (error) {
       console.error('Error loading servers:', error);
       setError(error instanceof Error ? error.message : 'Failed to load servers');
