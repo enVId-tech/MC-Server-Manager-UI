@@ -102,26 +102,27 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
                 details.push(`Found ${serverContainers.length} container(s) to remove`);
 
                 for (const container of serverContainers) {
+                    const containerName = container.Names[0];
+                    const base = `/api/endpoints/${portainerEnvironmentId}/docker/containers/${container.Id}`;
                     try {
-                        const containerName = container.Names[0];
-                        details.push(`Removing container: ${containerName}`);
+                        details.push(`Removing container: ${containerName} (${container.State})`);
 
-                        // Stop container if running
-                        if (container.State === 'running') {
-                            await portainer.axiosInstance.post(
-                                `/api/endpoints/${portainerEnvironmentId}/docker/containers/${container.Id}/stop`
-                            );
-                            details.push(`Container ${containerName} stopped`);
+                        // A server that is still starting may ignore a graceful stop for a long time, and one that
+                        // keeps crashing is restarted by Docker. Kill whatever is alive instead of waiting for it.
+                        if (['running', 'restarting', 'paused'].includes(container.State)) {
+                            if (container.State === 'paused') {
+                                await portainer.axiosInstance.post(`${base}/unpause`).catch(() => undefined);
+                            }
+                            await portainer.axiosInstance.post(`${base}/kill`).catch(() => undefined);
+                            details.push(`Container ${containerName} killed`);
                         }
 
-                        // Remove container
-                        await portainer.axiosInstance.delete(
-                            `/api/endpoints/${portainerEnvironmentId}/docker/containers/${container.Id}`
-                        );
+                        // force removes it even when it is not fully stopped, v removes its anonymous volumes
+                        await portainer.axiosInstance.delete(`${base}?force=true&v=true`);
                         details.push(`Container ${containerName} removed successfully`);
 
                     } catch (containerError) {
-                        details.push(`Warning: Failed to remove container ${container.Names[0]} - ${containerError instanceof Error ? containerError.message : 'Unknown error'}`);
+                        details.push(`Warning: Failed to remove container ${containerName} - ${containerError instanceof Error ? containerError.message : 'Unknown error'}`);
                         hasErrors = true;
                         containerCleanupFailed = true;
                     }
@@ -154,6 +155,16 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
                 }
             } else {
                 details.push('No stacks found for this server');
+            }
+
+            // Make sure nothing of this server is left running
+            const remaining = (await portainer.getContainers(portainerEnvironmentId)).filter(container =>
+                container.Names.some(name => name.includes(`mc-${server.uniqueId}`) || name.includes(`minecraft-${server.uniqueId}`) || name.includes(server.uniqueId as string))
+            );
+            if (remaining.length > 0) {
+                details.push(`Warning: ${remaining.length} container(s) of this server are still present`);
+                hasErrors = true;
+                containerCleanupFailed = true;
             }
 
         } catch (portainerCleanupError) {

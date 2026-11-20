@@ -165,6 +165,18 @@ async function cleanupTemporaryFiles(serverConfig: DatabaseServerConfig, userEma
     }
 }
 
+/**
+ * A server can be deleted while it is still being deployed. Every major stage checks that the record is still
+ * there so a deployment never recreates containers or files of a server that was just removed.
+ */
+async function assertServerNotDeleted(serverId: string): Promise<void> {
+    const stillThere = await Server.exists({ uniqueId: serverId });
+    if (!stillThere) {
+        deploymentStatuses.delete(serverId);
+        throw new Error('The server was deleted while it was being deployed.');
+    }
+}
+
 // Deploy server with step-by-step tracking
 export async function POST(request: NextRequest) {
     await dbConnect();
@@ -578,6 +590,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
         await updateStep(serverId, 'docker', 'completed', 100, 'Docker configuration generated');
 
         // Step 6: Deploy to Portainer
+        await assertServerNotDeleted(serverId);
         await updateStep(serverId, 'deploy', 'running', 0, 'Deploying server to container platform...');
 
         console.log(`Starting Portainer deployment for server ${serverId}`);
@@ -677,6 +690,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
         }
 
         // Step 8: Upload files (server.properties, plugins, mods, world files)
+        await assertServerNotDeleted(serverId);
         await updateStep(serverId, 'upload', 'running', 0, 'Preparing file uploads...');
 
         try {
@@ -838,6 +852,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
         }
 
         // Step 9: Configure Velocity proxy integration
+        await assertServerNotDeleted(serverId);
         await updateStep(serverId, 'velocity', 'running', 0, 'Configuring Velocity proxy integration...');
 
         try {

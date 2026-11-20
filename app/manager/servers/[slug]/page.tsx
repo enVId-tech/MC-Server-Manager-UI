@@ -834,7 +834,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   const deleteServer = async () => {
     showConfirmDialog({
       title: 'Delete Server',
-      message: `Are you sure you want to delete the server "${resolvedParams.slug}"? This action cannot be undone and will remove the container and all associated data.`,
+      message: `Are you sure you want to delete the server "${resolvedParams.slug}"? This action cannot be undone. ${serverStats.status === 'starting' ? 'The server is still starting, so it will be stopped first. ' : ''}Its container, proxy entry and all associated data will be removed.`,
       confirmText: 'Delete Forever',
       cancelText: 'Cancel',
       variant: 'danger',
@@ -1321,7 +1321,8 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                   <button
                     className={`${styles.controlButton} ${styles.delete}`}
                     onClick={deleteServer}
-                    disabled={serverStats.status === 'loading' || serverStats.status === 'online' || serverStats.status === 'starting' || serverStats.status === 'paused'}
+                    // A server that is still starting can be deleted: everything of it is stopped first
+                    disabled={serverStats.status === 'loading' || serverStats.status === 'online' || serverStats.status === 'paused'}
                   >
                     <FaTrash /> Delete
                   </button>
