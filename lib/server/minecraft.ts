@@ -505,6 +505,23 @@ export class MinecraftServer {
     /**
      * Generate complete Docker Compose configuration
      */
+    /**
+     * CONTAINER_DNS: comma separated DNS servers for every Minecraft container, for example `1.1.1.1,8.8.8.8`.
+     * CONTAINER_DNS_SEARCH=none removes the search domains Docker copies from the host.
+     */
+    private getDnsSettings(): { dns?: string[]; dns_search?: string[] } {
+        const servers = (process.env.CONTAINER_DNS ?? '')
+            .split(',')
+            .map(entry => entry.trim())
+            // only addresses: this ends up in a compose file
+            .filter(entry => /^[0-9a-fA-F:.]+$/.test(entry));
+
+        return {
+            ...(servers.length > 0 ? { dns: servers } : {}),
+            ...(process.env.CONTAINER_DNS_SEARCH?.trim().toLowerCase() === 'none' ? { dns_search: ['.'] } : {}),
+        };
+    }
+
     generateDockerComposeConfig(): object {
         // Get server type specific configuration
         const serverTypeConfig = this.getServerTypeConfig();
@@ -557,6 +574,9 @@ export class MinecraftServer {
                         `${serverBasePath}/${this.uniqueId}/world:/world`,
                         `${serverBasePath}/${this.uniqueId}/backups:/backups`,
                     ],
+                    // DNS servers for the container. Needed when the host's resolver is not reachable from inside Docker
+                    // (the image then cannot download the server: "Failed to resolve launchermeta.mojang.com").
+                    ...this.getDnsSettings(),
                     // Auto-pause watches for connection attempts with knockd, which needs raw sockets
                     ...(environment.ENABLE_AUTOPAUSE === 'true' ? { cap_add: ['NET_RAW'] } : {}),
                     restart: 'unless-stopped',
