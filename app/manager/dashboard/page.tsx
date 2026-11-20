@@ -278,7 +278,7 @@ export default function Dashboard() {
                     <h1 className={styles.pageTitle}>Server Manager</h1>
                     <button
                         className={`${styles.button} ${styles.primary}`}
-                        onClick={() => window.location.href = "/manager/servers/create"}
+                        onClick={() => router.push("/manager/servers/create")}
                     >
                         Create New Server
                     </button>
