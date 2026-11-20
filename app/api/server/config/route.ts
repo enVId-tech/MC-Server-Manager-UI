@@ -9,6 +9,7 @@ import portainer from "@/lib/server/portainer";
 import MinecraftServerManager from "@/lib/server/serverManager";
 import { v4 as uuidv4 } from 'uuid';
 import verificationService from "@/lib/server/verify";
+import { buildServerHostname } from '@/lib/config/domain';
 
 // Configure body parsing for this API route
 // Note: In Next.js App Router, body size limits are configured in next.config.js or middleware
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Validate subdomain using MinecraftServerManager (checks prohibited list and conflicts)
-        const fullSubdomain = `${config.subdomain}.mc.etran.dev`;
+        const fullSubdomain = buildServerHostname(config.subdomain);
         const subdomainValidation = await MinecraftServerManager.validateSubdomain(config.subdomain, email);
         if (!subdomainValidation.isValid) {
             return NextResponse.json({ error: subdomainValidation.error }, { status: 400 });

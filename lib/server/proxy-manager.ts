@@ -861,8 +861,8 @@ export class ProxyManager {
 
                             // Add forced host if subdomain exists
                             if (server.subdomainName) {
-                                const domain = process.env.ROOT_DOMAIN || 'example.com';
-                                const host = `${server.subdomainName}.${domain}`;
+                                // subdomainName is stored as the full hostname already
+                                const host = server.subdomainName;
                                 if (!velocityConfig['forced-hosts']) velocityConfig['forced-hosts'] = {};
                                 velocityConfig['forced-hosts'][host] = [server.serverName];
                             }
