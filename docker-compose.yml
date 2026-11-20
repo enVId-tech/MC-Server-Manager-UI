@@ -10,6 +10,9 @@ services:
       - 3000:3000
     volumes:
       - ./mc-server-creator:/data
+      # Uncomment with STORAGE_BACKEND=local. The path must match LOCAL_STORAGE_PATH, and
+      # LOCAL_STORAGE_HOST_PATH must be this folder's path on the Docker host.
+      # - /mnt/ssd/minecraft:/data/minecraft
     env_file:
       - stack.env
     environment:
