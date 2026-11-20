@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/dbConnect';
 import User from '@/lib/objects/User';
 
-const EMAIL_PATTERN = /.+@.+\..+/;
+// Emails end up in folder names, so path separators are not allowed
+const EMAIL_PATTERN = /^(?!\.+@)[^\s@/\\]+@[^\s@/\\]+\.[^\s@/\\]+$/;
 const MIN_PASSWORD_LENGTH = 6;
 
 /**
