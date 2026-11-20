@@ -1922,7 +1922,7 @@ export function convertClientConfigToServerConfig(clientConfig: ClientServerConf
         VIEW_DISTANCE: clientConfig.viewDistance,
         SIMULATION_DISTANCE: clientConfig.simulationDistance,
         LEVEL_SEED: clientConfig.seed || '',
-        LEVEL_TYPE: clientConfig.worldType as 'DEFAULT' | 'FLAT' | 'LARGEBIOMES' | 'AMPLIFIED' | 'CUSTOMIZED',
+        LEVEL_TYPE: (clientConfig.worldType || 'default').toUpperCase() as 'DEFAULT' | 'FLAT' | 'LARGEBIOMES' | 'AMPLIFIED' | 'CUSTOMIZED',
         LEVEL_NAME: 'world',
         GENERATE_STRUCTURES: clientConfig.generateStructuresEnabled,
         ALLOW_NETHER: true,
