@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import styles from './AdminServerManager.module.scss';
+import { useNotifications } from '@/lib/contexts/NotificationContext';
 
 interface Server {
   _id: string;
@@ -47,6 +48,7 @@ interface BulkActionResult {
 }
 
 export default function AdminServerManager() {
+  const { showConfirmDialog } = useNotifications();
   const [servers, setServers] = useState<Server[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -338,11 +340,13 @@ export default function AdminServerManager() {
               </button>
               <button
                 className={styles.deleteBtn}
-                onClick={() => {
-                  if (confirm(`Are you sure you want to delete ${selectedServers.size} selected server(s)? This action cannot be undone.`)) {
-                    performBulkAction('delete');
-                  }
-                }}
+                onClick={() => showConfirmDialog({
+                  title: 'Delete Servers',
+                  message: `Delete ${selectedServers.size} selected server(s)? Their containers and files will be removed and this can not be undone.`,
+                  confirmText: 'Delete',
+                  variant: 'danger',
+                  onConfirm: () => performBulkAction('delete'),
+                })}
                 disabled={bulkActionLoading}
               >
                 Delete Selected ({selectedServers.size})
