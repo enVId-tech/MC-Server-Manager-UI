@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useRef, useState, ReactNode } from 'react';
 
 export interface NotificationData {
     id: string;
@@ -43,8 +43,14 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
     const [notifications, setNotifications] = useState<NotificationData[]>([]);
     const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogData | null>(null);
 
-    const showNotification = (notification: Omit<NotificationData, 'id'>) => {
-        const id = Math.random().toString(36).substr(2, 9);
+    const nextId = useRef(0);
+
+    const removeNotification = useCallback((id: string) => {
+        setNotifications(prev => prev.filter(notification => notification.id !== id));
+    }, []);
+
+    const showNotification = useCallback((notification: Omit<NotificationData, 'id'>) => {
+        const id = `notification-${Date.now().toString(36)}-${nextId.current++}`;
         const newNotification: NotificationData = {
             ...notification,
             id,
@@ -59,14 +65,10 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
                 removeNotification(id);
             }, newNotification.duration);
         }
-    };
+    }, [removeNotification]);
 
-    const removeNotification = (id: string) => {
-        setNotifications(prev => prev.filter(notification => notification.id !== id));
-    };
-
-    const showConfirmDialog = (dialog: Omit<ConfirmDialogData, 'id'>) => {
-        const id = Math.random().toString(36).substr(2, 9);
+    const showConfirmDialog = useCallback((dialog: Omit<ConfirmDialogData, 'id'>) => {
+        const id = `confirm-${Date.now().toString(36)}-${nextId.current++}`;
         setConfirmDialog({
             ...dialog,
             id,
@@ -74,23 +76,24 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
             cancelText: dialog.cancelText ?? 'Cancel',
             variant: dialog.variant ?? 'default',
         });
-    };
+    }, []);
 
-    const hideConfirmDialog = () => {
+    const hideConfirmDialog = useCallback(() => {
         setConfirmDialog(null);
-    };
+    }, []);
+
+    // Keep the context value stable so consumers (and their effects) do not re-run on every provider render
+    const value = useMemo(() => ({
+        notifications,
+        confirmDialog,
+        showNotification,
+        removeNotification,
+        showConfirmDialog,
+        hideConfirmDialog,
+    }), [notifications, confirmDialog, showNotification, removeNotification, showConfirmDialog, hideConfirmDialog]);
 
     return (
-        <NotificationContext.Provider
-            value={{
-                notifications,
-                confirmDialog,
-                showNotification,
-                removeNotification,
-                showConfirmDialog,
-                hideConfirmDialog,
-            }}
-        >
+        <NotificationContext.Provider value={value}>
             {children}
         </NotificationContext.Provider>
     );
