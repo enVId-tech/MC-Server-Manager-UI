@@ -334,7 +334,10 @@ class VelocityService {
             }
 
             const serversContent = match[1];
-            const serverEntry = `${serverConfig.serverName} = "${serverConfig.address}:${serverConfig.port}"`;
+            // Callers pass the container address with its port ("mc-abc:25565"). Appending the port again produced
+            // entries such as "mc-abc:25565:25571", which Velocity cannot connect to.
+            const backendAddress = /:\d+$/.test(serverConfig.address) ? serverConfig.address : `${serverConfig.address}:${serverConfig.port}`;
+            const serverEntry = `${serverConfig.serverName} = "${backendAddress}"`;
             const existingEntryRegex = new RegExp(`^[ \\t]*${escapeRegExp(serverConfig.serverName)}[ \\t]*=[ \\t]*".*?"`, 'm');
             
             // Check if server already exists
