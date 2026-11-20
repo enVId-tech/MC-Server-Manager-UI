@@ -447,20 +447,53 @@
     }
   }
 
+  // Small screens: rows become cards (checkbox + name, owner, then version/status/actions)
   @media (max-width: 768px) {
-    grid-template-columns: 40px 1fr 80px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
 
-    span:nth-child(3),
-    span:nth-child(4),
-    span:nth-child(5),
-    span:nth-child(6),
-    span:nth-child(7) {
+    > :nth-child(2) {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+
+    // owner takes its own line, aligned with the name
+    > :nth-child(3) {
+      flex: 1 1 100%;
+      margin-left: 2rem;
+      overflow-wrap: anywhere;
+    }
+
+    > :nth-child(4) {
+      margin-left: 2rem;
+    }
+
+    // status stays visible (the 1200px rule above hides it)
+    > span:nth-child(6) {
+      display: inline-block;
+    }
+
+    // port and created date are only shown on wider screens
+    > :nth-child(5),
+    > :nth-child(7) {
       display: none;
+    }
+
+    > :nth-child(8) {
+      margin-left: auto;
     }
   }
 }
 
 .tableHeader {
+  @media (max-width: 768px) {
+    > span:nth-child(n + 3) {
+      display: none;
+    }
+  }
+
   background-color: rgba($dark-bg, 0.5);
   font-weight: 600;
   color: $text-secondary;
