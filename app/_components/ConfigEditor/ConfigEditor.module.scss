@@ -1,0 +1,143 @@
+@use "../../variables" as *;
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  height: 100%;
+  overflow: auto;
+  padding: 0.75rem;
+}
+
+.search,
+.row input[type="text"],
+.row input[type="number"],
+.row select,
+.row textarea,
+.add input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  background: $dark-form;
+  color: $text-primary;
+  font-family: $body-font;
+  font-size: 0.9rem;
+
+  &:focus-visible {
+    outline: 2px solid $accent-blue;
+    outline-offset: 1px;
+  }
+}
+
+.row textarea {
+  resize: vertical;
+  font-family: monospace;
+}
+
+.rows,
+.tree,
+.groupBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) minmax(10rem, 1.4fr);
+  align-items: center;
+  gap: 0.75rem;
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.key {
+  color: $text-primary;
+  font-family: monospace;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.description {
+  color: $text-secondary;
+  font-family: $body-font;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: $text-primary;
+  font-family: $body-font;
+  font-size: 0.9rem;
+}
+
+.group {
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+
+  summary {
+    cursor: pointer;
+    color: $text-primary;
+    font-family: monospace;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .groupBody {
+    margin-top: 0.75rem;
+  }
+}
+
+.add {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid $border-color;
+
+  label {
+    flex: none;
+    color: $text-secondary;
+    font-family: $body-font;
+    font-size: 0.85rem;
+  }
+
+  button {
+    padding: 0.5rem 1rem;
+    border: 1px solid $accent-blue;
+    border-radius: 8px;
+    background: $accent-blue;
+    color: #fff;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.empty,
+.error {
+  margin: 0;
+  font-family: $body-font;
+  font-size: 0.85rem;
+}
+
+.empty { color: $text-secondary; }
+.error { color: #f08a86; }

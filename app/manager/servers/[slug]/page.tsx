@@ -29,6 +29,8 @@ import serverManager from '@/public/server-manager-bg.png';
 import { VscDebugRestart } from 'react-icons/vsc';
 import { HiDownload } from 'react-icons/hi';
 import { FiCpu } from 'react-icons/fi';
+import ConfigEditor from '@/app/_components/ConfigEditor/ConfigEditor';
+import { detectConfigFormat } from '@/lib/data/configFiles';
 import ServerSettings from '@/app/_components/ServerSettings/ServerSettings';
 
 interface FileItem {
@@ -67,6 +69,8 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [fileContent, setFileContent] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  // Files with settings (server.properties, yaml, json) get a form; this switches to the plain text editor
+  const [textEditorForced, setTextEditorForced] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
@@ -984,6 +988,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
       setIsEditing(false);
     } else {
       setSelectedFile(file);
+      setTextEditorForced(false);
       setIsEditing(false);
       setHasUnsavedChanges(false);
       fetchFileContent(file.path);
@@ -997,6 +1002,7 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
 
   const handleEditToggle = () => {
     setIsEditing(!isEditing);
+    setTextEditorForced(false);
     if (isEditing) {
       setHasUnsavedChanges(false);
     }
@@ -1382,6 +1388,14 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                               <FaEdit /> {isEditing ? 'View' : 'Edit'}
                             </button>
                           )}
+                          {isEditing && selectedFile && detectConfigFormat(selectedFile.name) && (
+                            <button
+                              className={styles.editorButton}
+                              onClick={() => setTextEditorForced(forced => !forced)}
+                            >
+                              {textEditorForced ? 'Settings form' : 'Edit as text'}
+                            </button>
+                          )}
                           {isEditing && hasUnsavedChanges && (
                             <button
                               className={`${styles.editorButton} ${styles.save}`}
@@ -1399,6 +1413,15 @@ export default function Server({ params }: { params: Promise<{ slug: string }> }
                           <div className={styles.loadingState}>
                             <p>Loading file content...</p>
                           </div>
+                        ) : isEditing && !textEditorForced && selectedFile && detectConfigFormat(selectedFile.name) ? (
+                          <ConfigEditor
+                            format={detectConfigFormat(selectedFile.name)!}
+                            content={fileContent}
+                            onChange={(updated) => {
+                              setFileContent(updated);
+                              setHasUnsavedChanges(true);
+                            }}
+                          />
                         ) : isEditing ? (
                           <textarea
                             className={styles.editor}

@@ -28,6 +28,13 @@ import {
     parseNeoForgeVersions,
     parseProjectVersions,
 } from '../lib/data/itzg/versionSources';
+import {
+    detectConfigFormat,
+    parseProperties,
+    parseStructured,
+    setPropertyValue,
+    setStructuredValue,
+} from '../lib/data/configFiles';
 
 let failures = 0;
 
@@ -283,4 +290,24 @@ if (failures > 0) {
     console.log(`\n${failures} check(s) failed.`);
     process.exit(1);
 }
+check('config file helpers', () => {
+    assert.equal(detectConfigFormat('server.properties'), 'properties');
+    assert.equal(detectConfigFormat('paper-global.yml'), 'yaml');
+    assert.equal(detectConfigFormat('ops.json'), 'json');
+    assert.equal(detectConfigFormat('latest.log'), null);
+    assert.equal(detectConfigFormat('config.toml'), null);
+
+    const props = '#Minecraft server properties\nmotd=Hello\nmax-players=20\n';
+    assert.deepEqual(parseProperties(props), [{ key: 'motd', value: 'Hello' }, { key: 'max-players', value: '20' }]);
+    assert.equal(setPropertyValue(props, 'max-players', '50'), '#Minecraft server properties\nmotd=Hello\nmax-players=50\n');
+    assert.equal(setPropertyValue(props, 'pvp', 'false'), '#Minecraft server properties\nmotd=Hello\nmax-players=20\npvp=false\n');
+
+    const yml = '# top comment\nsettings:\n  debug: false # inline\n  list:\n    - a\n    - b\n';
+    assert.equal(setStructuredValue(yml, 'yaml', ['settings', 'debug'], true), '# top comment\nsettings:\n  debug: true # inline\n  list:\n    - a\n    - b\n');
+    assert.deepEqual(parseStructured(setStructuredValue(yml, 'yaml', ['settings', 'list'], ['x', 'y', 'z']), 'yaml').data, { settings: { debug: false, list: ['x', 'y', 'z'] } });
+    assert.deepEqual(parseStructured(setStructuredValue('{"a":{"b":1}}', 'json', ['a', 'b'], 2), 'json').data, { a: { b: 2 } });
+    assert.ok(parseStructured('a: [', 'yaml').error);
+    assert.ok(parseStructured('{nope', 'json').error);
+});
+
 console.log(`\nAll itzg catalog checks passed (${OPTIONS.length} options, ${SERVER_TYPES.length} server types).`);
