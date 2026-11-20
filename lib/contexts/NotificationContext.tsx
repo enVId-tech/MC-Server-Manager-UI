@@ -29,6 +29,8 @@ interface NotificationContextType {
     hideConfirmDialog: () => void;
 }
 
+const MAX_VISIBLE_NOTIFICATIONS = 4;
+
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export const useNotifications = () => {
@@ -44,12 +46,22 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
     const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogData | null>(null);
 
     const nextId = useRef(0);
+    // Maps a notification's content to the id currently on screen so repeats are not stacked
+    const activeNotifications = useRef(new Map<string, string>());
 
     const removeNotification = useCallback((id: string) => {
+        for (const [key, activeId] of activeNotifications.current) {
+            if (activeId === id) activeNotifications.current.delete(key);
+        }
         setNotifications(prev => prev.filter(notification => notification.id !== id));
     }, []);
 
     const showNotification = useCallback((notification: Omit<NotificationData, 'id'>) => {
+        const key = `${notification.type}|${notification.title ?? ''}|${notification.message}`;
+        if (activeNotifications.current.has(key)) {
+            return;
+        }
+
         const id = `notification-${Date.now().toString(36)}-${nextId.current++}`;
         const newNotification: NotificationData = {
             ...notification,
@@ -57,7 +69,17 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
             duration: notification.duration ?? 5000,
         };
 
-        setNotifications(prev => [...prev, newNotification]);
+        activeNotifications.current.set(key, id);
+        setNotifications(prev => {
+            const next = [...prev, newNotification];
+            // Keep the stack short: drop the oldest ones first
+            for (const dropped of next.slice(0, Math.max(0, next.length - MAX_VISIBLE_NOTIFICATIONS))) {
+                for (const [activeKey, activeId] of activeNotifications.current) {
+                    if (activeId === dropped.id) activeNotifications.current.delete(activeKey);
+                }
+            }
+            return next.slice(-MAX_VISIBLE_NOTIFICATIONS);
+        });
 
         // Auto-remove notification
         if (newNotification.duration && newNotification.duration > 0) {
