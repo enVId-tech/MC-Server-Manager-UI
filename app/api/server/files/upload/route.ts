@@ -176,9 +176,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'File ID and file name are required' }, { status: 400 });
     }
 
-    // Construct file path
+    // Construct file path. Only the plain file name is accepted, so the request can not reach outside
+    // of the user's own upload directory
     const userUploadDir = path.join(UPLOAD_DIR, user.email);
-    const filePath = path.join(userUploadDir, fileName);
+    const filePath = path.join(userUploadDir, path.basename(fileName));
 
     // Delete file
     try {
