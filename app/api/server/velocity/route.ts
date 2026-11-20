@@ -170,7 +170,11 @@ async function configureServerForVelocity(server: IServer, user: IUser) {
         const configResult = await velocityService.configureServerForVelocity(
             velocityConfig,
             user.email,
-            server.uniqueId
+            server.uniqueId,
+            undefined,
+            undefined,
+            // Imported servers live wherever they were found
+            server.folderPath || undefined
         );
 
         if (!configResult.success) {
