@@ -10,9 +10,11 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 
 ### 🎮 Server Creation & Management
 - **Multi-step Creation Wizard**: Step-by-step interface for creating custom Minecraft servers
-- **Multiple Server Types**: Vanilla, Spigot, Paper, Bukkit, Purpur, Forge, and Fabric support
-- **Version Support**: Minecraft 1.8 through 1.21+ with version-specific configurations
-- **Advanced Configuration**: 50+ server properties including world settings, performance tuning, and player management
+- **27 Server Types**: Vanilla, Paper, Folia, Purpur, Pufferfish, Leaf, Spigot, Bukkit, Forge, NeoForge, Fabric, Quilt, Sponge, Mohist, Banner, Arclight, Magma, Ketting, Youer, Glowstone, Crucible, Limbo and the Modrinth, CurseForge and Feed the Beast modpack installers
+- **Live Version Lists**: The versions of every server type are read from the software's own API (PaperMC, Purpur, Fabric, Quilt, Forge, NeoForge, Mojang) and are not stored in the database
+- **Every itzg Setting**: About 230 options of the `itzg/minecraft-server` image, shown only when they apply to the chosen server type and Minecraft version, in the creation wizard and in the server dashboard (Settings tab)
+- **Automatic Java**: The Java version follows from the Minecraft version through the image tag. EULA, RCON, ports, user ids and the server type itself are managed by the platform and cannot be changed
+- **Advanced Configuration**: server.properties for the chosen version, plus every container setting
 - **File Upload**: Plugin, mod, and world file import capabilities
 
 ### 🖥️ Dashboard & Monitoring
@@ -23,7 +25,7 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 
 ### 📁 File Management & Editor
 - **Flexible File Storage**: Browse and manage server files through the web interface, stored on the local disk or over WebDAV
-- **Built-in File Editor**: Edit configuration files directly in the browser
+- **Built-in File Editor**: Edit configuration files directly in the browser. `server.properties`, YAML (`paper-global.yml`, `spigot.yml`, `purpur.yml`, ...) and JSON files open as a settings form that keeps comments and layout; every other file opens in a text editor
 - **Real-time Preview**: View file contents with syntax highlighting
 - **Auto-save Protection**: Unsaved changes warning when navigating away
 - **File Navigation**: Breadcrumb navigation and folder browsing
@@ -148,6 +150,8 @@ The compose file starts the app and a MongoDB instance. App data, including the 
 npx tsc --noEmit   # types
 npm run lint       # eslint
 npm run build      # production build
+npm run test:itzg-catalog   # option catalog, version rules, version parsers, config file helpers
+npm run test:local-storage  # local storage backend
 ```
 
 
