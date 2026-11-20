@@ -69,6 +69,21 @@ export interface PortainerContainer {
             MaximumRetryCount?: number;
         };
     };
+    /** Bind mounts and volumes, present in both the list and the inspect response */
+    Mounts?: Array<{
+        Type?: string;
+        Source?: string;
+        Destination: string;
+        RW?: boolean;
+    }>;
+    Labels?: Record<string, string>;
+    /** Only present in the inspect response */
+    Config?: {
+        Env?: string[];
+        Image?: string;
+        User?: string;
+        Labels?: Record<string, string>;
+    };
 }
 
 export interface PortainerImage {

@@ -1,6 +1,7 @@
 import serverStorage from '@/lib/server/storage';
 import portainer from '@/lib/server/portainer';
 import { buildServerHostname } from '@/lib/config/domain';
+import { resolveVelocityConfigPath } from '@/lib/server/velocityDiscovery';
 
 function escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -59,6 +60,21 @@ class VelocityService {
     }
 
     /**
+     * The velocity.toml to change. A Velocity instance that already exists in the storage or import folders (or
+     * that a running Velocity container uses) always wins; an explicit path is only kept when that file exists.
+     */
+    public async resolveConfigPath(explicitPath?: string): Promise<string> {
+        if (explicitPath) {
+            try {
+                if (await serverStorage.exists(explicitPath)) return explicitPath;
+            } catch {
+                // fall through to discovery
+            }
+        }
+        return resolveVelocityConfigPath(this.velocityConfigPath);
+    }
+
+    /**
      * Configure server for Velocity proxy forwarding
      * @param serverConfig - The server configuration to set up for Velocity
      * @param userEmail - User email for file path construction
@@ -71,12 +87,13 @@ class VelocityService {
         userEmail: string,
         uniqueId: string,
         configPath?: string,
-        networkName?: string
+        networkName?: string,
+        serverFolder?: string
     ): Promise<{ success: boolean; error?: string; details?: string[] }> {
         const details: string[] = [];
         
-        // Use provided config path or fall back to instance default
-        const targetConfigPath = configPath || this.velocityConfigPath;
+        // An existing Velocity instance is always the one that gets changed
+        const targetConfigPath = await this.resolveConfigPath(configPath);
         const targetNetworkName = networkName || this.velocityNetworkName;
         
         try {
@@ -84,7 +101,8 @@ class VelocityService {
             
             // Get server path
             const userFolder = userEmail.split('@')[0];
-            const serverBasePath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userFolder}/${uniqueId}`;
+            // Imported servers live wherever they were found; their folder is passed in
+            const serverBasePath = serverFolder || `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userFolder}/${uniqueId}`;
             
             // Configure server.properties for Velocity
             await this.configureServerProperties(serverBasePath, serverConfig, details);
@@ -648,7 +666,7 @@ class VelocityService {
      * Read Velocity configuration from WebDAV
      */
     public async readVelocityConfig(configPath?: string): Promise<VelocityConfig> {
-        const targetPath = configPath || this.velocityConfigPath;
+        const targetPath = await this.resolveConfigPath(configPath);
         try {
             const configExists = await serverStorage.exists(targetPath);
             
@@ -674,7 +692,7 @@ class VelocityService {
     private async writeVelocityConfig(config: VelocityConfig): Promise<void> {
         try {
             const configContent = this.generateVelocityConfig(config);
-            await serverStorage.uploadFile(this.velocityConfigPath, configContent);
+            await serverStorage.uploadFile(await this.resolveConfigPath(), configContent);
         } catch (error) {
             throw new Error(`Failed to write Velocity configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }

@@ -19,7 +19,8 @@
     "test:itzg-catalog": "tsx scripts/test-itzg-catalog.ts",
     "test:port-probe": "tsx scripts/test-port-probe.ts",
     "test:velocity-reload": "tsx scripts/test-velocity-reload.ts",
-    "test:server-record": "tsx scripts/test-server-record.ts"
+    "test:server-record": "tsx scripts/test-server-record.ts",
+    "test:import-paths": "tsx scripts/test-import-paths.ts"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",
