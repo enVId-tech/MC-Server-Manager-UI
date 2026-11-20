@@ -6,6 +6,7 @@
 import webdavService from '@/lib/server/webdav';
 import { VelocityServerConfig } from './velocity';
 import { buildServerHostname } from '@/lib/config/domain';
+import { getServerFolderPath } from '@/lib/server/serverPaths';
 
 export interface BungeeCordServerConfig extends VelocityServerConfig {
     // BungeeCord-specific configurations
@@ -81,7 +82,7 @@ class BungeeCordService {
             details.push(`Starting BungeeCord server configuration (Config: ${targetConfigPath})...`);
             
             // Get server path
-            const serverBasePath = `/servers/${userEmail}/${uniqueId}`;
+            const serverBasePath = getServerFolderPath({ uniqueId }, userEmail);
             
             // Configure server.properties for BungeeCord
             await this.configureServerProperties(serverBasePath, serverConfig, details);
