@@ -1,0 +1,10 @@
+# Copy this file to proxies.yaml (or point PROXIES_CONFIG_PATH at your own file).
+# The admin panel can also create, edit and delete proxies and will write the file for you.
+proxies:
+  - id: velocity-main
+    name: Velocity Main
+    host: velocity-main      # container name
+    port: 25565              # external port players connect to
+    memory: 512M
+    networkName: velocity-network
+    type: velocity           # velocity | bungeecord | waterfall
