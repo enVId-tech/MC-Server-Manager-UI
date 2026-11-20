@@ -57,8 +57,8 @@ async function main() {
         console.log('  ✓ listing uses virtual paths and leaves no temp files');
 
         const mode = (await fs.stat(path.join(root, serverDir, 'server.properties'))).mode & 0o777;
-        assert.equal(mode, 0o644);
-        console.log('  ✓ files are created with 0644');
+        assert.equal(mode, 0o666, 'the container user is another user, so files must stay writable');
+        console.log('  ✓ files are created writable for the container user');
 
         await storage.moveDirectory(serverDir, '/minecraft-servers/alex/DELETED_abc123');
         assert.equal(await storage.exists(serverDir), false);
@@ -127,6 +127,15 @@ async function main() {
         } else {
             console.log('  - skipped chown check (needs root)');
         }
+
+        // Without an owner (or when chown is refused) files must stay writable for the container user
+        const shared = new LocalStorage(path.join(sandbox, 'shared-root'));
+        await shared.uploadFile('/minecraft-servers/alex/abc/server.properties', 'x');
+        const sharedFile = await fs.stat(path.join(sandbox, 'shared-root', 'minecraft-servers/alex/abc/server.properties'));
+        const sharedFolder = await fs.stat(path.join(sandbox, 'shared-root', 'minecraft-servers/alex/abc'));
+        assert.equal(sharedFile.mode & 0o666, 0o666, 'files should be writable for everyone');
+        assert.equal(sharedFolder.mode & 0o777, 0o777, 'new folders should be writable for everyone');
+        console.log('  ✓ without an owner, files and folders stay writable by the container user');
 
         console.log('Configuration');
         assert.throws(() => new LocalStorage('relative/path'), /absolute/);

@@ -5,6 +5,9 @@ import type { ServerStorage, StorageEntry } from './types';
 
 const DIRECTORY_MODE = 0o755;
 const FILE_MODE = 0o644;
+/** Used when files cannot be given to the container user, so that user can still write them */
+const SHARED_DIRECTORY_MODE = 0o777;
+const SHARED_FILE_MODE = 0o666;
 
 const MIME_TYPES: Record<string, string> = {
     '.txt': 'text/plain',
@@ -161,25 +164,34 @@ export class LocalStorage implements ServerStorage {
     }
 
     /**
-     * Give a file or folder to the configured owner so the container user can use it. Failing to
-     * chown (for example when not running as root) is reported once and is not fatal.
+     * Make a file or folder usable by the container user. With LOCAL_STORAGE_OWNER set (and the app running
+     * as root) it is handed to that user. Otherwise, or when chown is refused, it is made world-writable:
+     * the container runs as a different user than this app, and a file only this app can write makes the
+     * image fail with "AccessDeniedException: /data/server.properties".
      */
-    private async applyOwnership(target: string): Promise<void> {
-        if (!this.owner) return;
-        try {
-            await fs.lchown(target, this.owner.uid, this.owner.gid);
-        } catch (error) {
-            if (!this.warnedAboutOwner) {
-                this.warnedAboutOwner = true;
-                console.warn(`Could not set LOCAL_STORAGE_OWNER on stored files (${(error as NodeJS.ErrnoException).code}). Run the app as root or set permissions on the storage folder yourself.`);
+    private async applyOwnership(target: string, isDirectory = false): Promise<void> {
+        if (this.owner) {
+            try {
+                await fs.lchown(target, this.owner.uid, this.owner.gid);
+                return;
+            } catch (error) {
+                if (!this.warnedAboutOwner) {
+                    this.warnedAboutOwner = true;
+                    console.warn(`Could not set LOCAL_STORAGE_OWNER on stored files (${(error as NodeJS.ErrnoException).code}). Files are made writable for everyone instead; run the app as root to give them to the container user.`);
+                }
             }
+        }
+        try {
+            await fs.chmod(target, isDirectory ? SHARED_DIRECTORY_MODE : SHARED_FILE_MODE);
+        } catch {
+            // Not ours to change: nothing more can be done here
         }
     }
 
     /** mkdir -p that also hands every newly created folder to the configured owner. */
     private async makeDirectories(absolute: string): Promise<void> {
         const firstCreated = await fs.mkdir(absolute, { recursive: true, mode: DIRECTORY_MODE });
-        if (!firstCreated || !this.owner) return;
+        if (!firstCreated) return;
 
         let current = absolute;
         const created: string[] = [];
@@ -189,7 +201,7 @@ export class LocalStorage implements ServerStorage {
             current = path.dirname(current);
         }
         for (const folder of created) {
-            await this.applyOwnership(folder);
+            await this.applyOwnership(folder, true);
         }
     }
 
