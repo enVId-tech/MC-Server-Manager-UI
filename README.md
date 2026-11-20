@@ -131,6 +131,8 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 | `PORTAINER_REJECT_UNAUTHORIZED` | Set to `false` to accept self-signed Portainer certificates |
 | `STORAGE_BACKEND` | `local` or `webdav`. Defaults to local when `LOCAL_STORAGE_PATH` is set |
 | `CONTAINER_UID`, `CONTAINER_GID` | User the Minecraft containers run as (default `1000:1000`). Set it to the owner of your storage folder, otherwise the image fails with `AccessDeniedException: /data/server.properties` |
+| `IMPORT_SCAN_PATHS` | Comma separated folders that already hold servers or a Velocity proxy, for example `/imports=/mnt/ssd/docker`. Write `app=host` when Docker sees a folder under another path than the app does |
+| `VELOCITY_CONFIG_PATH` | Optional path of the `velocity.toml` to use. Without it the existing Velocity instance is found automatically |
 | `LOCAL_STORAGE_PATH`, `LOCAL_STORAGE_HOST_PATH`, `LOCAL_STORAGE_OWNER` | Local storage folder, the same folder as the Docker host sees it (when the app is containerised), and an optional `uid:gid` for created files |
 | `WEBDAV_URL`, `WEBDAV_USERNAME`, `WEBDAV_PASSWORD`, `WEBDAV_SERVER_BASE_PATH` | WebDAV storage for server files |
 | `WEBDAV_REJECT_UNAUTHORIZED` | Set to `false` to accept self-signed WebDAV certificates |
@@ -162,6 +164,12 @@ npm run test:velocity-reload  # reloading Velocity without disconnecting players
 
 - New servers get the next free port above 25565. Each candidate is checked against Portainer's containers, the database, ports just handed out to servers that are still being created, and the network itself (a connection attempt on `127.0.0.1` and the Portainer host, see `PORT_CHECK_HOSTS`).
 - When a server is added or removed the manager updates `velocity.toml` and sends `velocity reload` to the proxy console. Velocity re-reads its server list without disconnecting anyone. The proxy container needs `stdin_open: true` (proxies created by the manager have it) or the `mc-send-to-console` helper. If the command cannot be delivered the proxy is restarted, which does disconnect players; set `VELOCITY_RELOAD_FALLBACK=none` to never do that.
+
+## Existing servers and Velocity
+
+- **Admin → Servers → Import existing servers** finds itzg Minecraft containers (running or stopped) and folders with a `server.properties` that are not in the dashboard, and adds the ones you choose. Their files and containers are not changed. Folders outside the storage folder need to be listed in `IMPORT_SCAN_PATHS` so the app can read and edit them.
+- Imported servers work like the others: files, console, logs, power buttons, `server.properties` settings and the Velocity hookup. Because their container is defined elsewhere, "Save and apply" restarts the container instead of rebuilding it, and deleting one removes its container and dashboard entry but never its files.
+- An existing Velocity instance is always the one that is changed. It is found through `VELOCITY_CONFIG_PATH`, the mounts of a running Velocity container, or a `velocity.toml` in the storage or import folders. The manager does not create a second proxy while one exists.
 
 ## Local file storage
 
