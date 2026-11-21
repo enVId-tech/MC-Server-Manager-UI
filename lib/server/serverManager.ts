@@ -1,5 +1,5 @@
 import { supportsMods, supportsPlugins } from '@/lib/data/itzg';
-import Server from '@/lib/objects/Server';
+import Server, { type IServer } from '@/lib/objects/Server';
 import User from '@/lib/objects/User';
 import portainer from './portainer';
 import serverStorage from './storage';
@@ -43,7 +43,7 @@ export class MinecraftServerManager {
     /**
      * Validate subdomain against prohibited list and admin status
      */
-    static async validateSubdomain(subdomain: string, userEmail: string): Promise<SubdomainValidationResult> {
+    static async validateSubdomain(subdomain: string, userEmail: string, own?: Pick<IServer, '_id' | 'uniqueId' | 'serverName' | 'containerName'>): Promise<SubdomainValidationResult> {
         try {
             await dbConnect();
 
@@ -64,13 +64,25 @@ export class MinecraftServerManager {
 
             // Check if subdomain is already taken
             // Servers store the full hostname, not the label the user typed
-            const existingServer = await Server.findOne({ subdomainName: buildServerHostname(subdomain.toLowerCase()) });
+            // (the server that is being renamed does not count against itself, and another server's extra forced hosts do)
+            const hostname = buildServerHostname(subdomain.toLowerCase());
+            const existingServer = await Server.findOne({
+                $or: [{ subdomainName: hostname }, { extraHostnames: hostname }],
+                ...(own ? { _id: { $ne: own._id } } : {}),
+            });
             if (existingServer) {
                 return {
                     isValid: false,
                     isReserved: false,
                     error: `The subdomain "${subdomain}" is already in use.`
                 };
+            }
+
+            // A forced host somebody set up on a proxy is never taken over
+            const { findAddressConflicts } = await import('@/lib/server/network/service');
+            const conflicts = await findAddressConflicts(hostname, own);
+            if (conflicts.length > 0) {
+                return { isValid: false, isReserved: false, error: conflicts[0] };
             }
 
             return { isValid: true, isReserved };

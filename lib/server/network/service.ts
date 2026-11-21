@@ -17,7 +17,7 @@ import { isModdedType, isVelocityCompatible } from '@/lib/data/itzg';
 import { applyBackendForwarding, installBungeeGuard, installViaPlugins } from './backend';
 import { applyModdedSetup, installProxyAddon, setTomlKey, type ManagedFile } from './modded';
 import {
-    addServerToBungeeYaml, addServerToVelocityToml, disableVelocityFallback, parseEducationJoinOutput,
+    addServerToBungeeYaml, addServerToVelocityToml, disableVelocityFallback, parseBungeeYaml, parseEducationJoinOutput, parseVelocityToml, takenForcedHosts,
     removeServerFromBungeeYaml, removeServerFromVelocityToml, type EducationFiles, type EducationJoinInfo, type PluginFlags,
 } from './parse';
 import { editProxyConfig, inspectProxy, readEducationFiles, type ProxyInspection, type ProxyRef } from './proxyFiles';
@@ -54,6 +54,8 @@ export interface NetworkProxy extends RoutableProxy {
     maxPlayers: number;
     /** Servers in the proxy's config: entry name to address */
     entries: Record<string, string>;
+    /** Forced hosts in the proxy's config: host name to the entry names it leads to */
+    forcedHosts: Record<string, string[]>;
     readable: boolean;
     error?: string;
     defaultEntry?: string;
@@ -112,7 +114,7 @@ async function describeProxy(record: IServer, linked: number, runningNames: Set<
     } catch (error) {
         inspection = {
             readable: false, forwarding: settings.forwarding, plugins: { viaversion: false, viabackwards: false, viarewind: false, geyser: false, floodgate: false, edugeyser: false, bungeeguard: false },
-            motd: '', maxPlayers: 0, bind: '', servers: {}, error: error instanceof Error ? error.message : 'unknown error',
+            motd: '', maxPlayers: 0, bind: '', servers: {}, forcedHosts: {}, error: error instanceof Error ? error.message : 'unknown error',
         };
     }
 
@@ -140,6 +142,7 @@ async function describeProxy(record: IServer, linked: number, runningNames: Set<
         motd: inspection.motd,
         maxPlayers: inspection.maxPlayers,
         entries: inspection.servers,
+        forcedHosts: inspection.forcedHosts,
         readable: inspection.readable,
         error: inspection.error,
         defaultEntry: settings.defaultEntry,
@@ -235,6 +238,30 @@ export function hostnamesFor(server: Pick<IServer, 'subdomainName' | 'extraHostn
     const host = hostnameFor(server.subdomainName, proxy?.baseDomain ?? getServerDomain());
     const extra = (server.extraHostnames ?? []).map(name => name.trim().toLowerCase()).filter(name => name && name !== host);
     return host ? [host, ...extra] : [];
+}
+
+/**
+ * Reasons why a host name cannot be this server's address: it is already a forced host of a proxy that leads to a
+ * server other than this one. Forced hosts that exist are never taken over. Without a server (one that is still to
+ * be created) every forced host with that name counts.
+ */
+export async function findAddressConflicts(hostname: string, server?: Pick<IServer, 'uniqueId' | 'serverName' | 'containerName'>): Promise<string[]> {
+    const wanted = hostname.trim().toLowerCase();
+    const reasons: string[] = [];
+    for (const record of await Server.find({ kind: 'proxy' })) {
+        let inspection: ProxyInspection;
+        try {
+            inspection = await inspectProxy(proxyRef(record));
+        } catch {
+            continue;
+        }
+        const key = Object.keys(inspection.forcedHosts).find(host => host.trim().toLowerCase() === wanted);
+        if (key === undefined) continue;
+        const own = server ? [...entriesFor({ entries: inspection.servers }, getContainerName(server)), entryNameFor(server)] : [];
+        const leadsTo = inspection.forcedHosts[key];
+        if (!leadsTo.some(name => own.includes(name))) reasons.push(`${wanted} is already a forced host on the proxy ${record.serverName} and leads to ${leadsTo.join(', ') || 'another server'}.`);
+    }
+    return reasons;
 }
 
 export interface SyncOptions {
@@ -374,19 +401,29 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
     }
 
     // Join the proxies that fit
+    const takenNotes: string[] = [];
     for (const proxy of chosen) {
         const ref = { uniqueId: proxy.id, serverName: proxy.name, folderPath: proxy.folder, port: proxy.port, proxy: { type: proxy.kind, configPath: proxy.configPath } } as ProxyRef;
+        const taken: Array<{ host: string; leadsTo: string[] }> = [];
         try {
             const stale = entriesFor(proxy, getContainerName(server)).filter(name => name !== entryName);
             await editProxyConfig(ref, content => {
                 const entry = { name: entryName, address, hostnames: hostnamesFor(server, proxy) };
+                taken.length = 0;
                 // Entries of this server under an older name are replaced by the current one
                 let cleaned = content;
                 for (const old of stale) cleaned = proxy.kind === 'velocity' ? removeServerFromVelocityToml(cleaned, old) : removeServerFromBungeeYaml(cleaned, old);
+                // Forced hosts that lead to another server are left as they are; they are reported below
+                const existingForced = proxy.kind === 'velocity' ? parseVelocityToml(cleaned).forcedHosts : Object.fromEntries(Object.entries(parseBungeeYaml(cleaned).forcedHosts).map(([host, name]) => [host, [name]]));
+                taken.push(...takenForcedHosts(existingForced, entry));
                 let next = proxy.kind === 'velocity' ? addServerToVelocityToml(cleaned, entry) : addServerToBungeeYaml(cleaned, entry);
                 if (proxy.kind === 'velocity' && settings.noFallback) next = disableVelocityFallback(next, proxy.defaultEntry);
                 return next;
             });
+            for (const item of taken) {
+                details.push(`Left the forced host ${item.host} on ${proxy.name} alone: it leads to ${item.leadsTo.join(', ')}`);
+                takenNotes.push(`${item.host} on ${proxy.name}`);
+            }
             changed.add(proxy.id);
             links.push({ proxyId: proxy.id, proxyName: proxy.name, entryName, networkName: proxy.networkName, forwarding: proxy.forwarding, linkedAt: previousLinks.find(link => link.proxyId === proxy.id)?.linkedAt ?? new Date() });
             details.push(`Added to ${proxy.name}`);
@@ -408,6 +445,8 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
             concerns.push({ code: 'link-failed', port, detail: `${proxy.name}: ${message}` });
         }
     }
+
+    if (takenNotes.length > 0) concerns.push({ code: 'host-taken', port, detail: takenNotes.join(', ') });
 
     // Set the server up for the way the proxy forwards players
     let restartNeeded = false;
