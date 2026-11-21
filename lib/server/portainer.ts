@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import https from 'https';
 import { config } from 'dotenv';
-import { directDockerEnabled, dockerExec, dockerLogs } from '@/lib/server/dockerDirect';
+import { withDirectDocker } from '@/lib/server/dockerDirect';
 
 // Load environment variables if not already loaded (without verbose output)
 if (!process.env.PORTAINER_URL) {
@@ -147,6 +147,9 @@ export class PortainerApiClient {
             // For development or when explicitly disabled: ignore SSL certificate validation
             httpsAgent: new https.Agent({ rejectUnauthorized }),
         });
+        // Docker calls go straight to the Docker socket when it belongs to the same engine as the Portainer
+        // environment; everything else (stacks, other hosts, any failure) stays with Portainer
+        this.axiosInstance.defaults.adapter = withDirectDocker(axios.getAdapter(this.axiosInstance.defaults.adapter ?? ['xhr', 'http', 'fetch']));
 
         // Set initial auth headers
         this.updateAuthHeaders();
@@ -1301,15 +1304,6 @@ export class PortainerApiClient {
             throw new Error('Environment ID is required to get container logs.');
         }
 
-        // The Docker socket is much quicker than going through Portainer; Portainer stays the fallback
-        if (directDockerEnabled()) {
-            try {
-                return await dockerLogs(containerId, tail);
-            } catch {
-                // not on this Docker host, or the socket is not usable: ask Portainer
-            }
-        }
-
         try {
             console.log(`📄 Getting logs for container ${containerId}...`);
             const response = await this.axiosInstance.get(
@@ -1495,15 +1489,6 @@ export class PortainerApiClient {
     ): Promise<{ output: string; exitCode: number }> {
         if (environmentId === null) {
             throw new Error('Environment ID is required to execute command.');
-        }
-
-        // The Docker socket is much quicker than going through Portainer; Portainer stays the fallback
-        if (directDockerEnabled()) {
-            try {
-                return await dockerExec(containerId, command);
-            } catch {
-                // not on this Docker host, or the socket is not usable: ask Portainer
-            }
         }
 
         try {
