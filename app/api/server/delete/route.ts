@@ -1,3 +1,5 @@
+import { deleteProxy } from '@/lib/server/network/proxyManagement';
+import { ownerFilter } from '@/lib/server/access';
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db/dbConnect";
 import Server from "@/lib/objects/Server";
@@ -27,11 +29,17 @@ export async function DELETE(request: NextRequest) {
         // Find the server by uniqueId (UUID) not MongoDB _id
         const server = await Server.findOne({
             uniqueId: serverId,
-            email: user.email
+            ...ownerFilter(user)
         });
 
         if (!server) {
             return NextResponse.json({ error: "Server not found." }, { status: 404 });
+        }
+
+        // Proxies are removed through the network service, which also unlinks their servers
+        if (server.kind === 'proxy') {
+            const removed = await deleteProxy(server.uniqueId);
+            return NextResponse.json({ message: 'Proxy deleted successfully', details: removed.details }, { status: 200 });
         }
 
         // Perform comprehensive deletion

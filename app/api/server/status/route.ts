@@ -1,3 +1,4 @@
+import { ownerFilter } from '@/lib/server/access';
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db/dbConnect";
 import { IUser } from "@/lib/objects/User";
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
         // Find the server by slug (uniqueId, subdomain, or serverName)
         const server = await Server.findOne({
             $and: [
-                { email: user.email }, // Ensure user owns the server
+                { ...ownerFilter(user) }, // Ensure user owns the server
                 {
                     $or: [
                         { uniqueId: serverIdentifier },

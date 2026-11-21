@@ -15,3 +15,11 @@ export async function findServerForUser(user: IUser, identifier: string): Promis
     }
     return Server.findOne({ $and: [{ email: user.email }, { kind: { $ne: 'proxy' } }, match] });
 }
+
+/**
+ * Query part that limits a server lookup to what the user may open: their own game servers, or anything for an
+ * administrator (including the proxies).
+ */
+export function ownerFilter(user: IUser): Record<string, unknown> {
+    return user.isAdmin ? {} : { email: user.email, kind: { $ne: 'proxy' } };
+}

@@ -1,3 +1,4 @@
+import { ownerFilter } from '@/lib/server/access';
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db/dbConnect";
 import { IUser } from "@/lib/objects/User";
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
         }
 
         const server = await Server.findOne({
-            email: user.email,
+            ...ownerFilter(user),
             uniqueId: uniqueId
         });
 

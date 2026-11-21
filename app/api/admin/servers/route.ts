@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
         const search = searchParams.get('search');
 
         // Build query
-        const query: Record<string, unknown> = {};
+        const query: Record<string, unknown> = { kind: { $ne: 'proxy' } };
 
         if (userEmail) {
             query.email = { $regex: escapeRegExp(userEmail), $options: 'i' };

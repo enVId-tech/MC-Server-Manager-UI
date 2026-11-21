@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Servers are linked to their owner by email
-        const servers = await Server.find({ email: user.email });
+        const servers = await Server.find({ email: user.email, kind: { $ne: 'proxy' } });
         const ownedServers = servers.map(server => ({
             uniqueId: server.uniqueId,
             name: server.serverName,

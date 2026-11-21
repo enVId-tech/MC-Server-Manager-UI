@@ -1,3 +1,4 @@
+import { ownerFilter } from '@/lib/server/access';
 import { NextRequest, NextResponse } from 'next/server';
 import { createMinecraftServer, AnalyzedFile } from '@/lib/server/minecraft';
 import verificationService from '@/lib/server/verify';
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get server configuration
-    const server = await Server.findOne({ uniqueId: serverId, email: user.email });
+    const server = await Server.findOne({ uniqueId: serverId, ...ownerFilter(user) });
     if (!server) {
       return NextResponse.json({ error: 'Server not found' }, { status: 404 });
     }

@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
 
         // Enforce the per user server quota (administrators are not limited)
         if (!user.isAdmin) {
-            const ownedServerCount = await Server.countDocuments({ email: user.email });
+            const ownedServerCount = await Server.countDocuments({ email: user.email, kind: { $ne: 'proxy' } });
             if (ownedServerCount >= user.maxServers) {
                 return NextResponse.json({
                     error: `You have reached your limit of ${user.maxServers} server${user.maxServers === 1 ? '' : 's'}. Delete a server or ask an administrator to raise your limit.`

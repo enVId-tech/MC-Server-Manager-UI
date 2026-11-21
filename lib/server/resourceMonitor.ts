@@ -255,7 +255,8 @@ export class ResourceMonitor {
 
             // Get all online servers
             const servers = await Server.find({ 
-                isOnline: true 
+                isOnline: true,
+                kind: { $ne: 'proxy' }
             }).select('uniqueId serverName').limit(50); // Limit to prevent overload
 
             const results = [];

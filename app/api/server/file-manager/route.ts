@@ -1,3 +1,4 @@
+import { ownerFilter } from '@/lib/server/access';
 import { NextRequest, NextResponse } from "next/server";
 import { IUser } from "@/lib/objects/User";
 import Server from "@/lib/objects/Server";
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
 
         // Find the server in the database using multiple possible matches
         const server = await Server.findOne({ 
-            email: user.email,
+            ...ownerFilter(user),
             $or: [
                 { uniqueId: uniqueId },
                 { uniqueId: serverSlug },
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get the WebDAV server base path from environment
-        const serverPath = getServerFolderPath(server, user.email);
+        const serverPath = getServerFolderPath(server, server.email ?? user.email);
 
 
         try {
@@ -148,7 +149,7 @@ export async function DELETE(request: NextRequest) {
 
         // Find the server in the database using multiple possible matches
         const server = await Server.findOne({ 
-            email: user.email,
+            ...ownerFilter(user),
             $or: [
                 { uniqueId: uniqueId },
                 { uniqueId: serverSlug },
@@ -165,7 +166,7 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Get the WebDAV server base path from environment
-        const serverPath = getServerFolderPath(server, user.email);
+        const serverPath = getServerFolderPath(server, server.email ?? user.email);
 
 
         try {
