@@ -1,5 +1,6 @@
 import { checkStartFailures } from './startGuard';
 import { runAutoUpdate } from './autoUpdate';
+import { adoptForSoleAdmin } from './existingServers';
 
 const globalState = globalThis as unknown as { __mcsmJobs?: boolean };
 
@@ -14,10 +15,14 @@ export function startBackgroundJobs(): void {
     const guard = () => void checkStartFailures().catch(error => console.warn('[start-guard]', error instanceof Error ? error.message : error));
     const update = () => void runAutoUpdate().catch(error => console.warn('[auto-update]', error instanceof Error ? error.message : error));
 
+    const adopt = () => void adoptForSoleAdmin();
+
     setInterval(guard, 60 * 1000).unref();
+    setInterval(adopt, 10 * 60 * 1000).unref();
     setInterval(update, 60 * 60 * 1000).unref();
     // Soon after the start, once everything else is up
     setTimeout(guard, 20 * 1000).unref();
     setTimeout(update, 2 * 60 * 1000).unref();
-    console.log('Background jobs started: start failure guard (every minute), image updates (every hour)');
+    setTimeout(adopt, 45 * 1000).unref();
+    console.log('Background jobs started: start failure guard (every minute), image updates (every hour), existing server detection (every 10 minutes)');
 }

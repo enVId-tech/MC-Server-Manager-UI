@@ -26,6 +26,8 @@ export interface IPlatformSettings extends pkg.Document {
     /** Hours of the day (server time) in which containers may be recreated for an update */
     updateWindowStart: number;
     updateWindowEnd: number;
+    /** Keys of found servers that administrators chose not to add to the dashboard */
+    ignoredImportKeys: string[];
 }
 
 const PlatformSettingsSchema = new pkg.Schema({
@@ -42,6 +44,7 @@ const PlatformSettingsSchema = new pkg.Schema({
     autoUpdateImages: { type: Number, default: 1, min: 0, max: 1 },
     updateWindowStart: { type: Number, default: 3, min: 0, max: 23 },
     updateWindowEnd: { type: Number, default: 5, min: 0, max: 24 },
+    ignoredImportKeys: { type: [String], default: [] },
 }, { timestamps: true });
 
 const PlatformSettings = pkg.models.platformsettings || pkg.model<IPlatformSettings>('platformsettings', PlatformSettingsSchema);

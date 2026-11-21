@@ -4,7 +4,7 @@ import { IUser } from '@/lib/objects/User';
 import serverStorage from '@/lib/server/storage';
 import portainer from '@/lib/server/portainer';
 import PortManager from '@/lib/server/portManager';
-import { getImportRoots, hostPathToAppPath } from '@/lib/server/importPaths';
+import { getImportRoots, getParentRoot, hostPathToAppPath } from '@/lib/server/importPaths';
 import { buildServerHostname } from '@/lib/config/domain';
 import { getContainerName } from '@/lib/server/containerNames';
 import { discoverVelocityInstances } from '@/lib/server/velocityDiscovery';
@@ -110,15 +110,28 @@ async function readFolder(folderPath: string): Promise<{ names: string[]; proper
     }
 }
 
+/** Name of a server found in a folder. Folders such as .../creative/data are named after the folder above */
+function friendlyFolderName(folder: string): string {
+    const parts = folder.split('/').filter(Boolean);
+    const last = parts.pop() ?? 'server';
+    return ['data', 'server', 'minecraft', 'mc', 'app'].includes(last.toLowerCase()) && parts.length > 0 ? parts[parts.length - 1] : last;
+}
+
 /** Folders with a server.properties in the storage folder and in every import folder. */
-async function scanFolders(managedFolders: Set<string>): Promise<ImportCandidate[]> {
-    const roots = ['/', ...getImportRoots().map(root => root.appPath)];
+export async function scanFolders(managedFolders: Set<string>): Promise<ImportCandidate[]> {
+    // The storage folder, the import folders, and the folder next to the storage folder (servers are often set up beside it)
+    const parent = getParentRoot();
+    const roots = [...new Set(['/', ...getImportRoots().map(root => root.appPath), ...(parent ? [parent.appPath] : [])])];
     const candidates = new Map<string, ImportCandidate>();
     let visited = 0;
+
+    // The folder above the storage folder contains the storage folder, which is walked as '/' already
+    const storageRoot = process.env.LOCAL_STORAGE_PATH?.trim().replace(/\/+$/, '');
 
     const walk = async (folder: string, depth: number): Promise<void> => {
         if (visited++ >= MAX_FOLDERS) return;
         if (managedFolders.has(folder)) return;
+        if (storageRoot && folder === storageRoot && depth > 0) return;
 
         let entries;
         try {
@@ -138,7 +151,7 @@ async function scanFolders(managedFolders: Set<string>): Promise<ImportCandidate
                 const port = Number(info.properties['server-port']);
                 candidates.set(folder, {
                     key: `folder:${folder}`,
-                    name: folder.split('/').filter(Boolean).pop() ?? 'server',
+                    name: friendlyFolderName(folder),
                     source: 'folder',
                     folderPath: folder,
                     reachable: true,
@@ -174,8 +187,18 @@ async function scanContainers(environmentId: number, managedContainers: Set<stri
 
     for (const container of containers) {
         const name = container.Names[0]?.replace(/^\//, '') ?? container.Id;
-        if (!/minecraft-server/i.test(container.Image) || /velocity/i.test(container.Image)) continue;
         if (managedContainers.has(name)) continue;
+        // An image that was updated shows up as a bare id, so the name is also looked up in the container's own config
+        let imageName = container.Image;
+        if (/^(sha256:)?[0-9a-f]{12,}$/i.test(imageName)) {
+            try {
+                imageName = (await portainer.getContainerDetails(container.Id, environmentId)).Config?.Image ?? imageName;
+            } catch {
+                // keep what the list says
+            }
+        }
+        const looksLikeServer = /minecraft|papermc|purpur|spigot|itzg\/mc-/i.test(imageName) && !/proxy|velocity|bungee|waterfall|bedrock/i.test(imageName);
+        if (!looksLikeServer) continue;
 
         const notes: string[] = [];
         let env: Record<string, string> = {};
