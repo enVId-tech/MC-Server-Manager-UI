@@ -75,6 +75,8 @@ export interface IServerConfig extends Document {
 
     // Memory and performance
     serverMemory: number;
+    /** How the server's folder is named: its unique id, or its own name */
+    folderNaming?: 'uuid' | 'name';
     /** 'auto' sizes the heap from plugins, mods and players; an administrator can fix it ('manual') */
     memoryMode?: 'auto' | 'manual';
     /** What the owner may do with the files of the server. Both start off */

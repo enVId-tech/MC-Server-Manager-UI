@@ -358,6 +358,8 @@ export class MinecraftServer {
     private config: MinecraftServerConfig;
     private serverName: string;
     private uniqueId: string;
+    /** Name of the server's folder below its owner's folder: the unique id, or the server's own name */
+    private folderName: string;
     private environmentId: number;
     private proxyIds: string[];
     /** Docker networks of the proxies the server is linked to */
@@ -371,6 +373,7 @@ export class MinecraftServer {
         this.config = config;
         this.serverName = serverName;
         this.uniqueId = uniqueId;
+        this.folderName = uniqueId;
         this.environmentId = environmentId;
         this.proxyIds = proxyIds;
     }
@@ -574,13 +577,13 @@ export class MinecraftServer {
                     ],
                     // The left side of the volume is the host path, the right side is the container path
                     volumes: [
-                        `${serverBasePath}/${this.uniqueId}:/data`,
+                        `${serverBasePath}/${this.folderName}:/data`,
                         // Only add plugins volume if server type supports it
-                        ...(serverTypeConfig.definition.supportsPlugins ? [`${serverBasePath}/${this.uniqueId}/plugins:/plugins`] : []),
+                        ...(serverTypeConfig.definition.supportsPlugins ? [`${serverBasePath}/${this.folderName}/plugins:/plugins`] : []),
                         // Only add mods volume if server type supports it
-                        ...(serverTypeConfig.definition.supportsMods ? [`${serverBasePath}/${this.uniqueId}/mods:/mods`] : []),
-                        `${serverBasePath}/${this.uniqueId}/world:/world`,
-                        `${serverBasePath}/${this.uniqueId}/backups:/backups`,
+                        ...(serverTypeConfig.definition.supportsMods ? [`${serverBasePath}/${this.folderName}/mods:/mods`] : []),
+                        `${serverBasePath}/${this.folderName}/world:/world`,
+                        `${serverBasePath}/${this.folderName}/backups:/backups`,
                     ],
                     // DNS servers for the container. Needed when the host's resolver is not reachable from inside Docker
                     // (the image then cannot download the server: "Failed to resolve launchermeta.mojang.com").
@@ -728,7 +731,7 @@ export class MinecraftServer {
         const userEmail = this.getUserEmail();
         // The app's own view of the folder, since this code uses the filesystem directly
         const serverBasePath = getServerAppBase(userEmail, '/minecraft-data');
-        const serverDir = `${serverBasePath}/${this.uniqueId}`;
+        const serverDir = `${serverBasePath}/${this.folderName}`;
 
         try {
             const execAsync = promisify(exec);
@@ -975,10 +978,10 @@ export class MinecraftServer {
                 // Use the proper folder structure when user email is available
                 const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
                 const userFolder = emailToUse.split('@')[0];
-                const composePath = `${baseServerPath}/${userFolder}/${this.uniqueId}/${composeFileName}`;
+                const composePath = `${baseServerPath}/${userFolder}/${this.folderName}/${composeFileName}`;
 
                 // Ensure the directory exists before uploading
-                const directoryPath = `${baseServerPath}/${userFolder}/${this.uniqueId}`;
+                const directoryPath = `${baseServerPath}/${userFolder}/${this.folderName}`;
                 const directoryExists = await serverStorage.exists(directoryPath);
 
                 if (!directoryExists) {
@@ -1120,7 +1123,7 @@ export class MinecraftServer {
     async uploadServerFiles(files: { [path: string]: Buffer | string }, type: 'plugins' | 'mods' | 'world'): Promise<{ success: boolean; error?: string }> {
         try {
             const userEmail = this.getUserEmail().split('@')[0]; // Use local part of email for folder structure
-            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${this.uniqueId}`;
+            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${this.folderName}`;
 
             // Ensure server directory exists
             await serverStorage.createDirectory(serverPath);
@@ -1344,7 +1347,7 @@ export class MinecraftServer {
     }): Promise<{ success: boolean; error?: string }> {
         try {
             const userEmail = this.getUserEmail().split('@')[0]; // Use local part of email for folder structure
-            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${this.uniqueId}`;
+            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${this.folderName}`;
 
             // Ensure server directory exists
             await serverStorage.createDirectory(serverPath);
@@ -1562,7 +1565,7 @@ export class MinecraftServer {
     }> {
         try {
             const userEmail = this.getUserEmail().split('@')[0]; // Use local part of email for folder structure
-            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${this.uniqueId}`;
+            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${userEmail}/${this.folderName}`;
             const files: { [path: string]: Buffer } = {};
 
             for (const relativePath of paths) {
@@ -1649,11 +1652,16 @@ export class MinecraftServer {
         return this.config.userEmail || 'default-user';
     }
 
+    /** Use another folder name than the unique id. Only the last segment of the stored folder path matters */
+    setFolderName(name: string | undefined | null): void {
+        if (name && !/[\\/]/.test(name) && name !== '.' && name !== '..') this.folderName = name;
+    }
+
     /**
      * Get the server base path with the env/email/id structure
      */
     getServerBasePath(): string {
-        return `${getServerHostBase(this.getUserEmail(), '/minecraft')}/${this.uniqueId}`;
+        return `${getServerHostBase(this.getUserEmail(), '/minecraft')}/${this.folderName}`;
     }
 
     /**
@@ -1687,11 +1695,11 @@ export class MinecraftServer {
             const localPaths: string[] = [];
             
             // WebDAV server path structure
-            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${this.getUserEmail().split("@")[0]}/${this.uniqueId}`;
+            const serverPath = `${process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers'}/${this.getUserEmail().split("@")[0]}/${this.folderName}`;
             const userEmail = this.getUserEmail();
             const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
             const userFolder = userEmail.split('@')[0];
-            const webdavUserPath = `${baseServerPath}/${userFolder}/${this.uniqueId}`;
+            const webdavUserPath = `${baseServerPath}/${userFolder}/${this.folderName}`;
             
             // Local server path structure (for documentation)
             const localServerPath = this.getServerBasePath();
@@ -1908,6 +1916,7 @@ export function createMinecraftServerFromRecord(
         uniqueId: string;
         serverName: string;
         email?: string;
+        folderPath?: string | null;
         port?: number;
         rconPort?: number;
         subdomainName?: string;
@@ -1933,6 +1942,7 @@ export function createMinecraftServerFromRecord(
     config.NETWORK_FORWARDING = server.network?.forwarding;
 
     const instance = createMinecraftServer(config, server.serverName, server.uniqueId, environmentId, userEmail ?? server.email ?? '', server.proxyIds ?? []);
+    instance.setFolderName(server.folderPath?.split('/').filter(Boolean).pop());
     instance.setProxyNetworks((server.network?.links ?? []).map(link => link.networkName).filter((name): name is string => Boolean(name)));
     return instance;
 }

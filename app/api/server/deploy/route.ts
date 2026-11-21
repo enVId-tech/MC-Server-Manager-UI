@@ -594,6 +594,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             user.email,
             server.proxyIds || []
         );
+        updatedMinecraftServer.setFolderName(server.folderPath?.split('/').filter(Boolean).pop());
         updatedMinecraftServer.setProxyNetworks(networkPlan.networks);
         await Server.updateOne({ uniqueId: serverId }, { $set: { 'network.forwarding': networkPlan.forwarding ?? 'none' } });
 
