@@ -38,6 +38,7 @@
     "dotenv": "^17.4.2",
     "extract-zip": "^2.0.1",
     "jsonwebtoken": "^9.0.3",
+    "marked": "^18.2.1",
     "mongoose": "^9.12.1",
     "next": "16.4.6",
     "prismarine-nbt": "^2.8.0",

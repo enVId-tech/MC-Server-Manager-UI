@@ -6,6 +6,10 @@ A comprehensive web application for creating, deploying, and managing Minecraft 
 
 MC Server Creator is a full-stack Next.js application that provides users with a complete solution for managing Minecraft servers. From initial creation with custom configurations to ongoing management through an intuitive dashboard, this platform streamlines the entire server lifecycle.
 
+## 📖 Documentation
+
+The full wiki is in the [`docs/`](./docs) folder and is served by the app itself at `/docs` (with search): a quick start, user guides, an administrator handbook, a configuration reference and troubleshooting. Add or edit a page by changing its markdown file; new pages are listed in `lib/docs/pages.ts`.
+
 ## ✨ Features
 
 ### 🎮 Server Creation & Management
