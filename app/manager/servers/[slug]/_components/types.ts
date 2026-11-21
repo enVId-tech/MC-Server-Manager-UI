@@ -57,7 +57,7 @@ export interface NetworkStatus {
 
 export type TabId = 'overview' | 'console' | 'files' | 'settings' | 'network' | 'admin';
 
-export async function postJson<T = Record<string, unknown>>(url: string, body: unknown, method: 'POST' | 'DELETE' = 'POST'): Promise<{ ok: boolean; body: T & { message?: string; error?: string } }> {
+export async function postJson<T = Record<string, unknown>>(url: string, body: unknown, method: 'POST' | 'DELETE' | 'PATCH' | 'PUT' = 'POST'): Promise<{ ok: boolean; body: T & { message?: string; error?: string } }> {
     const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     return { ok: response.ok, body: await response.json().catch(() => ({})) };
 }

@@ -498,3 +498,63 @@
   text-align: center;
   color: $text-secondary;
 }
+
+
+// File access toggles and drop zone -------------------------------------------
+.accessRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.82rem;
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+
+  input {
+    accent-color: $accent-blue;
+  }
+}
+
+.dropzone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px dashed rgba($accent-blue, 0.5);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: #a0aec0;
+
+  progress {
+    width: 100%;
+  }
+
+  code {
+    color: #e2e8f0;
+  }
+
+  &.dragging {
+    background-color: rgba($accent-blue, 0.12);
+    border-color: $accent-blue;
+  }
+
+  &.disabledDrop {
+    border-style: solid;
+    border-color: rgba(255, 255, 255, 0.08);
+    opacity: 0.8;
+  }
+}
+
+.linkLabel {
+  color: #63b3ed;
+  cursor: pointer;
+  text-decoration: underline;
+}

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { FaFile, FaFolder, FaTrash } from 'react-icons/fa';
+import { FaFile, FaFolder, FaTrash, FaUpload } from 'react-icons/fa';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
 import ConfigEditor from '@/app/_components/ConfigEditor/ConfigEditor';
 import { detectConfigFormat } from '@/lib/data/configFiles';
@@ -34,7 +34,12 @@ export default function FilesTab({ slug, uniqueId, version }: { slug: string; un
     const [original, setOriginal] = useState('');
     const [form, setForm] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [access, setAccess] = useState<{ uploads: boolean; editing: boolean; admin: boolean }>({ uploads: false, editing: false, admin: false });
+    const [dragging, setDragging] = useState(false);
+    const [progress, setProgress] = useState<number | null>(null);
     const dirty = content !== original;
+    const canEdit = access.admin || access.editing;
+    const canUpload = access.admin || access.uploads;
 
     const list = useCallback(async (target: string) => {
         setLoading(true);
@@ -44,6 +49,7 @@ export default function FilesTab({ slug, uniqueId, version }: { slug: string; un
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || 'The files could not be listed.');
             setFiles(data.files ?? []);
+            if (data.access) setAccess(data.access);
         } catch (caught) {
             setError(caught instanceof Error ? caught.message : 'The files could not be listed.');
         } finally {
@@ -129,6 +135,41 @@ export default function FilesTab({ slug, uniqueId, version }: { slug: string; un
         },
     });
 
+    const setToggle = async (key: 'uploads' | 'editing', value: boolean) => {
+        const { ok, body } = await postJson<{ access?: { uploads: boolean; editing: boolean } }>('/api/server/files/access', { server: uniqueId, [key]: value }, 'PATCH');
+        if (!ok) {
+            showNotification({ type: 'error', title: 'Not changed', message: body.message ?? 'The setting could not be changed.' });
+            return;
+        }
+        setAccess(current => ({ ...current, ...(body.access ?? {}) }));
+    };
+
+    const upload = (picked: File[]) => {
+        if (picked.length === 0) return;
+        const form = new FormData();
+        form.append('server', uniqueId);
+        form.append('path', path);
+        for (const file of picked) form.append('file', file);
+        const request = new XMLHttpRequest();
+        request.open('POST', '/api/server/files/put');
+        request.upload.onprogress = event => { if (event.lengthComputable) setProgress(Math.min(100, Math.round((event.loaded / event.total) * 100))); };
+        request.onload = () => {
+            setProgress(null);
+            let body: { skipped?: Array<{ name: string; reason: string }>; message?: string } = {};
+            try { body = JSON.parse(request.responseText); } catch { /* not json */ }
+            const failed = request.status >= 400 || (body.skipped?.length ?? 0) > 0;
+            showNotification({
+                type: failed ? 'error' : 'success',
+                title: failed ? 'Upload incomplete' : 'Uploaded',
+                message: failed ? (body.message ?? body.skipped?.map(item => `${item.name}: ${item.reason}`).join(', ') ?? 'The upload failed.') : `${picked.length} file${picked.length === 1 ? '' : 's'} added to ${path}`,
+            });
+            void list(path);
+        };
+        request.onerror = () => { setProgress(null); showNotification({ type: 'error', title: 'Upload failed', message: 'The connection was lost.' }); };
+        setProgress(0);
+        request.send(form);
+    };
+
     const crumbs = path.split('/').filter(Boolean);
     const shown = files
         .filter(file => file.name.toLowerCase().includes(filter.toLowerCase()))
@@ -147,12 +188,37 @@ export default function FilesTab({ slug, uniqueId, version }: { slug: string; un
                         </React.Fragment>
                     ))}
                 </div>
+                <div className={styles.accessRow}>
+                    <label className={styles.switch}>
+                        <input type="checkbox" checked={access.uploads || access.admin} disabled={access.admin} onChange={event => void setToggle('uploads', event.target.checked)} />
+                        <span>Allow uploading files</span>
+                    </label>
+                    <label className={styles.switch}>
+                        <input type="checkbox" checked={access.editing || access.admin} disabled={access.admin} onChange={event => void setToggle('editing', event.target.checked)} />
+                        <span>Allow editing files</span>
+                    </label>
+                    {!access.admin && <span className={styles.muted}>Both are off by default for safety.</span>}
+                </div>
                 <div className={styles.toolbar}>
                     <input className={styles.input} placeholder="Filter" value={filter} onChange={event => setFilter(event.target.value)} style={{ flex: 1 }} aria-label="Filter files" />
-                    <button className={`${styles.btn} ${styles.small}`} onClick={() => create('file')}><FaFile /> New</button>
-                    <button className={`${styles.btn} ${styles.small}`} onClick={() => create('folder')}><FaFolder /> New</button>
+                    <button className={`${styles.btn} ${styles.small}`} disabled={!canEdit} title={canEdit ? undefined : 'Editing is switched off'} onClick={() => create('file')}><FaFile /> New</button>
+                    <button className={`${styles.btn} ${styles.small}`} disabled={!canEdit} title={canEdit ? undefined : 'Editing is switched off'} onClick={() => create('folder')}><FaFolder /> New</button>
                 </div>
                 {error && <div className={`${styles.notice} ${styles.error}`}>{error}</div>}
+                <div
+                    className={`${styles.dropzone} ${dragging ? styles.dragging : ''} ${canUpload ? '' : styles.disabledDrop}`}
+                    onDragOver={event => { if (canUpload) { event.preventDefault(); setDragging(true); } }}
+                    onDragLeave={() => setDragging(false)}
+                    onDrop={event => { event.preventDefault(); setDragging(false); if (canUpload) upload(Array.from(event.dataTransfer.files)); }}
+                >
+                    <FaUpload />
+                    {canUpload ? (
+                        <span>Drop files here to add them to <code>{path}</code>, or <label className={styles.linkLabel}>choose files<input type="file" multiple hidden onChange={event => { upload(Array.from(event.target.files ?? [])); event.target.value = ''; }} /></label></span>
+                    ) : (
+                        <span>Uploading is switched off. Turn on “Allow uploading files” to add worlds, plugins or other files.</span>
+                    )}
+                    {progress !== null && <progress value={progress} max={100} />}
+                </div>
                 <div className={styles.fileList}>
                     {loading && <div className={styles.loading}>Loading…</div>}
                     {!loading && shown.length === 0 && !error && <div className={styles.empty}>This folder is empty.</div>}
@@ -164,7 +230,7 @@ export default function FilesTab({ slug, uniqueId, version }: { slug: string; un
                             </span>
                             <span className={styles.muted} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem' }}>
                                 {formatSize(file.size)}
-                                <button className={`${styles.btn} ${styles.small} ${styles.danger}`} aria-label={`Delete ${file.name}`} onClick={event => { event.stopPropagation(); remove(file); }}><FaTrash /></button>
+                                <button className={`${styles.btn} ${styles.small} ${styles.danger}`} disabled={!canEdit} aria-label={`Delete ${file.name}`} onClick={event => { event.stopPropagation(); remove(file); }}><FaTrash /></button>
                             </span>
                         </div>
                     ))}
@@ -180,13 +246,13 @@ export default function FilesTab({ slug, uniqueId, version }: { slug: string; un
                                 {format && (
                                     <button className={`${styles.btn} ${styles.small}`} onClick={() => setForm(value => !value)}>{form ? 'Edit as text' : 'Edit as form'}</button>
                                 )}
-                                <button className={`${styles.btn} ${styles.small} ${styles.primary}`} disabled={!dirty || saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save'}</button>
+                                <button className={`${styles.btn} ${styles.small} ${styles.primary}`} disabled={!dirty || saving || !canEdit} onClick={() => void save()}>{saving ? 'Saving…' : 'Save'}</button>
                             </span>
                         </div>
                         {format && form ? (
-                            <ConfigEditor format={format} content={content} onChange={setContent} version={version} />
+                            <ConfigEditor format={format} content={canEdit ? content : content} onChange={canEdit ? setContent : () => undefined} version={version} />
                         ) : (
-                            <textarea className={styles.editor} value={content} onChange={event => setContent(event.target.value)} spellCheck={false} aria-label={`Contents of ${selected.name}`} />
+                            <textarea className={styles.editor} readOnly={!canEdit} value={content} onChange={event => setContent(event.target.value)} spellCheck={false} aria-label={`Contents of ${selected.name}`} />
                         )}
                     </>
                 ) : (
