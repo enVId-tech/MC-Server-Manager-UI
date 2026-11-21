@@ -31,7 +31,8 @@
     "test:world": "tsx scripts/test-world.ts",
     "test:addons": "tsx scripts/test-addons.ts",
     "test:backups": "tsx scripts/test-backups.ts",
-    "test:live": "tsx scripts/test-live.ts"
+    "test:live": "tsx scripts/test-live.ts",
+    "test:console": "tsx scripts/test-console.ts"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",
