@@ -43,6 +43,8 @@ export interface ProxySettings {
     enabled: boolean;
     /** Higher goes first with the priority strategy */
     priority: number;
+    /** Port players connect to when it differs from the record's port (adopted proxies whose port was taken) */
+    publicPort?: number;
     /** Docker network the proxy shares with its servers */
     networkName: string;
     memory: string;
