@@ -60,7 +60,13 @@ export async function POST(request: NextRequest) {
 
         const result = await portainer.executeCommand(container.Id, rconCommand, environmentId);
 
-        return NextResponse.json({ output: result.output });
+        // The answer of the server is not in its log (the log only notes that an RCON client came and went), so it
+        // is sent back for the console to show. Colour codes are removed.
+        const output = String(result.output ?? '')
+            .replace(/\u001b\[[0-9;]*[A-Za-z]/g, '')
+            .replace(/§[0-9a-fk-or]/gi, '')
+            .trim();
+        return NextResponse.json({ output, failed: result.exitCode !== 0 });
 
     } catch (error) {
         console.error('Error executing command:', error);
