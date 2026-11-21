@@ -1664,3 +1664,26 @@
   gap: 0.75rem;
   margin-top: 1.25rem;
 }
+
+.createSide .serverPreview {
+  margin: 0;
+  padding: 1rem 1.1rem;
+
+  .sectionTitle {
+    font-size: 1.1rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .previewInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+
+    > div {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      text-align: right;
+    }
+  }
+}

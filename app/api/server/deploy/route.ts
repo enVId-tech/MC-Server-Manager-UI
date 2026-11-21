@@ -410,7 +410,7 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                 console.log('Proxy sync details:', proxyDetails);
                 await updateStep(serverId, 'prerequisites', 'completed', 100, 'Infrastructure synced successfully');
             } else {
-                await updateStep(serverId, 'prerequisites', 'completed', 100, 'Infrastructure verified (no proxies configured)');
+                await updateStep(serverId, 'prerequisites', 'completed', 100, 'Infrastructure verified');
             }
             
         } catch (prereqError) {
