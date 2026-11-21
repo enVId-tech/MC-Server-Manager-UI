@@ -29,6 +29,15 @@ const SKIPPED_FOLDERS = new Set([
 ]);
 const MAX_DEPTH = 4;
 const MAX_FOLDERS = 1500;
+
+/** A container that looks like a proxy whose folder this app cannot read, so it cannot be managed from here. */
+export interface UnreachableProxy {
+    containerName: string;
+    image: string;
+    /** The folders the container mounts, as the Docker host sees them */
+    hostPaths: string[];
+}
+
 const PROXY_WORDS = /(velocity|bungee|waterfall|mc-proxy|minecraft-proxy)/i;
 
 function parentOf(filePath: string): string {
@@ -122,8 +131,9 @@ async function scanFolders(): Promise<ProxyFinding[]> {
     return [...found.values()];
 }
 
-async function scanContainers(environmentId: number): Promise<ProxyFinding[]> {
+async function scanContainers(environmentId: number): Promise<{ findings: ProxyFinding[]; unreachable: UnreachableProxy[] }> {
     const findings: ProxyFinding[] = [];
+    const unreachable: UnreachableProxy[] = [];
     const containers = (await portainer.getContainers(environmentId)).slice(0, 300);
 
     for (const container of containers) {
@@ -131,23 +141,32 @@ async function scanContainers(environmentId: number): Promise<ProxyFinding[]> {
         const hinted = PROXY_WORDS.test(container.Image) || PROXY_WORDS.test(name);
         const networks = Object.keys(container.NetworkSettings?.Networks ?? {}).filter(network => network !== 'bridge');
 
+        const cannotRead: string[] = [];
+        let matched = false;
+
         for (const mount of container.Mounts ?? []) {
             if (!mount.Source) continue;
             const source = mount.Source.replace(/\/+$/, '');
             // A mounted single file (velocity.toml, config.yml) or a mounted folder
             const asFile = /\.(toml|yml)$/i.test(mount.Destination);
             const folderHost = asFile ? parentOf(source) : source;
+            // Only the data folder matters; skip system mounts such as /etc/localtime
             const appFolder = hostPathToAppPath(folderHost);
-            if (!appFolder) continue;
+            if (!appFolder) {
+                if (hinted && !/^\/(etc|proc|sys|dev|run|var\/run)(\/|$)/.test(folderHost) && !cannotRead.includes(folderHost)) cannotRead.push(folderHost);
+                continue;
+            }
 
             let names: string[];
             try {
                 names = (await serverStorage.getDirectoryContents(appFolder)).filter(entry => entry.type === 'file').map(entry => entry.basename);
             } catch {
+                if (hinted && !cannotRead.includes(folderHost)) cannotRead.push(folderHost);
                 continue;
             }
             const finding = await inspectFolder(appFolder, names);
             if (!finding) continue;
+            matched = true;
 
             const bind = await readBind(finding);
             const published = (container.Ports ?? []).find(port => port.PublicPort && port.Type === 'tcp' && port.PrivatePort === bind)
@@ -161,8 +180,12 @@ async function scanContainers(environmentId: number): Promise<ProxyFinding[]> {
             });
             break;
         }
+
+        if (hinted && !matched && cannotRead.length > 0) {
+            unreachable.push({ containerName: name, image: container.Image, hostPaths: cannotRead });
+        }
     }
-    return findings;
+    return { findings, unreachable };
 }
 
 async function readBind(finding: ProxyFinding): Promise<number | undefined> {
@@ -177,7 +200,7 @@ async function readBind(finding: ProxyFinding): Promise<number | undefined> {
     }
 }
 
-let cache: { at: number; findings: ProxyFinding[] } | null = null;
+let cache: { at: number; findings: ProxyFinding[]; unreachable: UnreachableProxy[] } | null = null;
 const CACHE_MS = 30_000;
 
 /** Every proxy this app can find, merged by configuration file. Containers add what they know to a folder finding. */
@@ -187,8 +210,11 @@ export async function scanForProxies(environmentId?: number, options: { force?: 
 
     for (const finding of await scanFolders().catch(() => [])) merged.set(finding.configPath, finding);
 
+    let unreachable: UnreachableProxy[] = [];
     if (environmentId !== undefined) {
-        for (const finding of await scanContainers(environmentId).catch(() => [])) {
+        const containerScan = await scanContainers(environmentId).catch(() => ({ findings: [] as ProxyFinding[], unreachable: [] as UnreachableProxy[] }));
+        unreachable = containerScan.unreachable;
+        for (const finding of containerScan.findings) {
             const existing = merged.get(finding.configPath);
             merged.set(finding.configPath, existing ? { ...existing, ...finding, evidence: [...finding.evidence, ...existing.evidence.filter(item => !finding.evidence.includes(item))] } : finding);
         }
@@ -198,6 +224,11 @@ export async function scanForProxies(environmentId?: number, options: { force?: 
     if (configured && !merged.has(configured) && await serverStorage.exists(configured).catch(() => false)) {
         merged.set(configured, { kind: 'velocity', configPath: configured, folder: parentOf(configured), evidence: ['VELOCITY_CONFIG_PATH'] });
     }
-    cache = { at: Date.now(), findings: [...merged.values()] };
+    cache = { at: Date.now(), findings: [...merged.values()], unreachable };
     return cache.findings;
+}
+
+/** Proxy containers seen by the last scan whose folder this app cannot read, with the folders they mount. */
+export function getUnreachableProxies(): UnreachableProxy[] {
+    return cache?.unreachable ?? [];
 }

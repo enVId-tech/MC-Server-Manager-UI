@@ -44,6 +44,7 @@ interface Proxy {
 interface ScanResult {
     searched: string[];
     containersChecked: boolean;
+    unreachable?: Array<{ containerName: string; image: string; hostPaths: string[] }>;
     findings: Array<{ kind: Kind; configPath: string; containerName?: string; evidence: string[]; added: boolean }>;
 }
 
@@ -288,6 +289,12 @@ export default function ProxiesSection() {
                 {scan && (
                     <>
                         <p className={styles.hint}>Searched: {scan.searched.join(', ')}{scan.containersChecked ? ', all containers' : ', containers could not be checked (Portainer unreachable)'}.</p>
+                        {(scan.unreachable ?? []).map(item => (
+                            <div key={item.containerName} className={styles.mutedText}>
+                                Found the container <strong>{item.containerName}</strong> ({item.image}), but this app cannot read its folder{item.hostPaths.length > 1 ? 's' : ''} <span className={styles.mono}>{item.hostPaths.join(', ')}</span>.
+                                Mount that folder (or the one above it) into this app&apos;s container and list it in <span className={styles.mono}>IMPORT_SCAN_PATHS</span> as <span className={styles.mono}>/container/path={item.hostPaths[0]}</span>, then search again.
+                            </div>
+                        ))}
                         {scan.findings.length === 0 && <div className={styles.mutedText}>Nothing that looks like a proxy was found. Enter the folder below if it is somewhere this app can read.</div>}
                         <ul className={styles.list}>
                             {scan.findings.map(finding => (

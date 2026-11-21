@@ -4,7 +4,7 @@ import { requireAdmin } from '@/lib/server/auth';
 import Server from '@/lib/objects/Server';
 import serverStorage from '@/lib/server/storage';
 import { getImportRoots, getParentRoot } from '@/lib/server/importPaths';
-import { inspectFolder, scanForProxies } from '@/lib/server/network/discovery';
+import { getUnreachableProxies, inspectFolder, scanForProxies } from '@/lib/server/network/discovery';
 import { adoptExistingProxies } from '@/lib/server/network/proxyManagement';
 import { getEnvironmentId } from '@/lib/server/network/service';
 
@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
         success: true,
         searched: ['The storage folder', ...getImportRoots().map(root => root.appPath), ...(parent ? [`${parent.appPath} (the folder above the storage folder)`] : [])],
         containersChecked: environmentId !== undefined,
+        unreachable: getUnreachableProxies().filter(item => !findings.some(finding => finding.containerName === item.containerName)),
         findings: findings.map(finding => ({ ...finding, added: known.has(finding.configPath) })),
     });
 }
