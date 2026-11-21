@@ -176,12 +176,15 @@ assert.equal(detectPlugins(['Geyser-Velocity.jar']).edugeyser, false);
 assert.equal(detectPlugins(['EduGeyser-Velocity.jar']).geyser, true);
 assert.equal(detectPlugins([]).viaversion, false);
 
-assert.deepEqual(parseGeyserConfig('bedrock:\n  address: 0.0.0.0\n  port: 19133\n  clone-remote-port: false\n'), { bedrockPort: 19133, bedrockAddress: '0.0.0.0', clonesRemotePort: false });
+assert.deepEqual(parseGeyserConfig('bedrock:\n  address: 0.0.0.0\n  port: 19133\n  clone-remote-port: false\n'), { bedrockPort: 19133, bedrockAddress: '0.0.0.0', clonesRemotePort: false, broadcastPort: undefined });
 assert.equal(parseGeyserConfig('motd1: hi\n').bedrockPort, 19132);
 
 const edu = parseEducationJoinOutput('[INFO]: Join codes:\n[INFO]: 1. Join code: ABC DEF GHI (https://education.minecraft.net/joinworld/abc123)\n[INFO]: something else');
 assert.deepEqual(edu.links, ['https://education.minecraft.net/joinworld/abc123']);
 assert.equal(edu.lines.length, 2);
+const eduIcons = parseEducationJoinOutput('[11:05:03 INFO]: Join code (active): Agent, Panda, Carrot, Water Bucket (https://education.minecraft.net/joinworld/x1)');
+assert.deepEqual(eduIcons.codes, [{ label: 'Join code (active)', icons: ['Agent', 'Panda', 'Carrot', 'Water Bucket'] }]);
+assert.equal(eduIcons.lines.length, 0);
 
 // ---- warnings
 import { mergeWarnings, visibleWarnings, warningMessage } from '../lib/server/network/warnings';

@@ -3,10 +3,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import styles from '../dashboard.module.scss';
 import { CopyButton } from './OverviewTab';
+import { eduIcon } from './eduIcons';
 
 interface EduInfo {
     links: string[];
     lines: string[];
+    codes?: Array<{ label: string; icons: string[] }>;
     connectionIds?: Array<{ label: string; value: string }>;
     serverList?: { name: string; host: string; port: string };
     notice?: string;
@@ -45,6 +47,22 @@ export default function EducationJoin({ uniqueId }: { uniqueId: string }) {
                 <div key={item.label} className={styles.addressRow}>
                     <div><span className={styles.addressLabel}>{item.label}</span><span className={styles.mono}>{item.value}</span></div>
                     <CopyButton value={item.value} />
+                </div>
+            ))}
+            {edu?.codes?.map(code => (
+                <div key={code.icons.join()} className={styles.addressRow}>
+                    <div>
+                        {code.label && <span className={styles.addressLabel}>{code.label}</span>}
+                        <div className={styles.eduIcons} role="list" aria-label={code.icons.join(', ')}>
+                            {code.icons.map((icon, index) => (
+                                <span key={index} className={styles.eduIcon} role="listitem">
+                                    <span className={styles.eduIconPicture} aria-hidden="true">{eduIcon(icon)}</span>
+                                    <span>{icon}</span>
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                    <CopyButton value={code.icons.join(', ')} />
                 </div>
             ))}
             {edu?.links.map(link => (

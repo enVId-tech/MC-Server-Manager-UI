@@ -295,8 +295,10 @@ export function parseBungeeGuardToken(content: string): string | undefined {
 
 export interface EducationJoinInfo {
     links: string[];
-    /** Output lines that mention a join code, for display as they are */
+    /** Output lines that mention a join code but could not be split into icons, for display as they are */
     lines: string[];
+    /** Join codes made of icons (Agent, Panda, Carrot ...), in the order a player has to pick them */
+    codes?: Array<{ label: string; icons: string[] }>;
     /** Connection IDs read from EduGeyser's files; they need no console */
     connectionIds?: EducationFiles['connectionIds'];
     serverList?: EducationFiles['serverList'];
@@ -304,12 +306,31 @@ export interface EducationJoinInfo {
     notice?: string;
 }
 
-/** Reads the answer of `/edu joincode`: the share links and the lines that carry the codes */
+/** The log prefix (time, thread, plugin) in front of a console line */
+function stripLogPrefix(line: string): string {
+    return line.replace(/^(\s*(\d{4}-\d{2}-\d{2}T?\S*|\d{1,2}:\d{2}:\d{2}\S*|\[[^\]]*\]:?))+\s*/, '').trim();
+}
+
+/** Reads the answer of `/edu joincode`: the share links, the codes as icon names and the other lines that mention a code */
 export function parseEducationJoinOutput(text: string): EducationJoinInfo {
     const links = [...new Set((text.match(/https:\/\/education\.minecraft\.net\/joinworld\/[^\s"'<>]+/g) ?? []).map(link => link.replace(/[).,;\]]+$/, '')))];
-    const lines = text
+    const candidates = text
         .split(/\r?\n/)
         .map(line => line.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '').trim())
         .filter(line => /join\s*code|joincode/i.test(line) && !/^>?\s*\/?edu\s+joincode/i.test(line));
-    return { links, lines: [...new Set(lines)].slice(-8) };
+
+    const codes: Array<{ label: string; icons: string[] }> = [];
+    const lines: string[] = [];
+    for (const line of candidates) {
+        const bare = line.replace(/\(?https:\/\/\S+/g, '').replace(/[()\s]+$/, '');
+        const colon = bare.lastIndexOf(':');
+        const icons = colon === -1 ? [] : bare.slice(colon + 1).split(',').map(part => part.trim()).filter(Boolean);
+        if (icons.length >= 3 && icons.every(icon => /^[A-Za-z][A-Za-z '-]{1,24}$/.test(icon))) {
+            const label = stripLogPrefix(bare.slice(0, colon)).replace(/:\s*$/, '');
+            if (!codes.some(code => code.icons.join() === icons.join())) codes.push({ label, icons });
+        } else {
+            lines.push(line);
+        }
+    }
+    return { links, lines: [...new Set(lines)].slice(-8), codes: codes.slice(-8) };
 }

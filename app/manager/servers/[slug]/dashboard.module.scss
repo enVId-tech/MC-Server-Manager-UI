@@ -581,3 +581,24 @@
   cursor: pointer;
   text-decoration: underline;
 }
+
+.eduIcons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.eduIcon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 3.6rem;
+  font-size: 0.7rem;
+  color: $text-secondary;
+
+  .eduIconPicture {
+    font-size: 1.8rem;
+    line-height: 1.2;
+  }
+}
