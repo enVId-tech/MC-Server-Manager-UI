@@ -26,6 +26,8 @@ export interface IPlatformSettings extends pkg.Document {
     /** Hours of the day (server time) in which containers may be recreated for an update */
     updateWindowStart: number;
     updateWindowEnd: number;
+    /** How new server folders are named: the unique id, or the server's own name. Set by administrators for everyone */
+    folderNaming: 'uuid' | 'name';
     /** Keys of found servers that administrators chose not to add to the dashboard */
     ignoredImportKeys: string[];
 }
@@ -44,6 +46,7 @@ const PlatformSettingsSchema = new pkg.Schema({
     autoUpdateImages: { type: Number, default: 1, min: 0, max: 1 },
     updateWindowStart: { type: Number, default: 3, min: 0, max: 23 },
     updateWindowEnd: { type: Number, default: 5, min: 0, max: 24 },
+    folderNaming: { type: String, enum: ['uuid', 'name'], default: 'uuid' },
     ignoredImportKeys: { type: [String], default: [] },
 }, { timestamps: true });
 

@@ -13,7 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import verificationService from "@/lib/server/verify";
 import { buildServerHostname, getServerDomain } from '@/lib/config/domain';
 import { resolveCreateOptions, CreateOptions } from '@/lib/data/createDefaults';
-import { isFolderNaming, listTakenFolderNames, pickFolderName, type FolderNaming } from '@/lib/server/folderNaming';
+import { getFolderNaming, listTakenFolderNames, pickFolderName } from '@/lib/server/folderNaming';
 import { getServerType, isVelocityCompatible, sanitizeOverrides } from '@/lib/data/itzg';
 import { ADMIN_ONLY_CREATE_FIELDS, dropLocked, lockedEnvFor, lockedPropertiesFor } from '@/lib/server/accessPolicy';
 import { computeMemoryMb, getPlatformSettings } from '@/lib/server/memory';
@@ -319,7 +319,8 @@ export async function POST(request: NextRequest) {
         const baseServerPath = process.env.WEBDAV_SERVER_BASE_PATH || '/minecraft-servers';
         const userFolder = email.split('@')[0];
         const ownerFolder = `${baseServerPath}/${userFolder}`;
-        const folderNaming: FolderNaming = isFolderNaming(config.folderNaming) ? config.folderNaming : 'uuid';
+        // The naming rule is the administrators' setting; nothing the client sends changes it
+        const folderNaming = await getFolderNaming();
         const knownFolders = (await Server.find({ folderPath: { $regex: `^${ownerFolder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/` } }, 'folderPath').lean<Array<{ folderPath?: string }>>())
             .map(record => record.folderPath?.split('/').filter(Boolean).pop() ?? '');
         const folderName = pickFolderName({

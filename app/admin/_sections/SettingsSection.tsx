@@ -37,6 +37,7 @@ interface PlatformSettings {
     maxMemoryMb: number; minMemoryMb: number; baseMemoryMb: number; moddedExtraMb: number; modpackExtraMb: number;
     perPluginMb: number; perModMb: number; perPlayerMb: number; maxStartFailures: number;
     autoUpdateImages: number; updateWindowStart: number; updateWindowEnd: number;
+    folderNaming: 'uuid' | 'name';
 }
 
 const PLATFORM_FIELDS: Array<[keyof PlatformSettings, string, string]> = [
@@ -87,6 +88,13 @@ function PlatformCard() {
                     <label className={styles.field}>
                         <span><input type="checkbox" checked={draft.autoUpdateImages === '1'} onChange={event => setDraft({ ...draft, autoUpdateImages: event.target.checked ? '1' : '0' })} /> Update container images automatically</span>
                         <span className={styles.hint}>Newer images are pulled every hour and running containers are recreated on them inside the update window.</span>
+                    </label>
+                    <label className={styles.field}>Folder names of new servers
+                        <select className={styles.input} value={draft.folderNaming ?? 'uuid'} onChange={event => setDraft({ ...draft, folderNaming: event.target.value })}>
+                            <option value="uuid">Unique ID (never clashes, says nothing about the server)</option>
+                            <option value="name">The server&apos;s own name (easier to find by hand)</option>
+                        </select>
+                        <span className={styles.hint}>Applies to every server created from now on, for every user. With names, a folder that already exists is never reused: the new one gets -2, -3 and so on. Existing servers keep their folders.</span>
                     </label>
                     {PLATFORM_FIELDS.map(([key, label, hint]) => (
                         <label key={key} className={styles.field}>{label}

@@ -7,6 +7,8 @@
  * is never reused: the new one gets -2, -3 and so on, so the oldest keeps the plain name.
  */
 import serverStorage from '@/lib/server/storage';
+import dbConnect from '@/lib/db/dbConnect';
+import PlatformSettings from '@/lib/objects/PlatformSettings';
 
 export type FolderNaming = 'uuid' | 'name';
 
@@ -49,4 +51,16 @@ export async function listTakenFolderNames(ownerFolder: string): Promise<string[
     } catch {
         return [];
     }
+}
+
+/** How new folders are named. One setting for the whole installation, changed by administrators only */
+export async function getFolderNaming(): Promise<FolderNaming> {
+    await dbConnect();
+    const settings = await PlatformSettings.findOne({ key: 'platform' }, 'folderNaming').lean<{ folderNaming?: string }>();
+    return isFolderNaming(settings?.folderNaming) ? settings.folderNaming : 'uuid';
+}
+
+export async function setFolderNaming(mode: FolderNaming): Promise<void> {
+    await dbConnect();
+    await PlatformSettings.updateOne({ key: 'platform' }, { $set: { folderNaming: mode } }, { upsert: true });
 }

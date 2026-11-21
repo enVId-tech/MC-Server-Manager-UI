@@ -1830,20 +1830,6 @@ export default function ServerGenerator() {
                 </div>
               </div>
 
-              <div className={styles.formGroup}>
-                <label htmlFor="folderNaming">Folder name</label>
-                <select
-                  id="folderNaming"
-                  name="folderNaming"
-                  value={serverConfig.folderNaming ?? 'uuid'}
-                  onChange={handleChange}
-                >
-                  <option value="uuid">Unique ID (safe, never clashes)</option>
-                  <option value="name">The server&apos;s own name (easier to find)</option>
-                </select>
-                <small className={styles.fieldHint}>If another server already uses the name, a number is added to the new one.</small>
-              </div>
-
               <RadioGroup
                 name="gameMode"
                 options={gameModes}
@@ -2132,7 +2118,6 @@ export default function ServerGenerator() {
               <PreviewDetail label="Difficulty" value={serverConfig.difficulty} />
               <PreviewDetail label="World" value={serverConfig.worldFiles ? 'Custom World Import' : 'New Generated World'} />
               <PreviewDetail label="Plugins and mods" value={`${serverConfig.plugins.length + serverConfig.mods.length + (serverConfig.addons?.length ?? 0)}`} />
-              <PreviewDetail label="Folder" value={serverConfig.folderNaming === 'name' ? 'Server name' : 'Unique ID'} />
               <PreviewDetail label="Max Players" value={serverConfig.maxPlayers} />
               <p className={styles.previewNote}>Everything here can be changed later in the server dashboard.</p>
             </div>
