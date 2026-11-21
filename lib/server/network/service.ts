@@ -623,15 +623,30 @@ export async function readEducationJoin(proxy: NetworkProxy, force = false): Pro
         const container = await portainer.getContainerByIdentifier(proxy.containerName, envId);
         if (!container || container.State !== 'running') return fail('The proxy is not running, so the join codes cannot be read.');
 
-        const sent = await velocityService.sendConsoleCommand(container.Id, 'edu joincode', envId);
-        if (sent.sent) await new Promise(resolve => setTimeout(resolve, 2500));
-        const logs = await portainer.getContainerLogs(container.Id, envId, sent.sent ? 120 : 600);
-        const parsed = parseEducationJoinOutput(logs);
-        const info: EducationJoinInfo & { error?: string } = { ...base, links: parsed.links, lines: parsed.lines };
-        if (!sent.sent) {
+        // The answer of an earlier request is still in the log, so the console is only asked when nothing is there
+        // yet or when the person pressed refresh. Every request adds lines to the proxy log.
+        let parsed = parseEducationJoinOutput(await portainer.getContainerLogs(container.Id, envId, 600));
+        let sent: { sent: boolean; error?: string } = { sent: false };
+        if (force || (parsed.codes?.length ?? 0) + parsed.links.length === 0) {
+            sent = await velocityService.sendConsoleCommand(container.Id, 'edu joincode', envId);
+            if (sent.sent) {
+                await new Promise(resolve => setTimeout(resolve, 2500));
+                parsed = parseEducationJoinOutput(await portainer.getContainerLogs(container.Id, envId, 600));
+            }
+        }
+        const known = new Set(base.connectionIds?.map(item => item.value));
+        const info: EducationJoinInfo & { error?: string } = {
+            ...base,
+            links: parsed.links,
+            lines: parsed.lines,
+            codes: parsed.codes,
+            connectionIds: [...(base.connectionIds ?? []), ...(parsed.connectionIds ?? []).filter(item => !known.has(item.value))],
+        };
+        const found = (parsed.codes?.length ?? 0) + parsed.links.length + parsed.lines.length > 0;
+        if (!found && !sent.sent) {
             info.notice = 'The join codes need the proxy console. Run edu joincode in it, or re-create the container with stdin_open: true and tty: true so this page can do it.';
-            if (parsed.links.length === 0 && parsed.lines.length === 0 && !hasFiles) info.error = sent.error;
-        } else if (parsed.links.length === 0 && parsed.lines.length === 0) {
+            if (!hasFiles && !(info.connectionIds?.length)) info.error = sent.error;
+        } else if (!found) {
             info.notice = 'The command was sent but no join code appeared in the log. Check that the console command is edu joincode on this EduGeyser version.';
         }
         educationCache.set(proxy.id, { at: Date.now(), info });

@@ -308,29 +308,59 @@ export interface EducationJoinInfo {
 
 /** The log prefix (time, thread, plugin) in front of a console line */
 function stripLogPrefix(line: string): string {
-    return line.replace(/^(\s*(\d{4}-\d{2}-\d{2}T?\S*|\d{1,2}:\d{2}:\d{2}\S*|\[[^\]]*\]:?))+\s*/, '').trim();
+    return line.replace(/^(\s*(\d{4}-\d{2}-\d{2}T?\S*|\d{1,2}:\d{2}:\d{2}\S*|>\.{2,}|\[[^\]]*\]:?))+\s*/, '').trim();
 }
 
-/** Reads the answer of `/edu joincode`: the share links, the codes as icon names and the other lines that mention a code */
-export function parseEducationJoinOutput(text: string): EducationJoinInfo {
-    const links = [...new Set((text.match(/https:\/\/education\.minecraft\.net\/joinworld\/[^\s"'<>]+/g) ?? []).map(link => link.replace(/[).,;\]]+$/, '')))];
-    const candidates = text
-        .split(/\r?\n/)
-        .map(line => line.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '').trim())
-        .filter(line => /join\s*code|joincode/i.test(line) && !/^>?\s*\/?edu\s+joincode/i.test(line));
+const CONNECTION_ID = /^[0-9a-f]{16,}$/i;
 
-    const codes: Array<{ label: string; icons: string[] }> = [];
+/**
+ * Reads the answer of `/edu joincode` from the log: the share links, the codes as icon names and the connection IDs.
+ *
+ * EduGeyser prints lines such as `[edu] [JoinCode] Account #1 active: Agent, Panda, Carrot, Pickaxe (name@school) | https://...`
+ * and `[edu] [JoinCode] name@school: Agent, Panda, Carrot, Pickaxe | https://...`, and puts the value of
+ * `Connection ID:` on the line after it. The same answer is in the log once per request, so repeats are folded
+ * into one entry and the newest wins.
+ */
+export function parseEducationJoinOutput(text: string): EducationJoinInfo {
+    const links = [...new Set((text.match(/https:\/\/education\.minecraft\.net\/joinworld\/[^\s"'<>]+/g) ?? []).map(link => link.replace(/[).,;\]|]+$/, '')))];
+    const all = text.split(/\r?\n/).map(line => line.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '').trim());
+
+    const connectionIds = new Map<string, { label: string; value: string }>();
+    const codes = new Map<string, { label: string; icons: string[] }>();
     const lines: string[] = [];
-    for (const line of candidates) {
-        const bare = line.replace(/\(?https:\/\/\S+/g, '').replace(/[()\s]+$/, '');
-        const colon = bare.lastIndexOf(':');
-        const icons = colon === -1 ? [] : bare.slice(colon + 1).split(',').map(part => part.trim()).filter(Boolean);
-        if (icons.length >= 3 && icons.every(icon => /^[A-Za-z][A-Za-z '-]{1,24}$/.test(icon))) {
-            const label = stripLogPrefix(bare.slice(0, colon)).replace(/:\s*$/, '');
-            if (!codes.some(code => code.icons.join() === icons.join())) codes.push({ label, icons });
-        } else {
-            lines.push(line);
+
+    all.forEach((line, index) => {
+        if (!/join\s*code|joincode/i.test(line) || /^>?\s*\/?edu\s+joincode/i.test(line)) return;
+
+        const idMatch = /connection id:?\s*(\S*)\s*$/i.exec(line);
+        if (idMatch) {
+            // The value is on the same line or on the next one
+            const next = all.slice(index + 1).find(candidate => candidate !== '') ?? '';
+            const value = CONNECTION_ID.test(idMatch[1]) ? idMatch[1] : (CONNECTION_ID.test(next) ? next : '');
+            if (value) connectionIds.set(value, { label: 'Connection ID', value });
+            return;
         }
-    }
-    return { links, lines: [...new Set(lines)].slice(-8), codes: codes.slice(-8) };
+
+        let bare = line.replace(/\(?https:\/\/\S+/g, '').replace(/[\s|]+$/, '');
+        const account = /\(([^()\s]*@[^()\s]*)\)\s*$/.exec(bare)?.[1];
+        if (account) bare = bare.replace(/\([^()]*\)\s*$/, '').trim();
+        const match = /:\s*([A-Za-z][A-Za-z' -]{1,24}(?:\s*,\s*[A-Za-z][A-Za-z' -]{1,24}){2,})\s*$/.exec(bare);
+        if (!match) {
+            lines.push(stripLogPrefix(line));
+            return;
+        }
+        const icons = match[1].split(',').map(part => part.trim());
+        const before = bare.slice(0, match.index);
+        const label = (/\[JoinCode\]\s*(.*)$/i.exec(before)?.[1] ?? stripLogPrefix(before)).trim();
+        const key = icons.join();
+        codes.delete(key);
+        codes.set(key, { label: account && !label.includes(account) ? `${label} (${account})`.trim() : label, icons });
+    });
+
+    return {
+        links,
+        lines: [...new Set(lines)].slice(-8),
+        codes: [...codes.values()].slice(-8),
+        connectionIds: [...connectionIds.values()],
+    };
 }

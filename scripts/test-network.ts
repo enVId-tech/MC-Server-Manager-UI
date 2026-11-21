@@ -185,6 +185,20 @@ assert.equal(edu.lines.length, 2);
 const eduIcons = parseEducationJoinOutput('[11:05:03 INFO]: Join code (active): Agent, Panda, Carrot, Water Bucket (https://education.minecraft.net/joinworld/x1)');
 assert.deepEqual(eduIcons.codes, [{ label: 'Join code (active)', icons: ['Agent', 'Panda', 'Carrot', 'Water Bucket'] }]);
 assert.equal(eduIcons.lines.length, 0);
+const eduLog = [
+    '2026-11-21T20:57:16Z >.... [20:57:16 INFO] [geyser]: [edu] [JoinCode] Account #1 active: Agent, Panda, Carrot, Pickaxe (1071039@student.auhsd.us) | https://education.minecraft.net/joinworld/NiwxMywxMiw4',
+    '2026-11-21T21:24:50Z >.... [21:24:50 INFO] [geyser]: [edu] [JoinCode] Connection ID:',
+    '35238128130451310abcde1b274c521331c66ba12cad6241e7',
+    '2026-11-21T21:24:50Z >.... [21:24:50 INFO] [geyser]: [edu] [JoinCode] 1071039@student.auhsd.us: Agent, Panda, Carrot, Pickaxe | https://education.minecraft.net/joinworld/NiwxMywxMiw4',
+    '2026-11-21T21:39:50Z >.... [21:39:50 INFO] [geyser]: [edu] [JoinCode] Connection ID:',
+    '35238128130451310abcde1b274c521331c66ba12cad6241e7',
+].join('\n');
+const eduReal = parseEducationJoinOutput(eduLog);
+assert.equal(eduReal.codes?.length, 1, 'the same code printed twice is one entry');
+assert.deepEqual(eduReal.codes?.[0].icons, ['Agent', 'Panda', 'Carrot', 'Pickaxe']);
+assert.equal(eduReal.connectionIds?.length, 1);
+assert.equal(eduReal.links.length, 1);
+assert.equal(eduReal.lines.length, 0);
 
 // ---- warnings
 import { mergeWarnings, visibleWarnings, warningMessage } from '../lib/server/network/warnings';
