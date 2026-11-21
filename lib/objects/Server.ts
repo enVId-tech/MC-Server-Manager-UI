@@ -26,8 +26,64 @@ export interface IServer extends pkg.Document {
         /** The server folder as Docker sees it */
         hostPath?: string;
     };
+    /** 'proxy' for Velocity, BungeeCord and Waterfall instances, which are managed by administrators only */
+    kind?: 'server' | 'proxy';
+    /** Only set when kind is 'proxy' */
+    proxy?: ProxySettings;
+    /** How a game server is connected to the proxy network */
+    network?: ServerNetwork;
     createdAt: Date;
     serverConfig: ServerConfigData;
+}
+
+export interface ProxySettings {
+    type: 'velocity' | 'bungeecord' | 'waterfall';
+    /** Forwarding mode the proxy is set up for. The proxy's own configuration file is the source of truth */
+    forwarding: 'modern' | 'bungeeguard' | 'legacy' | 'none';
+    enabled: boolean;
+    /** Higher goes first with the priority strategy */
+    priority: number;
+    /** Docker network the proxy shares with its servers */
+    networkName: string;
+    memory: string;
+    image?: string;
+    /** Storage path of velocity.toml or config.yml */
+    configPath: string;
+    /** Name of the stack that runs the proxy, when this manager created it */
+    stackName?: string;
+    /** Host name players use to reach the proxy, for display. Defaults to the server domain */
+    publicHost?: string;
+    /** Entry name of the server that players without a host name (Bedrock players coming through Geyser) are sent to. Empty means nobody is sent anywhere */
+    defaultEntry?: string;
+    /** UDP port Geyser listens on when the proxy runs it. Read from Geyser's own config when present */
+    bedrockPort?: number;
+}
+
+export interface NetworkLink {
+    proxyId: string;
+    proxyName: string;
+    /** Name the server has in the proxy's configuration */
+    entryName: string;
+    forwarding: 'modern' | 'bungeeguard' | 'legacy' | 'none';
+    linkedAt: Date;
+}
+
+export interface NetworkWarning {
+    code: 'no-proxy' | 'unsupported-version' | 'unsupported-type' | 'no-secret' | 'link-failed';
+    message: string;
+    /** Port that has to be reachable from the internet for players to join */
+    port?: number;
+    /** Set when the user or an administrator cleared the warning. It stays cleared while the situation is unchanged */
+    dismissed?: boolean;
+    createdAt: Date;
+}
+
+export interface ServerNetwork {
+    links: NetworkLink[];
+    warnings: NetworkWarning[];
+    /** Forwarding mode the server is configured for. The container environment is built from it */
+    forwarding?: 'modern' | 'bungeeguard' | 'legacy' | 'none';
+    syncedAt?: Date;
 }
 
 const ServerSchema: pkg.Schema = new pkg.Schema({
@@ -104,6 +160,9 @@ const ServerSchema: pkg.Schema = new pkg.Schema({
         source: { type: String, enum: ['docker', 'folder'], required: false },
         hostPath: { type: String, required: false },
     },
+    kind: { type: String, enum: ['server', 'proxy'], required: false, default: 'server', index: true },
+    proxy: { type: pkg.Schema.Types.Mixed, required: false },
+    network: { type: pkg.Schema.Types.Mixed, required: false },
     createdAt: {
         type: Date,
         default: Date.now,

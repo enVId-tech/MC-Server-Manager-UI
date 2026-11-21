@@ -1838,6 +1838,27 @@ export class PortainerApiClient {
     }
 
     /**
+     * Connects a running or stopped container to a Docker network, so it can be reached by name from the other
+     * containers on that network. Does nothing when it is connected already.
+     */
+    async connectContainerToNetwork(containerId: string, networkName: string, environmentId: number | null = this.defaultEnvironmentId): Promise<'connected' | 'already'> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to connect a container to a network.');
+        }
+        try {
+            await this.axiosInstance.post(
+                `/api/endpoints/${environmentId}/docker/networks/${encodeURIComponent(networkName)}/connect`,
+                { Container: containerId }
+            );
+            return 'connected';
+        } catch (error) {
+            const message = JSON.stringify((error as { response?: { data?: unknown } })?.response?.data ?? '');
+            if (/already exists in network|already connected/i.test(message)) return 'already';
+            throw error;
+        }
+    }
+
+    /**
      * Start a container
      * @param containerId - The ID of the container to start
      * @param environmentId - The ID of the Portainer environment
