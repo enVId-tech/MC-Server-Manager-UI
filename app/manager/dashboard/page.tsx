@@ -234,13 +234,8 @@ export default function Dashboard() {
 
             // Simulate progress updates
             const progressInterval = setInterval(() => {
-                setDeletionProgress(prev => {
-                    if (prev >= 90) {
-                        clearInterval(progressInterval);
-                        return 90;
-                    }
-                    return prev + Math.random() * 20;
-                });
+                // Never past 90% until the server answered: the step can overshoot, so the result is capped
+                setDeletionProgress(prev => Math.min(90, prev + Math.random() * 20));
             }, 400);
 
             try {
@@ -603,10 +598,10 @@ export default function Dashboard() {
                                 <div className={styles.progressBar}>
                                     <div
                                         className={styles.progressFill}
-                                        style={{ width: `${deletionProgress}%` }}
+                                        style={{ width: `${Math.min(100, Math.max(0, deletionProgress))}%` }}
                                     ></div>
                                 </div>
-                                <p className={styles.progressText}>{Math.round(deletionProgress)}% Complete</p>
+                                <p className={styles.progressText}>{Math.min(100, Math.max(0, Math.round(deletionProgress)))}% Complete</p>
                                 <div className={styles.deletionSteps}>
                                     <div className={`${styles.step} ${deletionProgress >= 20 ? styles.completed : ''}`}>
                                         ✓ Stopping server containers
