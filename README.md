@@ -138,6 +138,7 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 | `WEBDAV_REJECT_UNAUTHORIZED` | Set to `false` to accept self-signed WebDAV certificates |
 | `PROXIES_CONFIG_PATH` | Location of proxy definitions from older versions; they are imported into the Proxies tab |
 | `VELOCITY_IMAGE`, `BUNGEE_IMAGE` | Images for proxies created in the Proxies tab |
+| `DOCKER_DIRECT`, `DOCKER_SOCKET`, `DOCKER_HOST` | Console commands and logs go through the Docker socket instead of Portainer, which is much quicker. Mount `/var/run/docker.sock` into the app container; `DOCKER_DIRECT` is `auto` (use it when the socket exists), `true` or `false`. Containers on another Docker host and any failure fall back to Portainer |
 | `PROXY_SCAN_PARENT` | Existing proxies are looked for in the folder above the storage folder and its subfolders too (so the app can read and write there). Set to `false` to switch this off |
 | `CURSEFORGE_API_KEY` | Lets the manager download plugins and mods from CurseForge. Without it, CurseForge links show a preview but cannot be installed |
 | `MAX_WORLD_UPLOAD_MB` | Largest world zip that is accepted (default 4096) |
