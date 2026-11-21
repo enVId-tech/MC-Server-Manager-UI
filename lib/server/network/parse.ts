@@ -73,6 +73,12 @@ export function addServerToVelocityToml(content: string, entry: VelocityServerEn
         next = setTomlValue(next, 'servers', 'try', tomlArray(summary.tryOrder.filter(name => name !== entry.name)));
     }
 
+    // Host names this entry had before and does not use any more (a proxy changed its base subdomain)
+    for (const [host, names] of Object.entries(parseVelocityToml(next).forcedHosts)) {
+        if (entry.hostnames.includes(host) || !names.includes(entry.name)) continue;
+        const rest = names.filter(item => item !== entry.name);
+        next = rest.length > 0 ? setTomlValue(next, 'forced-hosts', host, tomlArray(rest)) : removeTomlKey(next, 'forced-hosts', host);
+    }
     for (const hostname of entry.hostnames) {
         next = setTomlValue(next, 'forced-hosts', hostname, tomlArray([entry.name]));
     }
@@ -169,6 +175,10 @@ export function addServerToBungeeYaml(content: string, entry: VelocityServerEntr
     const doc = YAML.parseDocument(content);
     doc.setIn(['servers', entry.name], { motd: entry.name, address: entry.address, restricted: false });
     if (!doc.hasIn(['listeners', 0])) doc.setIn(['listeners'], [{}]);
+    const forced = record(doc.getIn(['listeners', 0, 'forced_hosts'], false) && (doc.getIn(['listeners', 0, 'forced_hosts']) as { toJSON?: () => unknown })?.toJSON?.());
+    for (const [host, value] of Object.entries(forced)) {
+        if (value === entry.name && !entry.hostnames.includes(host)) doc.deleteIn(['listeners', 0, 'forced_hosts', host]);
+    }
     for (const hostname of entry.hostnames) doc.setIn(['listeners', 0, 'forced_hosts', hostname], entry.name);
     doc.setIn(['listeners', 0, 'priorities'], [NO_FALLBACK_SERVER]);
     return doc.toString();

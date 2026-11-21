@@ -57,6 +57,8 @@ export interface ProxySettings {
     configPath: string;
     /** Name of the stack that runs the proxy, when this manager created it */
     stackName?: string;
+    /** Subdomain in front of the server domain that the servers behind this proxy use (ex1 gives survival.ex1.example.org). Needed when there are several proxies */
+    baseSubdomain?: string;
     /** Host name players use to reach the proxy, for display. Defaults to the server domain */
     publicHost?: string;
     /** Entry name of the server that players without a host name (Bedrock players coming through Geyser) are sent to. Empty means nobody is sent anywhere */

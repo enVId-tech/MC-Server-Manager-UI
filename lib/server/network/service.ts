@@ -23,6 +23,7 @@ import {
 import { editProxyConfig, inspectProxy, type ProxyInspection, type ProxyRef } from './proxyFiles';
 import { chooseProxies, isPluginServer, type BalancingStrategy, type ForwardingMode, type ProxyKind, type RoutableProxy } from './versions';
 import { mergeWarnings } from './warnings';
+import { baseDomainOf, hostnameFor, identityIssues } from './identity';
 
 export interface NetworkProxy extends RoutableProxy {
     name: string;
@@ -34,6 +35,12 @@ export interface NetworkProxy extends RoutableProxy {
     folder: string;
     configPath: string;
     publicHost: string;
+    /** Subdomain in front of the server domain that the servers behind this proxy use */
+    baseSubdomain?: string;
+    /** Domain the servers behind this proxy are reached under: baseSubdomain.serverDomain, or the plain server domain */
+    baseDomain: string;
+    /** Why this proxy cannot be told apart from the others yet (shared base subdomain or port) */
+    issues: string[];
     plugins: PluginFlags;
     bedrockPort?: number;
     motd: string;
@@ -115,6 +122,9 @@ async function describeProxy(record: IServer, linked: number, runningNames: Set<
         folder: record.folderPath,
         configPath: settings.configPath,
         publicHost: settings.publicHost || getServerDomain(),
+        baseSubdomain: settings.baseSubdomain || undefined,
+        baseDomain: baseDomainOf(settings.baseSubdomain || undefined, getServerDomain()),
+        issues: [],
         plugins: inspection.plugins,
         bedrockPort: inspection.bedrockPort,
         motd: inspection.motd,
@@ -155,7 +165,9 @@ export async function listProxies(): Promise<NetworkProxy[]> {
         // Docker not reachable: running state stays unknown (false)
     }
 
-    return Promise.all(records.map(record => describeProxy(record, counts.get(record.uniqueId) ?? 0, runningNames)));
+    const described = await Promise.all(records.map(record => describeProxy(record, counts.get(record.uniqueId) ?? 0, runningNames)));
+    const issues = identityIssues(described.map(proxy => ({ id: proxy.id, name: proxy.name, baseSubdomain: proxy.baseSubdomain, port: proxy.port })));
+    return described.map(proxy => ({ ...proxy, issues: issues.get(proxy.id) ?? [] }));
 }
 
 export async function getProxy(id: string): Promise<NetworkProxy | undefined> {
@@ -209,10 +221,9 @@ async function internalPort(server: IServer): Promise<number> {
 }
 
 /** Host names players join the server with */
-export function hostnamesFor(server: Pick<IServer, 'subdomainName'>): string[] {
-    const name = (server.subdomainName ?? '').trim().toLowerCase();
-    if (!name) return [];
-    return [name.includes('.') ? name : `${name}.${getServerDomain()}`];
+export function hostnamesFor(server: Pick<IServer, 'subdomainName'>, proxy?: Pick<NetworkProxy, 'baseDomain'>): string[] {
+    const host = hostnameFor(server.subdomainName, proxy?.baseDomain ?? getServerDomain());
+    return host ? [host] : [];
 }
 
 export interface SyncOptions {
@@ -333,7 +344,6 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
     concerns.push(...picked.concerns);
     details.push(...picked.details);
 
-    const hostnames = hostnamesFor(server);
     const address = `${getContainerName(server)}:${await internalPort(server)}`;
     const links: NetworkLink[] = [];
     const changed = new Set<string>();
@@ -358,7 +368,7 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
         try {
             const stale = entriesFor(proxy, getContainerName(server)).filter(name => name !== entryName);
             await editProxyConfig(ref, content => {
-                const entry = { name: entryName, address, hostnames };
+                const entry = { name: entryName, address, hostnames: hostnamesFor(server, proxy) };
                 // Entries of this server under an older name are replaced by the current one
                 let cleaned = content;
                 for (const old of stale) cleaned = proxy.kind === 'velocity' ? removeServerFromVelocityToml(cleaned, old) : removeServerFromBungeeYaml(cleaned, old);
@@ -551,11 +561,11 @@ export async function getJoinAddresses(server: Pick<IServer, 'subdomainName' | '
     const links = (server.network?.links ?? []) as NetworkLink[];
     if (links.length === 0) return [];
     const proxies = await listProxies();
-    const [hostname] = hostnamesFor(server);
 
     return links.flatMap(link => {
         const proxy = proxies.find(candidate => candidate.id === link.proxyId);
         if (!proxy) return [];
+        const [hostname] = hostnamesFor(server, proxy);
         return [{
             proxyId: proxy.id,
             proxyName: proxy.name,

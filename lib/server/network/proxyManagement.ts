@@ -15,6 +15,7 @@ import { editProxyConfig, inspectProxy, type ProxyRef } from './proxyFiles';
 import { bungeeYamlTemplate, defaultProxyImage, proxyCompose, velocityTomlTemplate } from './proxyTemplates';
 import { getEnvironmentId, getNetworkSettings, listProxies, reloadProxy, syncAllServers } from './service';
 import { setTomlValue } from './toml';
+import { checkProxyIdentity, normalizeBaseSubdomain, type ProxyIdentity } from './identity';
 import { forwardingModesFor, isForwardingMode, type ForwardingMode, type ProxyKind } from './versions';
 import YAML from 'yaml';
 
@@ -27,6 +28,8 @@ export interface CreateProxyInput {
     memory?: string;
     networkName?: string;
     publicHost?: string;
+    /** Subdomain the servers behind this proxy are reached under (ex1 gives survival.ex1.example.org). Required for every proxy once there are several */
+    baseSubdomain?: string;
     motd?: string;
     maxPlayers?: number;
     priority?: number;
@@ -67,6 +70,18 @@ async function portInUse(port: number, environmentId: number): Promise<boolean> 
     }
 }
 
+/** Throws when the proxy would share its base subdomain or port with another proxy, or its base with a server name */
+async function assertProxyIdentity(candidate: ProxyIdentity, ignoreId: string | undefined): Promise<void> {
+    const others = (await listProxies()).filter(proxy => proxy.id !== ignoreId);
+    const problem = checkProxyIdentity(candidate, others.map(proxy => ({ id: proxy.id, name: proxy.name, baseSubdomain: proxy.baseSubdomain, port: proxy.port })));
+    if (problem) throw new Error(problem);
+    if (candidate.baseSubdomain) {
+        const domain = getServerDomain();
+        const clash = await Server.exists({ kind: { $ne: 'proxy' }, subdomainName: { $in: [candidate.baseSubdomain, `${candidate.baseSubdomain}.${domain}`] } });
+        if (clash) throw new Error(`A server already uses the subdomain ${candidate.baseSubdomain}, pick another base subdomain.`);
+    }
+}
+
 export async function createProxy(input: CreateProxyInput, ownerEmail: string): Promise<ProxyOperationResult> {
     const details: string[] = [];
     const kind = input.kind;
@@ -79,6 +94,10 @@ export async function createProxy(input: CreateProxyInput, ownerEmail: string): 
     const port = Number(input.port);
     if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('The port must be between 1024 and 65535.');
     if (await Server.exists({ port })) throw new Error(`Port ${port} is already used by another server or proxy.`);
+
+    const base = normalizeBaseSubdomain(input.baseSubdomain);
+    if (base.error) throw new Error(base.error);
+    await assertProxyIdentity({ id: '', name, baseSubdomain: base.value, port }, undefined);
 
     const environmentId = await getEnvironmentId();
     if (await portInUse(port, environmentId)) throw new Error(`Port ${port} is already published by a container.`);
@@ -133,7 +152,7 @@ export async function createProxy(input: CreateProxyInput, ownerEmail: string): 
 
         const proxy: ProxySettings = {
             type: kind, forwarding: input.forwarding, enabled: input.priority !== -1, priority: Number(input.priority) || 0,
-            networkName, memory, image, configPath, stackName, publicHost: input.publicHost?.trim() || undefined, bedrockPort,
+            networkName, memory, image, configPath, stackName, publicHost: input.publicHost?.trim() || undefined, baseSubdomain: base.value, bedrockPort,
         };
         await Server.create({
             uniqueId, email: ownerEmail, kind: 'proxy', proxy,
@@ -161,6 +180,8 @@ export interface UpdateProxyInput {
     motd?: string;
     maxPlayers?: number;
     publicHost?: string;
+    /** Base subdomain of the servers behind this proxy. Empty clears it, which is only allowed while it is the only proxy */
+    baseSubdomain?: string;
     /** Entry name of the server players without a host name are sent to. Empty clears it */
     defaultEntry?: string;
     memory?: string;
@@ -230,6 +251,19 @@ export async function updateProxy(id: string, patch: UpdateProxyInput): Promise<
     }
     if (patch.priority !== undefined) settings.priority = Number(patch.priority) || 0;
     if (patch.publicHost !== undefined) settings.publicHost = patch.publicHost.trim() || undefined;
+
+    if (patch.baseSubdomain !== undefined) {
+        const base = normalizeBaseSubdomain(patch.baseSubdomain);
+        if (base.error) throw new Error(base.error);
+        if (base.value !== (settings.baseSubdomain || undefined)) {
+            await assertProxyIdentity({ id, name: record.serverName, baseSubdomain: base.value, port: settings.publicPort ?? record.port }, id);
+            settings.baseSubdomain = base.value;
+            resync = true;
+            details.push(base.value
+                ? `Servers behind this proxy are now reached as name.${base.value}.${getServerDomain()}. Point a wildcard DNS record (*.${base.value}.${getServerDomain()}) at the proxy`
+                : 'The base subdomain was removed, servers use the plain server domain again');
+        }
+    }
 
     if (patch.installPlugins && patch.installPlugins.length > 0) {
         details.push(...await installProxyPlugins(folder, settings.type, patch.installPlugins));

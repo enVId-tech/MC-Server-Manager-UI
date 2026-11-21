@@ -21,6 +21,9 @@ interface Proxy {
     priority: number;
     port: number;
     publicHost: string;
+    baseSubdomain?: string;
+    baseDomain: string;
+    issues: string[];
     motd: string;
     maxPlayers: number;
     containerName: string;
@@ -91,6 +94,7 @@ interface CreateForm {
     port: string;
     memory: string;
     publicHost: string;
+    baseSubdomain: string;
     motd: string;
     plugins: PluginName[];
     bedrockPort: string;
@@ -98,7 +102,7 @@ interface CreateForm {
 }
 
 const EMPTY_FORM: CreateForm = {
-    name: '', kind: 'velocity', forwarding: 'modern', port: '25565', memory: '512M', publicHost: '', motd: '',
+    name: '', kind: 'velocity', forwarding: 'modern', port: '25565', memory: '512M', publicHost: '', baseSubdomain: '', motd: '',
     plugins: [], bedrockPort: '19132', shareSecret: true,
 };
 
@@ -154,6 +158,7 @@ export default function ProxiesSection() {
             shareSecret: form.kind === 'velocity' && form.forwarding === 'modern' && velocityCount > 0 ? form.shareSecret : undefined,
             motd: form.motd || undefined,
             publicHost: form.publicHost || undefined,
+            baseSubdomain: form.baseSubdomain || undefined,
         }));
         if (ok) {
             setCreating(false);
@@ -212,6 +217,8 @@ export default function ProxiesSection() {
         if (name !== proxy.name) changes.name = name;
         const publicHost = draftValue(proxy, 'publicHost', proxy.publicHost);
         if (publicHost !== proxy.publicHost) changes.publicHost = publicHost;
+        const baseSubdomain = draftValue(proxy, 'baseSubdomain', proxy.baseSubdomain ?? '');
+        if (baseSubdomain !== (proxy.baseSubdomain ?? '')) changes.baseSubdomain = baseSubdomain;
         const motd = draftValue(proxy, 'motd', proxy.motd);
         if (motd !== proxy.motd) changes.motd = motd;
         const maxPlayers = Number(draftValue(proxy, 'maxPlayers', String(proxy.maxPlayers)));
@@ -324,6 +331,10 @@ export default function ProxiesSection() {
                         <label className={styles.field}>Port players connect to
                             <input className={styles.input} inputMode="numeric" value={form.port} onChange={event => setForm({ ...form, port: event.target.value })} />
                         </label>
+                        <label className={styles.field}>Base subdomain{proxies.length > 0 ? ' (required)' : ' (optional)'}
+                            <input className={styles.input} value={form.baseSubdomain} placeholder={`ex${proxies.length + 1}`} onChange={event => setForm({ ...form, baseSubdomain: event.target.value })} />
+                            <span className={styles.hint}>Servers behind this proxy are reached as name.{form.baseSubdomain.trim() || `ex${proxies.length + 1}`}.your-domain. Every proxy needs its own base subdomain and its own port once there are several.</span>
+                        </label>
                         <label className={styles.field}>Memory
                             <input className={styles.input} value={form.memory} placeholder="512M" onChange={event => setForm({ ...form, memory: event.target.value })} />
                         </label>
@@ -399,6 +410,7 @@ export default function ProxiesSection() {
                                                 {FORWARDING_LABEL[proxy.forwarding].split(' (')[0]} forwarding · port <span className={styles.mono}>{proxy.port}</span> · {proxy.linkedServers} server{proxy.linkedServers === 1 ? '' : 's'} · priority {proxy.priority}
                                                 {badges.length > 0 && <> · {badges.join(', ')}</>}
                                             </div>
+                                            {proxy.issues.map(issue => <div key={issue} className={`${styles.notice} ${styles.warning}`} style={{ marginTop: '0.5rem' }}>{issue}</div>)}
                                             {!proxy.readable && <div className={`${styles.notice} ${styles.error}`} style={{ marginTop: '0.5rem' }}>Its configuration cannot be read{proxy.error ? `: ${proxy.error}` : ''}.</div>}
                                             {proxy.forwarding !== 'legacy' && proxy.forwarding !== 'none' && !proxy.hasSecret && (
                                                 <div className={`${styles.notice} ${styles.warning}`} style={{ marginTop: '0.5rem' }}>No forwarding secret was found. Servers cannot be added to this proxy until it has one.</div>
@@ -424,6 +436,10 @@ export default function ProxiesSection() {
                                                 </label>
                                                 <label className={styles.field}>Priority (higher is used first)
                                                     <input className={styles.input} inputMode="numeric" value={draftValue(proxy, 'priority', String(proxy.priority))} onChange={event => setDraftValue(proxy, 'priority', event.target.value)} />
+                                                </label>
+                                                <label className={styles.field}>Base subdomain
+                                                    <input className={styles.input} value={draftValue(proxy, 'baseSubdomain', proxy.baseSubdomain ?? '')} placeholder="ex1" onChange={event => setDraftValue(proxy, 'baseSubdomain', event.target.value)} />
+                                                    <span className={styles.hint}>Servers join as name.{draftValue(proxy, 'baseSubdomain', proxy.baseSubdomain ?? '') || '…'}.your-domain (now {proxy.baseDomain})</span>
                                                 </label>
                                                 <label className={styles.field}>Public address
                                                     <input className={styles.input} value={draftValue(proxy, 'publicHost', proxy.publicHost)} onChange={event => setDraftValue(proxy, 'publicHost', event.target.value)} />

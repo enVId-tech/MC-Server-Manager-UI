@@ -24,7 +24,8 @@
     "test:network": "tsx scripts/test-network.ts",
     "test:access": "tsx scripts/test-access.ts",
     "test:proxy-discovery": "tsx scripts/test-proxy-discovery.ts",
-    "test:modded": "tsx scripts/test-modded.ts"
+    "test:modded": "tsx scripts/test-modded.ts",
+    "test:proxy-identity": "tsx scripts/test-proxy-identity.ts"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",
