@@ -77,6 +77,8 @@ export interface IServerConfig extends Document {
     serverMemory: number;
     /** How the server's folder is named: its unique id, or its own name */
     folderNaming?: 'uuid' | 'name';
+    /** The user confirmed that downgrading the uploaded world is unsupported (only used when the world is newer than the server) */
+    worldDowngradeAccepted?: boolean;
     /** 'auto' sizes the heap from plugins, mods and players; an administrator can fix it ('manual') */
     memoryMode?: 'auto' | 'manual';
     /** What the owner may do with the files of the server. Both start off */

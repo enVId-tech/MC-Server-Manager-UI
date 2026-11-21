@@ -307,7 +307,8 @@ export async function POST(request: NextRequest) {
             // File information
             plugins: config.plugins || [],
             mods: config.mods || [],
-            worldFiles: config.worldFiles || null
+            worldFiles: config.worldFiles || null,
+            worldDowngradeAccepted: config.worldDowngradeAccepted === true,
         };
 
         // === DATABASE INSERTION PHASE ===

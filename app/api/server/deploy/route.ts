@@ -16,6 +16,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { getServerFolderPath } from '@/lib/server/serverPaths';
 import { safeJarName, userUploadPath } from '@/lib/server/uploadsDir';
+import { extractWorldZip, installWorld } from '@/lib/server/world/install';
 import { getSubdomainLabel } from '@/lib/config/domain';
 
 // Interface for server config as stored in database (with FileInfo instead of AnalyzedFile)
@@ -824,35 +825,33 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                 const fs = await import('fs/promises');
 
                 try {
-                    // Read the world file from disk
                     const worldPath = userUploadPath(user.email, serverConfig.worldFiles.filename ?? serverConfig.worldFiles.filePath);
                     if (!worldPath) throw new Error('Invalid upload reference');
-                    const worldBuffer = await fs.readFile(worldPath);
-
-                    console.log(`World file loaded: ${serverConfig.worldFiles.originalName} (${worldBuffer.length} bytes)`);
-
-                    // Upload world file to the server
-                    let worldUploadResult;
-                    if (serverConfig.worldFiles.originalName.endsWith('.zip')) {
-                        // Handle ZIP world files with proper extraction using intelligent world locator
-                        worldUploadResult = await updatedMinecraftServer.uploadAndExtractWorldZip(worldBuffer);
+                    if (!/\.zip$/i.test(serverConfig.worldFiles.originalName)) {
+                        await updateStep(serverId, 'upload', 'running', uploadProgress, 'The world was not imported: worlds have to be uploaded as a .zip file');
                     } else {
-                        // Handle other world file types
-                        const worldFiles: { [path: string]: Buffer } = {};
-                        worldFiles[`world/${serverConfig.worldFiles.originalName}`] = worldBuffer;
-                        worldUploadResult = await updatedMinecraftServer.uploadServerFiles(worldFiles, 'world');
+                        // Look at the world first: it is only used when its version can be loaded by this server
+                        const extracted = await extractWorldZip(worldPath);
+                        try {
+                            const installed = await installWorld(extracted, {
+                                serverFolder: getServerFolderPath(server, user.email),
+                                serverType: String(serverConfig.serverType ?? ''),
+                                serverVersion: String(serverConfig.version ?? 'LATEST'),
+                                acknowledgeDowngrade: (server.serverConfig as { worldDowngradeAccepted?: boolean }).worldDowngradeAccepted === true,
+                            });
+                            if (!installed.installed) {
+                                console.warn('World not imported:', installed.error);
+                                await updateStep(serverId, 'upload', 'running', uploadProgress, `The world was not imported: ${installed.error}`);
+                            } else {
+                                console.log(`World imported: ${installed.files} files (${installed.judgement?.status})`);
+                            }
+                        } finally {
+                            await extracted.cleanup();
+                        }
                     }
-
-                    if (!worldUploadResult.success) {
-                        console.error('Failed to upload world files:', worldUploadResult.error);
-                        await updateStep(serverId, 'upload', 'running', uploadProgress, 'World file upload failed, continuing...');
-                    } else {
-                        console.log('World files uploaded successfully');
-                    }
-
                 } catch (fileError) {
-                    console.error(`Failed to read world file: ${serverConfig.worldFiles.originalName}`, fileError);
-                    await updateStep(serverId, 'upload', 'running', uploadProgress, `Failed to read world file: ${serverConfig.worldFiles.originalName}`);
+                    console.error(`Failed to import world file: ${serverConfig.worldFiles.originalName}`, fileError);
+                    await updateStep(serverId, 'upload', 'running', uploadProgress, `The world could not be imported: ${fileError instanceof Error ? fileError.message : 'unknown error'}`);
                 }
 
                 uploadProgress = 100;

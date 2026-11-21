@@ -27,7 +27,8 @@
     "test:modded": "tsx scripts/test-modded.ts",
     "test:proxy-identity": "tsx scripts/test-proxy-identity.ts",
     "test:folder-naming": "tsx scripts/test-folder-naming.ts",
-    "test:existing-servers": "tsx scripts/test-existing-servers.ts"
+    "test:existing-servers": "tsx scripts/test-existing-servers.ts",
+    "test:world": "tsx scripts/test-world.ts"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",
