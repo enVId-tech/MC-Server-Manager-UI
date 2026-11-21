@@ -1,0 +1,193 @@
+@use '../../_variables.scss' as *;
+
+.section {
+  width: 100%;
+  padding: 5rem 1rem;
+  background-color: $dark-bg;
+  font-family: $body-font;
+  color: $text-primary;
+
+  &.alt {
+    background-color: darken($dark-bg, 2%);
+    border-block: 1px solid rgba($border-color, 0.5);
+  }
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+
+  &.narrow { max-width: 760px; }
+}
+
+.title {
+  margin: 0 0 0.9rem;
+  font-family: $heading-font;
+  font-size: 1.6rem;
+  font-weight: 400;
+  line-height: 1.4;
+
+  @media (min-width: $tablet) { font-size: 2.2rem; }
+}
+
+.lead {
+  max-width: 42rem;
+  margin: 0 auto 2.5rem;
+  color: $text-secondary;
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+// Steps
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  position: relative;
+  padding: 2rem 1.5rem 1.75rem;
+  border: 1px solid $border-color;
+  border-radius: 12px;
+  background-color: $dark-card;
+
+  h3 { margin: 0.9rem 0 0.4rem; font-size: 1.15rem; }
+  p { margin: 0; color: $text-secondary; line-height: 1.55; font-size: 0.95rem; }
+}
+
+.stepNumber {
+  position: absolute;
+  top: -0.9rem;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  background-color: $accent-blue;
+  color: $white;
+  font-size: 0.9rem;
+  font-weight: 700;
+  transform: translateX(-50%);
+}
+
+.stepIcon,
+.featureIcon {
+  width: 1.8rem;
+  height: 1.8rem;
+  color: $accent-blue;
+}
+
+// Features
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.25rem;
+  margin: 2.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.feature {
+  padding: 1.5rem;
+  border: 1px solid $border-color;
+  border-radius: 12px;
+  background-color: $dark-card;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+
+  &:hover {
+    border-color: $accent-blue;
+    transform: translateY(-3px);
+  }
+
+  h3 { margin: 0.9rem 0 0.4rem; font-size: 1.05rem; }
+  p { margin: 0; color: $text-secondary; line-height: 1.55; font-size: 0.92rem; }
+}
+
+// Types
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem;
+  margin: 2rem 0 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid $border-color;
+    border-radius: 999px;
+    background-color: $dark-card;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  svg { color: $success-green; font-size: 0.75rem; }
+}
+
+// FAQ
+.faq {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 2.5rem;
+  text-align: left;
+
+  details {
+    border: 1px solid $border-color;
+    border-radius: 10px;
+    background-color: $dark-card;
+
+    &[open] { border-color: $accent-blue; }
+  }
+
+  summary {
+    padding: 1rem 1.25rem;
+    font-weight: 600;
+    cursor: pointer;
+    list-style-position: inside;
+
+    &:focus-visible { outline: 2px solid $accent-blue; outline-offset: 2px; border-radius: 10px; }
+  }
+
+  p {
+    margin: 0;
+    padding: 0 1.25rem 1.1rem;
+    color: $text-secondary;
+    line-height: 1.6;
+  }
+}
+
+// Call to action
+.cta {
+  padding: 5rem 1rem;
+  background: linear-gradient(180deg, $dark-bg, darken($accent-blue, 32%));
+  border-top: 1px solid $border-color;
+  text-align: center;
+  font-family: $body-font;
+  color: $text-primary;
+}
+
+.ctaTitle {
+  margin: 0 0 0.9rem;
+  font-family: $heading-font;
+  font-size: 1.5rem;
+  font-weight: 400;
+  line-height: 1.4;
+
+  @media (min-width: $tablet) { font-size: 2rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feature { transition: none; &:hover { transform: none; } }
+}
