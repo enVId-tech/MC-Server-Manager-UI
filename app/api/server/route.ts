@@ -5,6 +5,9 @@ import Server from "@/lib/objects/Server";
 import portainer from "@/lib/server/portainer";
 import verificationService from "@/lib/server/verify";
 import { publicSubdomain } from '@/lib/server/subdomain';
+import { getContainerName } from '@/lib/server/containerNames';
+import { statusFromContainer, type LiveStatus } from '@/lib/server/containerStatus';
+import type { PortainerContainer } from '@/lib/server/portainer';
 
 /** Route to fetch server configuration for the authenticated user.
   * @param request - The incoming request object.
@@ -25,11 +28,30 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ servers: [] }, { status: 200 });
         }
 
+        // The live state of every container, one request per Docker environment. When Docker cannot be asked,
+        // the last known state is shown.
+        const defaultEnvironment = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID, 10) : null;
+        const containersByEnvironment = new Map<number | null, PortainerContainer[] | null>();
+        for (const environmentId of new Set(servers.map(server => server.environmentId ?? defaultEnvironment))) {
+            try {
+                containersByEnvironment.set(environmentId, await portainer.getContainers(await portainer.getValidEnvironmentId(environmentId), true));
+            } catch {
+                containersByEnvironment.set(environmentId, null);
+            }
+        }
+        const liveStatus = (server: (typeof servers)[number]): LiveStatus => {
+            const containers = containersByEnvironment.get(server.environmentId ?? defaultEnvironment);
+            if (!containers) return server.isOnline ? 'online' : 'offline';
+            const name = getContainerName(server);
+            const container = containers.find(candidate => candidate.Names?.some(item => item.replace(/^\//, '') === name));
+            return statusFromContainer(container, server.transition);
+        };
+
         // Format the server data
         const serverData = servers.map(server => ({
             id: server.uniqueId,
             serverName: server.serverName,
-            isOnline: server.isOnline ? "online" : "offline",
+            isOnline: liveStatus(server),
             subdomainName: publicSubdomain(server.subdomainName),
             serverType: server.serverConfig?.serverType || "unknown",
             players: server.serverConfig?.players || 0,

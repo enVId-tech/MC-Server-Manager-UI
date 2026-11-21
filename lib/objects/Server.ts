@@ -8,6 +8,8 @@ export interface IServer extends pkg.Document {
     subdomainName: string;
     /** More host names the proxies send to this server (imported servers can have several forced hosts) */
     extraHostnames?: string[];
+    /** Set while a start or stop is under way, so the dashboard can say starting or stopping instead of offline */
+    transition?: { action: 'starting' | 'stopping'; at: Date };
     /** Where the address came from: read from a proxy's forced hosts, chosen by a person, or only guessed (imported servers) */
     subdomainSource?: 'forced-host' | 'chosen' | 'guessed';
     folderPath: string;
@@ -122,6 +124,7 @@ const ServerSchema: pkg.Schema = new pkg.Schema({
         unique: true,
     },
     extraHostnames: { type: [String], required: false, default: undefined },
+    transition: { type: pkg.Schema.Types.Mixed, required: false },
     subdomainSource: { type: String, enum: ['forced-host', 'chosen', 'guessed'], required: false },
     isOnline: {
         type: Boolean,

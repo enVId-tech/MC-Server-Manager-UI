@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
         // Update server status in database (use updateOne to avoid validation issues)
         await Server.updateOne(
             { uniqueId: server.uniqueId },
-            { $set: { isOnline: false } }
+            { $set: { isOnline: false }, $unset: { transition: '' } }
         );
 
         return NextResponse.json({ 

@@ -1,3 +1,4 @@
+import { statusFromContainer, type LiveStatus } from '@/lib/server/containerStatus';
 import { ownerFilter } from '@/lib/server/access';
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db/dbConnect";
@@ -82,82 +83,8 @@ export async function GET(request: NextRequest) {
             return NextResponse.json(baseResponse, { status: 200 });
         }
 
-        // Map container state to our server status
-        let serverStatus: 'online' | 'offline' | 'starting' | 'crashed' | 'unhealthy' | 'paused' = 'offline';
-
-        if (container.Status) {
-            const containerStatus = container.Status.toLowerCase();
-            if (containerStatus.includes('exited')) {
-                const exitCode: number = parseInt(containerStatus.split('(')[1].split(')')[0]);
-                
-                if (exitCode === 0) {
-                    serverStatus = 'offline';
-                } else {
-                    serverStatus = 'crashed';
-                }
-            } else if (containerStatus.includes('starting')) {
-                serverStatus = 'starting';
-            } else if (containerStatus.includes('healthy')) {
-                serverStatus = 'online';
-            } else if (containerStatus.includes('unhealthy')) {
-                serverStatus = 'unhealthy';
-            } else if (containerStatus.includes('paused')) {
-                serverStatus = 'paused';
-            } else {
-                serverStatus = 'offline';
-                const baseResponse = {
-                    status: serverStatus,
-                    message: 'Container status is not available.',
-                    serverId: server.uniqueId.toString()
-                };
-
-                if (includeResources) {
-                    return NextResponse.json({
-                        ...baseResponse,
-                        resources: {
-                            cpuUsage: 0,
-                            memoryUsage: 0,
-                            memoryLimit: server.serverConfig?.serverMemory || 1024,
-                            memoryUsagePercent: 0,
-                            playersOnline: 0,
-                            maxPlayers: server.serverConfig?.maxPlayers || 20,
-                            networkRx: 0,
-                            networkTx: 0,
-                            isOptimal: false,
-                            error: 'Container status unavailable'
-                        }
-                    }, { status: 200 });
-                }
-
-                return NextResponse.json(baseResponse, { status: 200 });
-            }
-        } else {
-            const baseResponse = { 
-                status: 'offline',
-                message: 'Container not found for this server.',
-                serverId: server.uniqueId.toString()
-            };
-
-            if (includeResources) {
-                return NextResponse.json({
-                    ...baseResponse,
-                    resources: {
-                        cpuUsage: 0,
-                        memoryUsage: 0,
-                        memoryLimit: server.serverConfig?.serverMemory || 1024,
-                        memoryUsagePercent: 0,
-                        playersOnline: 0,
-                        maxPlayers: server.serverConfig?.maxPlayers || 20,
-                        networkRx: 0,
-                        networkTx: 0,
-                        isOptimal: false,
-                        error: 'Container not found'
-                    }
-                }, { status: 200 });
-            }
-
-            return NextResponse.json(baseResponse, { status: 200 });
-        }
+        // Map the container to our server status (starting and stopping included)
+        const serverStatus: LiveStatus = statusFromContainer(container, server.transition);
 
         console.log(`Container status for ${server.serverName} (${containerIdentifier}): ${serverStatus}`);
 

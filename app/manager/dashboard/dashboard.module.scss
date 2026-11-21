@@ -325,9 +325,30 @@
     }
   }
 
-  &.offline {
+  &.offline,
+  &.crashed {
     background-color: rgba($accent-red, 0.15);
     color: color.scale($accent-red, $lightness: 20%);
+  }
+
+  // Starting and stopping: a pulsing amber dot so it does not read as offline
+  &.starting,
+  &.stopping,
+  &.unhealthy,
+  &.paused {
+    background-color: rgba($accent-orange, 0.15);
+    color: color.scale($accent-orange, $lightness: 20%);
+  }
+
+  &.starting .statusDot,
+  &.stopping .statusDot {
+    animation: blink 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
   }
 }
 

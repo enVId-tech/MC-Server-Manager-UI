@@ -23,6 +23,7 @@ const STATUS_BADGE: Record<ServerStatus, { label: string; tone: string }> = {
     online: { label: 'Online', tone: styles.ok },
     offline: { label: 'Offline', tone: styles.bad },
     starting: { label: 'Starting', tone: styles.warn },
+    stopping: { label: 'Stopping', tone: styles.warn },
     crashed: { label: 'Crashed', tone: styles.bad },
     paused: { label: 'Paused', tone: styles.warn },
     unhealthy: { label: 'Unhealthy', tone: styles.warn },
@@ -103,6 +104,14 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
         return () => clearInterval(timer);
     }, [loadStats, loadNetwork]);
 
+    // Starting and stopping change within seconds, so look more often until it settles
+    const changing = stats.status === 'starting' || stats.status === 'stopping';
+    useEffect(() => {
+        if (!changing) return;
+        const timer = setInterval(() => void loadStats(), 3000);
+        return () => clearInterval(timer);
+    }, [changing, loadStats]);
+
     const power = async (action: 'start' | 'stop' | 'restart' | 'kill') => {
         if (!info) return;
         setBusy(action);
@@ -174,7 +183,7 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
     if (!info) return <div className={styles.page}><div className={styles.shell}><div className={styles.loading}>Loading…</div></div></div>;
 
     const badge = STATUS_BADGE[stats.status];
-    const running = stats.status === 'online' || stats.status === 'starting' || stats.status === 'paused' || stats.status === 'unhealthy';
+    const running = stats.status === 'online' || stats.status === 'starting' || stats.status === 'stopping' || stats.status === 'paused' || stats.status === 'unhealthy';
 
     return (
         <div className={styles.page}>

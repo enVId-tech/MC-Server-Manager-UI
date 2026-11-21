@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styles from './dashboard.module.scss';
 import Link from 'next/link';
 import { useRouter } from "next/navigation";
@@ -7,12 +7,15 @@ import { FaCopy, FaPlus, FaServer } from 'react-icons/fa';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
 import dashboardBg from "@/public/dashboard-bg.png";
 
+// What a server is doing: starting and stopping are shown as such instead of offline
+type ServerState = 'online' | 'offline' | 'starting' | 'stopping' | 'crashed' | 'unhealthy' | 'paused';
+
 // Define servers interfaces for better type checking
 interface MCServer {
     id: string;
     name: string;
     type: string;
-    status: 'online' | 'offline';
+    status: ServerState;
     players: number;
     maxPlayers: number;
     version: string;
@@ -28,7 +31,7 @@ interface ServerConfig {
     subdomainName: string;
     id: string;
     // The API reports the state as text
-    isOnline: 'online' | 'offline';
+    isOnline: ServerState;
 }
 
 export default function Dashboard() {
@@ -48,6 +51,7 @@ export default function Dashboard() {
     const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
     const [sortBy, setSortBy] = useState<'name' | 'status' | 'players'>('name');
     const [isAdmin, setIsAdmin] = useState(false);
+    const refreshServers = useRef<() => void>(() => undefined);
     const [proxies, setProxies] = useState<Array<{ id: string; name: string; kind: string; port: number; baseSubdomain?: string; running: boolean; linkedServers: number; issues: string[] }>>([]);
     const [busyServerIds, setBusyServerIds] = useState<Set<string>>(new Set());
     const router = useRouter();
@@ -72,7 +76,7 @@ export default function Dashboard() {
                     id: server.id,
                     name: server.serverName,
                     type: server.serverType,
-                    status: server.isOnline === 'online' ? 'online' : 'offline',
+                    status: server.isOnline ?? 'offline',
                     players: server.players,
                     maxPlayers: server.maxPlayers,
                     version: server.version,
@@ -85,6 +89,8 @@ export default function Dashboard() {
                 setLoadingServers(false);
             }
         };
+
+        refreshServers.current = fetchServerTypes;
 
         const checkAuth = () => {
             const res = fetch('/api/auth/check', {
@@ -125,11 +131,20 @@ export default function Dashboard() {
     }, [router]);
 
 
+    // While a server starts or stops its state changes within seconds, so look more often
+    const inTransition = servers.some(server => server.status === 'starting' || server.status === 'stopping');
+    useEffect(() => {
+        if (!inTransition) return;
+        const timer = setInterval(() => refreshServers.current(), 4000);
+        return () => clearInterval(timer);
+    }, [inTransition]);
+
     const setServerPower = async (id: string, action: 'start' | 'stop') => {
         const server = servers.find(candidate => candidate.id === id);
         if (!server || busyServerIds.has(id)) return;
 
         setBusyServerIds(current => new Set(current).add(id));
+        setServers(current => current.map(candidate => candidate.id === id ? { ...candidate, status: action === 'start' ? 'starting' : 'stopping' } : candidate));
         try {
             const response = await fetch(`/api/server/manage/${action}`, {
                 method: 'POST',
@@ -144,7 +159,7 @@ export default function Dashboard() {
 
             setServers(current => current.map(candidate =>
                 candidate.id === id
-                    ? { ...candidate, status: action === 'start' ? 'online' : 'offline', players: action === 'stop' ? 0 : candidate.players }
+                    ? { ...candidate, status: action === 'start' ? 'starting' : 'offline', players: action === 'stop' ? 0 : candidate.players }
                     : candidate
             ));
             showNotification({
@@ -154,6 +169,7 @@ export default function Dashboard() {
             });
         } catch (error) {
             console.error(`Error trying to ${action} server:`, error);
+            refreshServers.current();
             showNotification({
                 type: 'error',
                 title: action === 'start' ? 'Could Not Start Server' : 'Could Not Stop Server',
@@ -516,7 +532,11 @@ export default function Dashboard() {
                                 </dl>
 
                                 <div className={styles.actions}>
-                                    {server.status === 'offline' ? (
+                                    {server.status === 'starting' || server.status === 'stopping' ? (
+                                        <button className={`${styles.button} ${styles.secondary}`} disabled onClick={(e) => e.stopPropagation()}>
+                                            {server.status === 'starting' ? 'Starting…' : 'Stopping…'}
+                                        </button>
+                                    ) : server.status === 'offline' || server.status === 'crashed' ? (
                                         <button
                                             className={`${styles.button} ${styles.primary}`}
                                             disabled={busyServerIds.has(server.id)}

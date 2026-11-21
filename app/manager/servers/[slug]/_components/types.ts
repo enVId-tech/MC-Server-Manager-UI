@@ -14,7 +14,7 @@ export interface ServerInfo {
     proxy?: { type?: string; forwarding?: string; enabled: boolean };
 }
 
-export type ServerStatus = 'online' | 'offline' | 'starting' | 'crashed' | 'paused' | 'unhealthy' | 'loading';
+export type ServerStatus = 'online' | 'offline' | 'starting' | 'stopping' | 'crashed' | 'paused' | 'unhealthy' | 'loading';
 
 export interface ServerStats {
     status: ServerStatus;

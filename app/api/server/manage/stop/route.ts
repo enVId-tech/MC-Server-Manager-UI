@@ -71,13 +71,19 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ message: `Container '${containerIdentifier}' not found for this server.` }, { status: 404 });
         }
 
-        // Stop the container with the proper environment ID
-        await portainer.stopContainer(container.Id, portainerEnvironmentId, timeout);
+        // The container keeps saying it is running until it has stopped; this lets the dashboard say stopping
+        await Server.updateOne({ _id: server._id }, { $set: { transition: { action: 'stopping', at: new Date() } } });
+        try {
+            await portainer.stopContainer(container.Id, portainerEnvironmentId, timeout);
+        } catch (stopError) {
+            await Server.updateOne({ _id: server._id }, { $unset: { transition: '' } });
+            throw stopError;
+        }
         
         // Update server status in database (use updateOne to avoid validation issues)
         await Server.updateOne(
             { _id: server._id },
-            { $set: { isOnline: false } }
+            { $set: { isOnline: false }, $unset: { transition: '' } }
         );
 
         return NextResponse.json({ 
