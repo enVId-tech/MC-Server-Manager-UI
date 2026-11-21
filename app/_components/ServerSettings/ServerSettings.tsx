@@ -156,7 +156,7 @@ export default function ServerSettings({ serverSlug }: { serverSlug: string }) {
 
             {loaded.lockedEnv && (
                 <div className={`${styles.feedback} ${styles.info}`} role="note">
-                    This server is part of a proxy network. Online mode and the other options that depend on the proxy are managed for you and are grayed out.
+                    Ports, memory, RCON, the proxy network and the other options that depend on the host are managed by the administrators and are grayed out.
                 </div>
             )}
 

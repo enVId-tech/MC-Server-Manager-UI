@@ -15,8 +15,9 @@ import {
     type OptionValues,
 } from '@/lib/data/itzg';
 
-const PROXY_LOCKED_ENV = ['ONLINE_MODE', 'PREVENT_PROXY_CONNECTIONS', 'ENFORCE_SECURE_PROFILE'];
-const PROXY_LOCKED_PROPERTIES = ['online-mode', 'prevent-proxy-connections', 'enforce-secure-profile'];
+import {
+    dropLocked, lockedEnvFor, lockedPropertiesFor, redactSecrets, SECRET_ENV, SECRET_PROPERTIES,
+} from '@/lib/server/accessPolicy';
 
 async function findOwnedServer(request: NextRequest, identifier: string | null) {
     const user: IUser | null = await verificationService.getUserFromToken(request);
@@ -48,18 +49,26 @@ export async function GET(request: NextRequest) {
 
         // The dedicated fields (maxPlayers, difficulty, ...) are returned as they are, the panel maps them to options
         const { itzgEnv, serverProperties } = config;
+        const lockedEnv = lockedEnvFor(user);
+        const lockedProperties = lockedPropertiesFor(user);
+
+        // Users see which options belong to the host, but never a password or a key
+        const form = { ...config };
+        if (!user.isAdmin) {
+            delete form.rconPassword;
+            delete form.fileAccess;
+        }
 
         return NextResponse.json({
             uniqueId: server.uniqueId,
             serverType: type,
             version,
             javaVersion: getRequiredJavaVersion(version),
-            form: config,
-            itzgEnv: (itzgEnv as OptionValues) ?? {},
-            serverProperties: (serverProperties as Record<string, string>) ?? {},
-            ...(!user.isAdmin && (server.proxyIds?.length ?? 0) + (server.network?.links?.length ?? 0) > 0
-                ? { lockedEnv: PROXY_LOCKED_ENV, lockedProperties: PROXY_LOCKED_PROPERTIES }
-                : {}),
+            form,
+            itzgEnv: user.isAdmin ? ((itzgEnv as OptionValues) ?? {}) : redactSecrets((itzgEnv as OptionValues) ?? {}, SECRET_ENV),
+            serverProperties: user.isAdmin ? ((serverProperties as Record<string, string>) ?? {}) : redactSecrets((serverProperties as Record<string, string>) ?? {}, SECRET_PROPERTIES),
+            ...(lockedEnv.length > 0 ? { lockedEnv, lockedProperties } : {}),
+            memory: { mb: Number(config.serverMemory) || null, mode: config.memoryMode ?? 'auto' },
             isAdmin: Boolean(user.isAdmin),
         });
     } catch (error) {
@@ -90,21 +99,20 @@ export async function PATCH(request: NextRequest) {
 
         let rejected: Record<string, string> = {};
 
-        // Behind a proxy these belong to the network. Only administrators change them; for everyone else they are
-        // dropped here, whatever the client sent
-        const locked = !user.isAdmin && (server.proxyIds?.length ?? 0) + (server.network?.links?.length ?? 0) > 0;
-        if (locked) {
+        // Ports, memory, RCON, the network and the container belong to the host. Only administrators change them; for
+        // everyone else they are dropped here, whatever the client sent
+        const previousEnv = ((config.itzgEnv ?? {}) as Record<string, unknown>);
+        const previousProperties = ((config.serverProperties ?? {}) as Record<string, string>);
+        if (!user.isAdmin) {
             if (body.values && typeof body.values === 'object') {
-                body.values = { ...body.values };
-                for (const key of PROXY_LOCKED_ENV) {
-                    if (key in body.values) { delete body.values[key]; rejected[key] = 'Managed by the proxy network'; }
-                }
+                const result = dropLocked(body.values as Record<string, unknown>, lockedEnvFor(user));
+                body.values = result.values;
+                for (const key of result.dropped) rejected[key] = 'Managed by the administrators';
             }
             if (body.serverProperties && typeof body.serverProperties === 'object') {
-                body.serverProperties = { ...body.serverProperties };
-                for (const key of PROXY_LOCKED_PROPERTIES) {
-                    if (key in body.serverProperties) { delete body.serverProperties[key]; rejected[key] = 'Managed by the proxy network'; }
-                }
+                const result = dropLocked(body.serverProperties as Record<string, unknown>, lockedPropertiesFor(user));
+                body.serverProperties = result.values;
+                for (const key of result.dropped) rejected[key] = 'Managed by the administrators';
             }
         }
 
@@ -114,6 +122,13 @@ export async function PATCH(request: NextRequest) {
             const { form, overrides } = splitOptionValues(sanitized.values);
             Object.assign(config, form);
             config.itzgEnv = overrides;
+            if (!user.isAdmin) {
+                for (const key of lockedEnvFor(user)) {
+                    if (key in previousEnv) (config.itzgEnv as Record<string, unknown>)[key] = previousEnv[key];
+                }
+            } else if ('MEMORY' in (body.values as Record<string, unknown>)) {
+                config.memoryMode = 'manual';
+            }
         }
 
         if (body.serverProperties !== undefined) {
@@ -128,6 +143,11 @@ export async function PATCH(request: NextRequest) {
                 const text = String(value);
                 if (text.length > 8192 || text.includes('\0')) continue;
                 properties[key] = text;
+            }
+            if (!user.isAdmin) {
+                for (const key of lockedPropertiesFor(user)) {
+                    if (key in previousProperties) properties[key] = previousProperties[key];
+                }
             }
             config.serverProperties = properties;
         }
