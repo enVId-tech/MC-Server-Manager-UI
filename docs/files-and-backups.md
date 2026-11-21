@@ -13,7 +13,9 @@ The **Files** tab shows what is really in the server's folder, with breadcrumb n
 
 ## Backups
 
-**Backup** on the dashboard or server page downloads the server as a zip. Proxy data (forwarding secrets, `velocity.toml`, Geyser and Floodgate keys and similar files) is left out on purpose, so a backup can be shared safely.
+Servers are also backed up automatically on a schedule; see [Automatic backups](/docs/backups).
+
+**Backup** on the dashboard or server page downloads the server as a zip. Proxy data (forwarding secrets, `velocity.toml`, Geyser and Floodgate keys and similar files) is left out on purpose, and the secrets of this installation are blanked wherever they appear in text files, so a backup can be shared safely.
 
 Before a world import the previous world is also moved to `backups/before-world-import-<time>` inside the server folder. See [Worlds](/docs/worlds).
 

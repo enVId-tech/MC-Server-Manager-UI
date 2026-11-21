@@ -18,10 +18,14 @@ Everything that belongs to the host is administrator territory, and every route 
 | Forwarding secrets, `velocity.toml`, Geyser and Floodgate keys | They would let someone join around the proxy. Not readable, not downloadable, not in backups. |
 | Proxies and the proxy network | Admin only to see, create or change. |
 | Managed proxy mods and config | Cannot be removed or edited. |
-| Folder naming, command limits, platform settings | Admin only. |
+| Folder naming, command limits, backup rules, platform settings | Admin only. Users can download backups of their own servers, nothing else about them. |
 | Other users' servers | A user only sees servers they own. |
 
 Uploads and direct file editing are off by default per server and switched on by the owner (administrators always can).
+
+## Backups and secrets
+
+Downloaded and automatic backups leave out every proxy secret and key, switch proxy-related settings back to normal and blank the real forwarding secrets and the RCON password in every text file. See [Automatic backups](/docs/backups).
 
 ## Input hardening
 

@@ -27,6 +27,7 @@ export const DOC_SECTIONS: DocSection[] = [
             { slug: 'joining', title: 'Joining a server', summary: 'Java, Bedrock and Education Edition addresses.' },
             { slug: 'console', title: 'Console and commands', summary: 'Live output, sending commands, auto refresh and RCON.' },
             { slug: 'files-and-backups', title: 'Files and backups', summary: 'Browse, edit, upload and download server files.' },
+            { slug: 'backups', title: 'Automatic backups', summary: 'Scheduled backups, rules per server and downloads, without proxy secrets.' },
             { slug: 'plugins-and-mods', title: 'Plugins and mods', summary: 'Install from links, upload jars and keep them updated.' },
             { slug: 'worlds', title: 'Worlds', summary: 'Upload a world and what version changes are safe.' },
             { slug: 'server-settings', title: 'Server settings', summary: 'server.properties and container options, and what is locked.' },

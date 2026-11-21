@@ -24,6 +24,10 @@ Yes when the proxy runs Geyser (Bedrock) or EduGeyser (Education Edition). See [
 
 Administrators can import existing servers and proxies without changing their files. See [Existing servers](/docs/existing-servers).
 
+## Are my servers backed up?
+
+Yes, automatically. The schedule is set by an administrator, and you can download any backup in the **Backups** tab of your server. See [Automatic backups](/docs/backups).
+
 ## Is my world safe when I change versions?
 
 Upgrading works; downgrading and moving across 1.17 or 26.1 do not. Always back up first. See [Worlds](/docs/worlds).

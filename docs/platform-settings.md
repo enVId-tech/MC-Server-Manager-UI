@@ -26,6 +26,10 @@ One setting for the whole installation, changeable only by administrators: **Uni
 
 When on, users cannot run `server`, `send`, `sendall`, `transfer`, `hub` or `lobby` from the console, also not behind `execute ... run`. Administrators are exempt. See [Console and commands](/docs/console#commands-that-switch-servers).
 
+## Automatic backups
+
+**Back up servers automatically**, **Hours between backups** and **Automatic backups kept** are the default for every server. A server can get its own rule in its Backups tab. See [Automatic backups](/docs/backups).
+
 ## Failed starts
 
 A server that fails to start this many times in a row is stopped for good and shows why on its dashboard (default 5).
@@ -43,5 +47,5 @@ These run inside the app (turn them all off with `BACKGROUND_JOBS=false`):
 | --- | --- |
 | Every minute | Stops servers that keep failing to start; finishes pending proxy setups for new servers. |
 | Every hour | Updates images inside the update window. |
-| Every 10 minutes | Finds existing servers and proxies not yet in the dashboard. |
+| Every 10 minutes | Finds existing servers and proxies not yet in the dashboard; makes the automatic backups that are due. |
 | Every six hours | Checks plugin and mod updates. |
