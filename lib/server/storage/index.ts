@@ -37,7 +37,7 @@ function createStorage(): ServerStorage {
             throw new Error('STORAGE_BACKEND=local needs LOCAL_STORAGE_PATH, the absolute folder that holds the server files.');
         }
         console.log(`✅ Server files are stored locally in ${rootPath}`);
-        return new LocalStorage(rootPath, { owner: parseOwner(process.env.LOCAL_STORAGE_OWNER), extraRoots: getExtraStorageRoots() });
+        return new LocalStorage(rootPath, { owner: parseOwner(process.env.LOCAL_STORAGE_OWNER?.trim() || (process.env.CONTAINER_UID?.trim() ? `${process.env.CONTAINER_UID.trim()}:${(process.env.CONTAINER_GID ?? process.env.CONTAINER_UID).trim()}` : undefined)), extraRoots: getExtraStorageRoots() });
     }
 
     return getWebDavService();

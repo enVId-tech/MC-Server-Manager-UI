@@ -518,8 +518,9 @@ export class MinecraftServer {
      * CONTAINER_DNS_SEARCH=none removes the search domains Docker copies from the host.
      */
     /**
-     * The user the Minecraft container runs as. It has to be able to write the server folder, so set
-     * CONTAINER_UID / CONTAINER_GID to the owner of your storage (for example 3000) when it is not 1000.
+     * The user the Minecraft server runs as inside the container (UID and GID of the itzg image, which also takes
+     * ownership of /data for it). Set CONTAINER_UID / CONTAINER_GID to a user that exists on your host (for example
+     * 3000) when files should belong to somebody other than 1000.
      */
     private getContainerUser(): { uid: string; gid: string } {
         const numeric = (value: string | undefined, fallback: string) => (value && /^\d+$/.test(value.trim()) ? value.trim() : fallback);
@@ -589,7 +590,12 @@ export class MinecraftServer {
                     restart: 'unless-stopped',
                     stdin_open: true,
                     tty: true,
-                    user: `${this.getContainerUser().uid}:${this.getContainerUser().gid}`, // Explicitly set the user and group
+                    // The image starts as root, hands /data to UID:GID and then drops to that user, so a folder that
+                    // Docker or another user created (owned by root) still works. CONTAINER_USER_MODE=direct starts the
+                    // container as that user right away instead, which needs the folder to be writable for it already
+                    ...(process.env.CONTAINER_USER_MODE?.trim().toLowerCase() === 'direct'
+                        ? { user: `${this.getContainerUser().uid}:${this.getContainerUser().gid}` }
+                        : {}),
                     networks: [
                         'minecraft-network',
                         ...proxyNetworkNames

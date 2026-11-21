@@ -202,6 +202,21 @@ LOCAL_STORAGE_PATH=/data/minecraft
 - Set `LOCAL_STORAGE_OWNER=1000:1000` (the user of the itzg images) to have created files owned by the container user. This needs the app to run as root.
 - `npm run test:local-storage` runs the safety checks for this backend.
 
+## 🔐 Folder permissions
+
+Minecraft containers start as root, hand their `/data` folder to `CONTAINER_UID:CONTAINER_GID` and then drop to that user, so a server folder that was created by Docker (owned by root) still works. If you see `Unable to write eula to /data. Please make sure attached directory is writable by uid=1000`, the container was started directly as that user (`CONTAINER_USER_MODE=direct`) or the storage does not allow `chown`. Fix the folder once:
+
+```bash
+# find the first user ID and group ID of 3000 or higher that no user on the machine has
+echo "uid: $(getent passwd | cut -d: -f3 | sort -n | awk 'BEGIN{n=3000} $1==n{n++} END{print n}')"
+echo "gid: $(getent group  | cut -d: -f3 | sort -n | awk 'BEGIN{n=3000} $1==n{n++} END{print n}')"
+
+# list every user ID that is taken from 1000 up
+getent passwd | awk -F: '$3>=1000 && $3<65534 {print $3, $1}' | sort -n
+```
+
+On TrueNAS SCALE create a user with that UID under *Credentials → Local Users* (untick *Create New Primary Group* if you made a group with that GID), then set `CONTAINER_UID` and `CONTAINER_GID` to it and give it the storage folder: `chown -R <uid>:<gid> /mnt/<pool>/<dataset>/minecraft-servers`.
+
 ## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
