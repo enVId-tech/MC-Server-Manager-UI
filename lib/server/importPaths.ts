@@ -33,6 +33,21 @@ export function getImportRoots(): ImportRoot[] {
     return roots;
 }
 
+/**
+ * The folder that holds the storage folder (for example /mnt/ssd/docker when files are stored in
+ * /mnt/ssd/docker/minecraft-servers). Proxies usually sit next to the servers, so this is searched for proxy
+ * files too. Set PROXY_SCAN_PARENT=false to switch it off. Never the filesystem root.
+ */
+export function getParentRoot(): ImportRoot | null {
+    if (process.env.PROXY_SCAN_PARENT?.trim().toLowerCase() === 'false') return null;
+    const appRoot = process.env.LOCAL_STORAGE_PATH?.trim();
+    if (!appRoot || process.env.STORAGE_BACKEND?.trim().toLowerCase() === 'webdav') return null;
+    const appParent = path.posix.dirname(clean(appRoot));
+    const hostParent = path.posix.dirname(clean(process.env.LOCAL_STORAGE_HOST_PATH?.trim() || appRoot));
+    if (appParent === '/' || appParent === '.') return null;
+    return { appPath: appParent, hostPath: hostParent };
+}
+
 function startsWithPath(parent: string, candidate: string): boolean {
     return candidate === parent || candidate.startsWith(parent === '/' ? '/' : parent + '/');
 }
@@ -63,6 +78,11 @@ export function hostPathToAppPath(hostPath: string): string | null {
         return clean('/' + host.slice(local.hostRoot.length));
     }
 
+    const parent = getParentRoot();
+    if (parent && startsWithPath(parent.hostPath, host)) {
+        return clean(parent.appPath + host.slice(parent.hostPath.length));
+    }
+
     return null;
 }
 
@@ -86,5 +106,6 @@ export function appPathToHostPath(appPath: string): string {
 
 /** Real folders this app may reach in addition to the storage folder (local storage only). */
 export function getExtraStorageRoots(): string[] {
-    return getImportRoots().map(root => root.appPath);
+    const parent = getParentRoot();
+    return [...getImportRoots().map(root => root.appPath), ...(parent ? [parent.appPath] : [])];
 }

@@ -22,7 +22,8 @@
     "test:server-record": "tsx scripts/test-server-record.ts",
     "test:import-paths": "tsx scripts/test-import-paths.ts",
     "test:network": "tsx scripts/test-network.ts",
-    "test:access": "tsx scripts/test-access.ts"
+    "test:access": "tsx scripts/test-access.ts",
+    "test:proxy-discovery": "tsx scripts/test-proxy-discovery.ts"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",

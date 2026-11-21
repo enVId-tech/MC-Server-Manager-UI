@@ -8,12 +8,11 @@ import serverStorage from '@/lib/server/storage';
 import { getProxyAbsolutePath, getDefinedProxies } from '@/lib/config/proxies';
 import { getServerBasePath } from '@/lib/server/serverPaths';
 import { buildServerHostname, getServerDomain } from '@/lib/config/domain';
-import { discoverVelocityInstances } from '@/lib/server/velocityDiscovery';
-import { hostPathToAppPath } from '@/lib/server/importPaths';
+import { scanForProxies, type ProxyFinding } from './discovery';
 import { installProxyPlugins, type ProxyPluginName } from './backend';
 import { parseBungeeYaml, parseVelocityToml, setBungeeForwarding, setVelocityForwarding, disableVelocityFallback } from './parse';
 import { editProxyConfig, inspectProxy, type ProxyRef } from './proxyFiles';
-import { bungeeYamlTemplate, defaultProxyImage, proxyCompose, velocityTomlTemplate, BUNGEE_CONTAINER_PORT } from './proxyTemplates';
+import { bungeeYamlTemplate, defaultProxyImage, proxyCompose, velocityTomlTemplate } from './proxyTemplates';
 import { getEnvironmentId, getNetworkSettings, listProxies, reloadProxy, syncAllServers } from './service';
 import { setTomlValue } from './toml';
 import { forwardingModesFor, isForwardingMode, type ForwardingMode, type ProxyKind } from './versions';
@@ -309,38 +308,7 @@ interface Candidate {
     containerName?: string;
     networkName?: string;
     port?: number;
-}
-
-async function containerCandidates(environmentId: number): Promise<Candidate[]> {
-    const found: Candidate[] = [];
-    const containers = await portainer.getContainers(environmentId);
-
-    for (const container of containers) {
-        const name = container.Names[0]?.replace(/^\//, '') ?? container.Id;
-        const kind: ProxyKind | null = /waterfall/i.test(container.Image) || /waterfall/i.test(name) ? 'waterfall'
-            : /bungee/i.test(container.Image) || /bungee/i.test(name) ? 'bungeecord'
-                : null;
-        if (!kind) continue;
-
-        const networks = Object.keys(container.NetworkSettings?.Networks ?? {}).filter(network => network !== 'bridge');
-        const published = (container.Ports ?? []).find(port => port.PublicPort && port.Type === 'tcp' && port.PrivatePort === BUNGEE_CONTAINER_PORT)
-            ?? (container.Ports ?? []).find(port => port.PublicPort && port.Type === 'tcp');
-
-        for (const mount of container.Mounts ?? []) {
-            if (!mount.Source) continue;
-            const appPath = hostPathToAppPath(mount.Destination.endsWith('config.yml') ? mount.Source : `${mount.Source.replace(/\/+$/, '')}/config.yml`);
-            if (!appPath) continue;
-            try {
-                if (await serverStorage.exists(appPath)) {
-                    found.push({ kind, configPath: appPath, containerName: name, networkName: networks[0], port: published?.PublicPort });
-                    break;
-                }
-            } catch {
-                // not reachable from here
-            }
-        }
-    }
-    return found;
+    evidence?: string[];
 }
 
 async function freeProxyPort(preferred: number | undefined): Promise<number> {
@@ -355,8 +323,8 @@ async function freeProxyPort(preferred: number | undefined): Promise<number> {
  * Makes proxies that already exist (found in Docker, in the storage and import folders, or in the old
  * proxies.yaml) manageable like the ones created here. Does nothing for proxies that are known already.
  */
-export function adoptExistingProxies(owner?: string): Promise<string[]> {
-    if (adopting) return adopting;
+export function adoptExistingProxies(owner?: string, extra: ProxyFinding[] = []): Promise<string[]> {
+    if (adopting && extra.length === 0) return adopting;
     adopting = (async () => {
         const details: string[] = [];
         const known = await Server.find({ kind: 'proxy' }, 'proxy containerName').lean<Array<{ proxy?: ProxySettings; containerName?: string }>>();
@@ -368,13 +336,9 @@ export function adoptExistingProxies(owner?: string): Promise<string[]> {
 
         const candidates: Candidate[] = [];
         try {
-            for (const instance of await discoverVelocityInstances({ environmentId, force: true })) {
-                candidates.push({ kind: 'velocity', configPath: instance.configPath, containerName: instance.containerName });
-            }
+            candidates.push(...await scanForProxies(environmentId, { force: extra.length > 0 }));
         } catch { /* nothing found */ }
-        if (environmentId !== undefined) {
-            try { candidates.push(...await containerCandidates(environmentId)); } catch { /* Docker not reachable */ }
-        }
+        candidates.push(...extra);
         // proxies.yaml of earlier versions
         for (const definition of getDefinedProxies()) {
             if (!definition.configPath) continue;
@@ -423,7 +387,7 @@ export function adoptExistingProxies(owner?: string): Promise<string[]> {
                     importedFrom: { source: candidate.containerName ? 'docker' : 'folder' },
                     serverConfig: { name, serverType: candidate.kind, version: 'LATEST', motd: summary.motd },
                 });
-                details.push(`Added the existing ${candidate.kind} proxy ${name}`);
+                details.push(`Added the existing ${candidate.kind} proxy ${name}${candidate.evidence?.length ? ` (found by: ${candidate.evidence.join(', ')})` : ''}`);
             } catch (error) {
                 details.push(`Could not add ${candidate.configPath}: ${error instanceof Error ? error.message : 'unknown error'}`);
             }

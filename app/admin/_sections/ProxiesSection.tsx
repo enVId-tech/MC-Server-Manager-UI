@@ -38,6 +38,12 @@ interface Proxy {
     plugins: Partial<Record<'viaversion' | 'viabackwards' | 'viarewind' | 'geyser' | 'floodgate' | 'edugeyser' | 'bungeeguard', boolean>>;
 }
 
+interface ScanResult {
+    searched: string[];
+    containersChecked: boolean;
+    findings: Array<{ kind: Kind; configPath: string; containerName?: string; evidence: string[]; added: boolean }>;
+}
+
 interface NetworkData {
     proxies: Proxy[];
     settings: { strategy: Strategy; noFallback: boolean; mirrorViaPlugins: boolean };
@@ -104,6 +110,8 @@ export default function ProxiesSection() {
     const [form, setForm] = useState<CreateForm>(EMPTY_FORM);
     const [open, setOpen] = useState<string | null>(null);
     const [draft, setDraft] = useState<Record<string, string | boolean>>({});
+    const [scan, setScan] = useState<ScanResult | null>(null);
+    const [scanPath, setScanPath] = useState('');
 
     const data = network.data;
     const proxies = useMemo(() => data?.proxies ?? [], [data]);
@@ -166,6 +174,21 @@ export default function ProxiesSection() {
         report(response.ok, 'Network', body.message, body.details);
         await network.reload();
     };
+
+    const runScan = async () => {
+        setBusy('scan');
+        const response = await fetch('/api/admin/network/scan');
+        const body = await response.json().catch(() => ({}));
+        setBusy(null);
+        if (response.ok) setScan(body);
+        else showNotification({ type: 'error', title: 'Scan', message: body.message ?? 'The scan failed.' });
+    };
+
+    const addFound = (path?: string) => run('adopt', 'Proxies', async () => {
+        const result = await adminSend<{ details?: string[] }>('/api/admin/network/scan', 'POST', path ? { path } : {});
+        if (result.ok) { setScanPath(''); void runScan(); }
+        return { ...result, body: { ...result.body, message: result.body.message ?? (result.body.details?.length ? result.body.details.join('\n') : 'Nothing new was found.') } };
+    });
 
     const rebalance = () => run('sync', 'Sync', () => adminSend('/api/admin/network', 'POST', { action: 'sync' }));
 
@@ -243,6 +266,37 @@ export default function ProxiesSection() {
             {data && data.adopted && data.adopted.length > 0 && (
                 <div className={`${styles.notice} ${styles.success}`}>Found and added: {data.adopted.join(', ')}</div>
             )}
+
+            <section className={styles.card}>
+                <div className={styles.cardHeader}>
+                    <div>
+                        <h2>Find existing proxies</h2>
+                        <p className={styles.hint}>Searches the storage folder, the import folders, the folder above the storage folder and every container for Velocity, BungeeCord and Waterfall. Anything found is added so it can be managed here.</p>
+                    </div>
+                    <div className={styles.headerActions}>
+                        <button className={styles.btn} disabled={busy !== null} onClick={() => void runScan()}>{busy === 'scan' ? 'Searching…' : 'Search now'}</button>
+                        {scan && scan.findings.some(finding => !finding.added) && <button className={`${styles.btn} ${styles.primary}`} disabled={busy !== null} onClick={() => void addFound()}>Add what was found</button>}
+                    </div>
+                </div>
+                {scan && (
+                    <>
+                        <p className={styles.hint}>Searched: {scan.searched.join(', ')}{scan.containersChecked ? ', all containers' : ', containers could not be checked (Portainer unreachable)'}.</p>
+                        {scan.findings.length === 0 && <div className={styles.mutedText}>Nothing that looks like a proxy was found. Enter the folder below if it is somewhere this app can read.</div>}
+                        <ul className={styles.list}>
+                            {scan.findings.map(finding => (
+                                <li key={finding.configPath}>
+                                    <span><strong>{KIND_LABEL[finding.kind]}</strong> <span className={styles.mono}>{finding.configPath}</span>{finding.containerName ? ` · ${finding.containerName}` : ''}</span>
+                                    <span className={styles.mutedText}>{finding.added ? 'Added. ' : 'Not added yet. '}Found by: {finding.evidence.join(', ')}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </>
+                )}
+                <div className={styles.headerActions} style={{ marginTop: '0.75rem' }}>
+                    <input className={styles.input} style={{ flex: 1 }} value={scanPath} placeholder="/path/to/the/proxy/folder (as this app sees it)" onChange={event => setScanPath(event.target.value)} aria-label="Folder of an existing proxy" />
+                    <button className={styles.btn} disabled={busy !== null || !scanPath.trim()} onClick={() => void addFound(scanPath.trim())}>Add this folder</button>
+                </div>
+            </section>
 
             {data && proxies.length === 0 && !creating && (
                 <div className={`${styles.notice} ${styles.warning}`}>
