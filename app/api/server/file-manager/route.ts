@@ -1,241 +1,62 @@
-import { ownerFilter } from '@/lib/server/access';
 import { NextRequest, NextResponse } from "next/server";
-import { IUser } from "@/lib/objects/User";
-import Server from "@/lib/objects/Server";
-import dbConnect from "@/lib/db/dbConnect";
 import serverStorage from "@/lib/server/storage";
-import verificationService from "@/lib/server/verify";
 import { isProtectedPath } from "@/lib/config/proxies";
-import { getServerFolderPath } from '@/lib/server/serverPaths';
+import { authorizeFile, isDenied } from '@/lib/server/fileAccess';
 
 export async function POST(request: NextRequest) {
-    await dbConnect();
-
     try {
-        // Check authentication
-        const user: IUser | null = await verificationService.getUserFromToken(request);
-
-        if (!user || !user.isActive) {
-            return NextResponse.json({ message: 'User not found or inactive.' }, { status: 403 });
-        }
-
-        // Get request body
         const { serverSlug, path, name, type, content } = await request.json();
-
         if (!serverSlug || !path || !name || !type) {
-            return NextResponse.json({ 
-                message: 'Server slug, path, name, and type are required.' 
-            }, { status: 400 });
+            return NextResponse.json({ message: 'Server slug, path, name, and type are required.' }, { status: 400 });
         }
-
         if (type !== 'file' && type !== 'folder') {
-            return NextResponse.json({ 
-                message: 'Type must be either "file" or "folder".' 
-            }, { status: 400 });
+            return NextResponse.json({ message: 'Type must be either "file" or "folder".' }, { status: 400 });
+        }
+        if (typeof name !== 'string' || /[\\/\0]/.test(name) || name === '.' || name === '..') {
+            return NextResponse.json({ message: 'That name is not allowed.' }, { status: 400 });
         }
 
-        // Extract the unique ID from the server slug
-        // Handle both formats: just uniqueId or subdomain.domain format
-        let uniqueId = serverSlug;
-        if (serverSlug.includes('.')) {
-            // Extract the subdomain part (e.g., "main1" from "main1.etran.dev")
-            uniqueId = serverSlug.split('.')[0];
+        const target = `${String(path).replace(/\/+$/, '')}/${name}`;
+        const access = await authorizeFile(request, serverSlug, 'edit', target);
+        if (isDenied(access)) return access.response;
+
+        if (await serverStorage.exists(access.full)) {
+            return NextResponse.json({ message: `${type === 'file' ? 'File' : 'Folder'} already exists at this location.` }, { status: 409 });
         }
+        if (type === 'folder') await serverStorage.createDirectory(access.full);
+        else await serverStorage.uploadFile(access.full, typeof content === 'string' ? content : '');
 
-        // Find the server in the database using multiple possible matches
-        const server = await Server.findOne({ 
-            ...ownerFilter(user),
-            $or: [
-                { uniqueId: uniqueId },
-                { uniqueId: serverSlug },
-                { subdomainName: serverSlug },
-                { name: serverSlug },
-                { serverName: serverSlug },
-                { subdomainName: uniqueId },
-                { serverName: uniqueId }
-            ]
-        });
-
-        if (!server) {
-            return NextResponse.json({ message: 'Server not found.' }, { status: 404 });
-        }
-
-        // Get the WebDAV server base path from environment
-        const serverPath = getServerFolderPath(server, server.email ?? user.email);
-
-
-        try {
-            // Combine server path with requested path and name
-            const fullPath = `${serverPath}${path}/${name}`;
-            console.log(`Creating ${type} at: ${fullPath}`);
-
-            // Check if item already exists
-            if (await serverStorage.exists(fullPath)) {
-                return NextResponse.json({ 
-                    message: `${type === 'file' ? 'File' : 'Folder'} already exists at this location.` 
-                }, { status: 409 });
-            }
-
-            if (type === 'folder') {
-                // Create directory
-                await serverStorage.createDirectory(fullPath);
-            } else {
-                // Create file with content (empty if not provided)
-                const fileContent = content || '';
-                await serverStorage.uploadFile(fullPath, fileContent);
-            }
-
-            return NextResponse.json({
-                message: `${type === 'file' ? 'File' : 'Folder'} created successfully`,
-                path: `${path}/${name}`,
-                name,
-                type,
-                serverSlug,
-                fullPath
-            });
-
-        } catch (webdavError) {
-            console.error('WebDAV error:', webdavError);
-            return NextResponse.json({
-                message: `Failed to create ${type}.`,
-                error: (webdavError as Error).message,
-                path: path
-            }, { status: 500 });
-        }
-
+        return NextResponse.json({ message: `${type === 'file' ? 'File' : 'Folder'} created successfully`, path: access.rel, name, type });
     } catch (error) {
         console.error('File creation API error:', error);
-        return NextResponse.json({
-            message: 'An error occurred while creating the item.',
-            error: (error as Error).message
-        }, { status: 500 });
+        return NextResponse.json({ message: 'Failed to create the item.' }, { status: 500 });
     }
 }
 
 export async function DELETE(request: NextRequest) {
-    await dbConnect();
-
     try {
-        // Check authentication
-        const user: IUser | null = await verificationService.getUserFromToken(request);
-
-        if (!user || !user.isActive) {
-            return NextResponse.json({ message: 'User not found or inactive.' }, { status: 403 });
-        }
-
-        // Get request body
         const { serverSlug, path, type } = await request.json();
-
-        if (!serverSlug || !path) {
-            return NextResponse.json({ 
-                message: 'Server slug and path are required.' 
-            }, { status: 400 });
+        if (!serverSlug || !path) return NextResponse.json({ message: 'Server slug and path are required.' }, { status: 400 });
+        if (type !== 'file' && type !== 'folder') {
+            return NextResponse.json({ message: 'Invalid type specified. Use "file" or "folder".' }, { status: 400 });
         }
-
-        // Check if the path is protected
         if (isProtectedPath(path)) {
-            return NextResponse.json({ 
-                message: 'This file or folder is protected and cannot be deleted.' 
-            }, { status: 403 });
+            return NextResponse.json({ message: 'This file or folder is protected and cannot be deleted.' }, { status: 403 });
         }
 
-        // Extract the unique ID from the server slug
-        // Handle both formats: just uniqueId or subdomain.domain format
-        let uniqueId = serverSlug;
-        if (serverSlug.includes('.')) {
-            // Extract the subdomain part (e.g., "main1" from "main1.etran.dev")
-            uniqueId = serverSlug.split('.')[0];
+        const access = await authorizeFile(request, serverSlug, 'edit', path);
+        if (isDenied(access)) return access.response;
+        if (access.rel === '/') return NextResponse.json({ message: 'The server folder itself cannot be deleted here.' }, { status: 400 });
+
+        if (!(await serverStorage.exists(access.full))) {
+            return NextResponse.json({ message: 'Item not found at this location.' }, { status: 404 });
         }
+        if (type === 'file') await serverStorage.deleteFile(access.full);
+        else await serverStorage.deleteDirectoryRecursively(access.full);
 
-        // Find the server in the database using multiple possible matches
-        const server = await Server.findOne({ 
-            ...ownerFilter(user),
-            $or: [
-                { uniqueId: uniqueId },
-                { uniqueId: serverSlug },
-                { subdomainName: serverSlug },
-                { name: serverSlug },
-                { serverName: serverSlug },
-                { subdomainName: uniqueId },
-                { serverName: uniqueId }
-            ]
-        });
-
-        if (!server) {
-            return NextResponse.json({ message: 'Server not found.' }, { status: 404 });
-        }
-
-        // Get the WebDAV server base path from environment
-        const serverPath = getServerFolderPath(server, server.email ?? user.email);
-
-
-        try {
-            // Combine server path with requested path
-            const fullPath = `${serverPath}${path}`;
-            console.log(`Deleting ${type || 'item'} at: ${fullPath}`);
-
-            // Check if item exists
-            if (!(await serverStorage.exists(fullPath))) {
-                return NextResponse.json({ 
-                    message: 'Item not found at this location.' 
-                }, { status: 404 });
-            }
-
-            // Create backup before deletion for files
-            if (type === 'file') {
-                try {
-                const backupPath = `${fullPath}.deleted.${Date.now()}`;
-
-                const existingContent = await serverStorage.getFileContents(fullPath);
-                await serverStorage.uploadFile(backupPath, existingContent);
-                console.log(`Backup created at: ${backupPath}`);
-
-                // Delete the file
-                console.log(`Deleting file: ${fullPath}`);
-                await serverStorage.deleteFile(fullPath);
-
-                // Delete the backup file if it exists
-                const backupExists = await serverStorage.exists(backupPath)
-                if (backupExists) {
-                    await serverStorage.deleteFile(backupPath);
-                    console.log(`Backup file deleted: ${backupPath}`);
-                }
-                } catch (backupError) {
-                    console.error('Failed to create backup before deletion:', backupError);
-                    return NextResponse.json({
-                        message: 'Failed to create backup before deletion.',
-                        error: (backupError as Error).message,
-                    });
-                }
-            } else if (type === 'folder') {
-                await serverStorage.deleteDirectory(fullPath);
-            } else {
-                return NextResponse.json({
-                    message: 'Invalid type specified. Use "file" or "folder".'
-                }, { status: 400 });
-            }
-
-            return NextResponse.json({
-                message: `${type === 'file' ? 'File' : 'Folder'} deleted successfully`,
-                path,
-                serverSlug,
-                fullPath
-            });
-
-        } catch (webdavError) {
-            console.error('WebDAV error:', webdavError);
-            return NextResponse.json({
-                message: `Failed to delete ${type || 'item'}.`,
-                error: (webdavError as Error).message,
-                path: path
-            }, { status: 500 });
-        }
-
+        return NextResponse.json({ message: `${type === 'file' ? 'File' : 'Folder'} deleted successfully`, path: access.rel });
     } catch (error) {
         console.error('File deletion API error:', error);
-        return NextResponse.json({
-            message: 'An error occurred while deleting the item.',
-            error: (error as Error).message
-        }, { status: 500 });
+        return NextResponse.json({ message: 'Failed to delete the item.' }, { status: 500 });
     }
 }

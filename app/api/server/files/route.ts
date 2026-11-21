@@ -1,71 +1,28 @@
-import { ownerFilter } from '@/lib/server/access';
 import { NextRequest, NextResponse } from "next/server";
-import Server from "@/lib/objects/Server";
-import dbConnect from "@/lib/db/dbConnect";
 import serverStorage from "@/lib/server/storage";
-import { IUser } from "@/lib/objects/User";
-import verificationService from "@/lib/server/verify";
-import { getServerFolderPath } from '@/lib/server/serverPaths';
+import { authorizeFile, isDenied } from '@/lib/server/fileAccess';
+import { getFileAccess, isHiddenFromUsers } from '@/lib/server/accessPolicy';
 
 export async function GET(request: NextRequest) {
-    await dbConnect();
     try {
-        const user: IUser | null = await verificationService.getUserFromToken(request);
-
-        if (!user || !user.isActive) {
-            return NextResponse.json({ message: 'User not found or inactive.' }, { status: 403 });
-        }
-
-        // Get request body based on URL parameters
         const url = new URL(request.url);
-
-        console.log(`Received request for server files with URL: ${url.href}`);
-
-        const domainName = url.searchParams.get('domainName') || '';
         const path = url.searchParams.get('path') || '/';
+        const access = await authorizeFile(request, url.searchParams.get('domainName'), 'read', path);
+        if (isDenied(access)) return access.response;
+        const { user, server, base, rel, full } = access;
 
-        console.log(`Received request for server files with domainName: ${domainName} and path: ${path}`);
-
-        if (!domainName) {
-            return NextResponse.json({ message: 'Domain name is required.' }, { status: 400 });
-        }
-
-        console.log(`Looking for server with domainName of: ${domainName}`);
-
-        // Find the server in the database using multiple possible matches
-        const server = await Server.findOne({
-            ...ownerFilter(user),
-            $or: [
-                { uniqueId: domainName },
-                { subdomainName: domainName },
-                { serverName: domainName }
-            ]
-        });
-
-        if (!server) {
-            console.log(`Server not found for user ${user.email} with identifier: ${domainName}`);
-            return NextResponse.json({
-                message: 'Server not found.',
-            }, { status: 404 });
-        }
-
-        // Get the WebDAV server base path from environment
-        const serverPath = getServerFolderPath(server, server.email ?? user.email);
-
-
+        let contents;
         try {
-            // Combine server path with requested path
-            const fullPath = path === '/' ? serverPath : `${serverPath}${path}`;
-            console.log(`Fetching directory contents for path: ${fullPath}`);
+            contents = await serverStorage.getDirectoryContents(full);
+        } catch (error) {
+            // A folder that is not there is reported as it is, nothing is made up in its place
+            const status = (error as { status?: number }).status === 404 ? 404 : 500;
+            return NextResponse.json({ message: status === 404 ? 'This folder does not exist.' : 'Failed to fetch server files.', path }, { status });
+        }
 
-            const contents = await serverStorage.getDirectoryContents(fullPath);
-
-            // Transform the storage response to match our interface
-            const files = contents.map((item) => {
-                const itemPath = item.filename;
-                // Remove the server path prefix to get relative path
-                const relativePath = itemPath.replace(serverPath, '') || '/';
-
+        const files = contents
+            .map(item => {
+                const relativePath = item.filename.startsWith(base) ? item.filename.slice(base.length) || '/' : item.filename;
                 return {
                     name: item.basename,
                     type: item.type === 'directory' ? 'folder' as const : 'file' as const,
@@ -74,40 +31,27 @@ export async function GET(request: NextRequest) {
                     lastModified: item.lastmod ? new Date(item.lastmod) : new Date(),
                     mimeType: item.mime || 'application/octet-stream',
                     isReadable: isReadableFile(item.basename),
-                    isEditable: isEditableFile(item.basename)
+                    isEditable: isEditableFile(item.basename),
                 };
-            });
+            })
+            .filter(item => user.isAdmin || !isHiddenFromUsers(item.path));
 
-            // Sort files: directories first, then files alphabetically
-            files.sort((a, b) => {
-                if (a.type === 'folder' && b.type === 'file') return -1;
-                if (a.type === 'file' && b.type === 'folder') return 1;
-                return a.name.localeCompare(b.name);
-            });
+        files.sort((a, b) => {
+            if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+            return a.name.localeCompare(b.name);
+        });
 
-            return NextResponse.json({
-                files,
-                currentPath: path,
-                uniqueId: server.uniqueId,
-                totalFiles: files.length,
-                totalFolders: files.filter(f => f.type === 'folder').length
-            });
-
-        } catch (webdavError) {
-            console.error('WebDAV error:', webdavError);
-            return NextResponse.json({
-                message: 'Failed to fetch server files.',
-                error: (webdavError as Error).message,
-                path: path
-            }, { status: 500 });
-        }
-
+        return NextResponse.json({
+            files,
+            currentPath: rel,
+            uniqueId: server.uniqueId,
+            totalFiles: files.filter(f => f.type === 'file').length,
+            totalFolders: files.filter(f => f.type === 'folder').length,
+            access: user.isAdmin ? { uploads: true, editing: true, admin: true } : { ...getFileAccess(server), admin: false },
+        });
     } catch (error) {
         console.error('Server files API error:', error);
-        return NextResponse.json({
-            message: 'An error occurred while fetching server files.',
-            error: (error as Error).message
-        }, { status: 500 });
+        return NextResponse.json({ message: 'An error occurred while fetching server files.' }, { status: 500 });
     }
 }
 
