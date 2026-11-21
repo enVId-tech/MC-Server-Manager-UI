@@ -62,10 +62,15 @@ export function redactSecrets<T extends Record<string, unknown>>(values: T, secr
 
 const HIDDEN_NAMES = new Set([
     'forwarding.secret', 'velocity-secret', 'key.pem', 'floodgate-key.pem', 'paper-global.yml', 'paper.yml',
+    // Config files of the forwarding mods of modded servers, they hold the proxy secret
+    'fabricproxy-lite.toml', 'proxy-compatible-forge.toml', 'pcf-common.toml', 'neovelocity-common.toml', 'neoforwarding-server.toml',
 ]);
 
 /** Folders and file name prefixes that expose the proxy, its keys or the Bedrock bridge */
-const HIDDEN_PREFIXES = ['geyser', 'floodgate', 'edugeyser', 'bungeeguard', 'viaproxy'];
+const HIDDEN_PREFIXES = [
+    'geyser', 'floodgate', 'edugeyser', 'bungeeguard', 'viaproxy',
+    'fabricproxy', 'proxy-compatible-forge', 'proxycompatibleforge', 'neovelocity', 'neoforwarding', 'crossstitch',
+];
 
 /**
  * True for a path inside a server folder that ordinary users must not see: forwarding secrets, the Paper file that

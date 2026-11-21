@@ -50,8 +50,23 @@ export async function authorizeFile(
         return { response: NextResponse.json({ message: FILE_ACCESS_DENIED[action as 'upload' | 'edit'], code: 'files-locked' }, { status: 403 }) };
     }
 
+    // Files the manager installed (Fabric API, say) stay: they cannot be changed, replaced or removed with their folder
+    if (!user.isAdmin && action !== 'read' && touchesManagedFile(server.managedFiles, rel)) {
+        return { response: NextResponse.json({ message: 'This file is managed by the server and cannot be changed or removed.', code: 'managed-file' }, { status: 403 }) };
+    }
+
     const base = getServerFolderPath(server, server.email ?? user.email);
     return { user, server, base, rel, full: rel === '/' ? base : `${base}${rel}` };
+}
+
+/** True when the path is a managed file, or a folder that contains one */
+export function touchesManagedFile(managed: Array<{ path: string }> | undefined, rel: string): boolean {
+    if (!managed || managed.length === 0) return false;
+    const target = rel.replace(/^\/+|\/+$/g, '').toLowerCase();
+    return managed.some(entry => {
+        const path = entry.path.replace(/^\/+/, '').toLowerCase();
+        return target === '' || path === target || path.startsWith(`${target}/`);
+    });
 }
 
 export function isDenied(result: FileContext | { response: NextResponse }): result is { response: NextResponse } {
