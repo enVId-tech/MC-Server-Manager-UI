@@ -1,0 +1,184 @@
+/**
+ * Checks the proxy network rules: which proxy a server joins, the Velocity and BungeeCord file editing and what
+ * is read from proxy files. No database or Docker is needed.
+ *
+ * Run with: npm run test:network
+ */
+import assert from 'node:assert/strict';
+import {
+    chooseProxies, forwardingSupportsVersion, versionAllowance, type RoutableProxy,
+} from '../lib/server/network/versions';
+import { getTomlTable, getTomlValue, removeTomlKey, setTomlValue, tomlArray } from '../lib/server/network/toml';
+import {
+    addServerToBungeeYaml, addServerToVelocityToml, detectPlugins, disableVelocityFallback, parseBungeeYaml,
+    parseEducationJoinOutput, parseGeyserConfig, parseVelocityToml, removeServerFromBungeeYaml,
+    removeServerFromVelocityToml, setVelocityForwarding,
+} from '../lib/server/network/parse';
+
+const proxy = (id: string, forwarding: RoutableProxy['forwarding'], extra: Partial<RoutableProxy> = {}): RoutableProxy =>
+    ({ id, enabled: true, forwarding, ...extra });
+
+// ---- version rules
+assert.equal(forwardingSupportsVersion('modern', '1.12.2'), false);
+assert.equal(forwardingSupportsVersion('modern', '1.13'), true);
+assert.equal(forwardingSupportsVersion('modern', 'LATEST'), true);
+assert.equal(forwardingSupportsVersion('modern', '26.1'), true);
+assert.equal(forwardingSupportsVersion('legacy', '1.8.8'), true);
+assert.equal(forwardingSupportsVersion('bungeeguard', '1.7.10'), true);
+
+// only a modern proxy: nothing older than 1.13
+const onlyModern = [proxy('v1', 'modern')];
+assert.equal(versionAllowance(onlyModern, '1.12.2').allowed, false);
+assert.equal(versionAllowance(onlyModern, '1.12.2').minVersion, '1.13');
+assert.equal(versionAllowance(onlyModern, '1.20.4').allowed, true);
+// a bungeeguard or legacy proxy takes any version
+assert.equal(versionAllowance([proxy('v1', 'bungeeguard')], '1.8.8').allowed, true);
+assert.equal(versionAllowance([proxy('v1', 'legacy')], '1.8.8').minVersion, null);
+// disabled proxies do not count, no proxy at all allows everything
+assert.equal(versionAllowance([proxy('v1', 'modern', { enabled: false })], '1.8').allowed, true);
+assert.equal(versionAllowance([], '1.8').allowed, true);
+
+// mixed network: the most modern supported mode wins
+const mixed = [proxy('legacy', 'legacy'), proxy('modern', 'modern'), proxy('guard', 'bungeeguard')];
+assert.deepEqual(chooseProxies(mixed, '1.20.4').proxies.map(p => p.id), ['modern']);
+assert.equal(chooseProxies(mixed, '1.20.4').forwarding, 'modern');
+assert.deepEqual(chooseProxies(mixed, '1.12.2').proxies.map(p => p.id), ['guard']);
+assert.deepEqual(chooseProxies([proxy('legacy', 'legacy'), proxy('modern', 'modern')], '1.8.9').proxies.map(p => p.id), ['legacy']);
+assert.equal(chooseProxies([], '1.20').forwarding, null);
+assert.match(chooseProxies(onlyModern, '1.8').reason, /None of the proxies/);
+
+// load balancing between instances of the same kind
+const pair = [proxy('a', 'modern', { linkedServers: 5, priority: 1 }), proxy('b', 'modern', { linkedServers: 2, priority: 9 })];
+assert.deepEqual(chooseProxies(pair, '1.21', 'all').proxies.map(p => p.id), ['a', 'b']);
+assert.deepEqual(chooseProxies(pair, '1.21', 'balanced').proxies.map(p => p.id), ['b']);
+assert.deepEqual(chooseProxies(pair, '1.21', 'priority').proxies.map(p => p.id), ['b']);
+assert.deepEqual(chooseProxies([...pair, proxy('c', 'modern', { enabled: false, linkedServers: 0 })], '1.21', 'balanced').proxies.map(p => p.id), ['b']);
+
+// ---- TOML editing keeps what it does not know
+const VELOCITY = `# Config version. Do not change this
+config-version = "2.7"
+
+# What port should the proxy be bound to?
+bind = "0.0.0.0:25565"
+motd = "<#09add3>A Velocity Server"
+show-max-players = 500
+online-mode = true
+player-info-forwarding-mode = "NONE"
+forwarding-secret-file = "forwarding.secret"
+
+[servers]
+# Configure your servers here.
+lobby = "127.0.0.1:30066"
+factions = "127.0.0.1:30067"
+
+# In what order we should try servers when a player logs in or is kicked from a server.
+try = [
+    "lobby",
+    "factions"
+]
+
+[forced-hosts]
+"lobby.example.com" = [ "lobby" ] # comment
+
+[advanced]
+compression-threshold = 256
+`;
+
+const parsed = parseVelocityToml(VELOCITY);
+assert.equal(parsed.forwarding, 'none');
+assert.equal(parsed.secretFile, 'forwarding.secret');
+assert.deepEqual(parsed.servers, { lobby: '127.0.0.1:30066', factions: '127.0.0.1:30067' });
+assert.deepEqual(parsed.tryOrder, ['lobby', 'factions']);
+assert.deepEqual(parsed.forcedHosts, { 'lobby.example.com': ['lobby'] });
+assert.equal(parsed.maxPlayers, 500);
+
+const added = addServerToVelocityToml(VELOCITY, { name: 'survival', address: 'mc-abc:25565', hostnames: ['survival.example.com'] });
+const afterAdd = parseVelocityToml(added);
+assert.equal(afterAdd.servers.survival, 'mc-abc:25565');
+assert.deepEqual(afterAdd.forcedHosts['survival.example.com'], ['survival']);
+assert.deepEqual(afterAdd.tryOrder, ['lobby', 'factions'], 'a new server never joins the try list');
+assert.ok(added.includes('# Config version. Do not change this'), 'comments stay');
+assert.ok(added.includes('compression-threshold = 256'), 'unknown sections stay');
+assert.ok(added.includes('"lobby.example.com" = [ "lobby" ] # comment'), 'other entries stay untouched');
+
+// an older manager put the server in try: it comes out again
+const oldStyle = setTomlValue(added, 'servers', 'try', tomlArray(['lobby', 'survival']));
+assert.deepEqual(parseVelocityToml(addServerToVelocityToml(oldStyle, { name: 'survival', address: 'mc-abc:25565', hostnames: [] })).tryOrder, ['lobby']);
+
+// updating replaces the address in place, no duplicates
+const moved = addServerToVelocityToml(added, { name: 'survival', address: 'mc-abc:25566', hostnames: ['survival.example.com'] });
+assert.equal((moved.match(/^survival = /gm) ?? []).length, 1);
+assert.equal(parseVelocityToml(moved).servers.survival, 'mc-abc:25566');
+
+const removed = removeServerFromVelocityToml(moved, 'survival');
+assert.equal(parseVelocityToml(removed).servers.survival, undefined);
+assert.equal(parseVelocityToml(removed).forcedHosts['survival.example.com'], undefined);
+assert.equal(parseVelocityToml(removed).forcedHosts['lobby.example.com']?.[0], 'lobby');
+
+// no fallback: try is emptied
+assert.deepEqual(parseVelocityToml(disableVelocityFallback(VELOCITY)).tryOrder, []);
+assert.equal(disableVelocityFallback(disableVelocityFallback(VELOCITY)), disableVelocityFallback(VELOCITY));
+
+// forwarding mode
+assert.equal(parseVelocityToml(setVelocityForwarding(VELOCITY, 'modern')).forwarding, 'modern');
+assert.equal(parseVelocityToml(setVelocityForwarding(VELOCITY, 'bungeeguard')).forwarding, 'bungeeguard');
+
+// a file without any tables or without [forced-hosts] still works
+const bare = addServerToVelocityToml('bind = "0.0.0.0:25565"\n', { name: 'one', address: 'x:1', hostnames: ['one.example.com'] });
+assert.equal(parseVelocityToml(bare).servers.one, 'x:1');
+assert.equal(parseVelocityToml(bare).forcedHosts['one.example.com']?.[0], 'one');
+assert.equal(getTomlValue(bare, '', 'bind'), '0.0.0.0:25565');
+assert.equal(getTomlValue(removeTomlKey(bare, '', 'bind'), '', 'bind'), undefined);
+assert.deepEqual(Object.keys(getTomlTable(bare, 'servers')), ['one']);
+
+// ---- BungeeCord / Waterfall
+const BUNGEE = `# bungee
+ip_forward: false
+online_mode: true
+listeners:
+- query_port: 25577
+  motd: '&1Another Bungee'
+  priorities:
+  - lobby
+  bind_local_address: true
+  host: 0.0.0.0:25577
+  max_players: 1
+  forced_hosts:
+    pvp.md-5.net: pvp
+servers:
+  lobby:
+    motd: '&1Just another BungeeCord - Forced Host'
+    address: localhost:25565
+    restricted: false
+`;
+const bungeeParsed = parseBungeeYaml(BUNGEE);
+assert.equal(bungeeParsed.forwarding, 'none');
+assert.equal(parseBungeeYaml(BUNGEE.replace('ip_forward: false', 'ip_forward: true')).forwarding, 'legacy');
+assert.equal(parseBungeeYaml(BUNGEE.replace('ip_forward: false', 'ip_forward: true'), true).forwarding, 'bungeeguard');
+const bungeeAdded = addServerToBungeeYaml(BUNGEE, { name: 'survival', address: 'mc-abc:25565', hostnames: ['survival.example.com'] });
+const bungeeAfter = parseBungeeYaml(bungeeAdded);
+assert.equal(bungeeAfter.servers.survival, 'mc-abc:25565');
+assert.equal(bungeeAfter.forcedHosts['survival.example.com'], 'survival');
+assert.equal(bungeeAfter.forcedHosts['pvp.md-5.net'], 'pvp');
+assert.ok(!bungeeAfter.priorities.includes('lobby') && !bungeeAfter.priorities.includes('survival'), 'no real server is the fallback');
+assert.ok(bungeeAdded.includes('# bungee'));
+const bungeeRemoved = parseBungeeYaml(removeServerFromBungeeYaml(bungeeAdded, 'survival'));
+assert.equal(bungeeRemoved.servers.survival, undefined);
+assert.equal(bungeeRemoved.forcedHosts['survival.example.com'], undefined);
+assert.equal(bungeeRemoved.forcedHosts['pvp.md-5.net'], 'pvp');
+
+// ---- plugins, Geyser, education join output
+const flags = detectPlugins(['ViaVersion-5.0.jar', 'ViaBackwards-5.0.jar', 'Geyser-Velocity.jar', 'floodgate-velocity.jar', 'EduGeyser-Velocity.jar']);
+assert.deepEqual([flags.viaversion, flags.viabackwards, flags.viarewind, flags.geyser, flags.floodgate, flags.edugeyser], [true, true, false, true, true, true]);
+assert.equal(detectPlugins(['Geyser-Velocity.jar']).edugeyser, false);
+assert.equal(detectPlugins(['EduGeyser-Velocity.jar']).geyser, true);
+assert.equal(detectPlugins([]).viaversion, false);
+
+assert.deepEqual(parseGeyserConfig('bedrock:\n  address: 0.0.0.0\n  port: 19133\n  clone-remote-port: false\n'), { bedrockPort: 19133, bedrockAddress: '0.0.0.0', clonesRemotePort: false });
+assert.equal(parseGeyserConfig('motd1: hi\n').bedrockPort, 19132);
+
+const edu = parseEducationJoinOutput('[INFO]: Join codes:\n[INFO]: 1. Join code: ABC DEF GHI (https://education.minecraft.net/joinworld/abc123)\n[INFO]: something else');
+assert.deepEqual(edu.links, ['https://education.minecraft.net/joinworld/abc123']);
+assert.equal(edu.lines.length, 2);
+
+console.log('network tests passed');

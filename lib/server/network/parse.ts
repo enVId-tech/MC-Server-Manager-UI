@@ -1,0 +1,255 @@
+/**
+ * Readers for the files that tell what a proxy is set up as. Pure functions over file contents.
+ */
+import YAML from 'yaml';
+import { getTomlTable, getTomlValue, removeTomlKey, setTomlValue, tomlArray, tomlString } from './toml';
+import { isForwardingMode, type ForwardingMode } from './versions';
+
+// ---------------------------------------------------------------- Velocity
+
+export interface VelocitySummary {
+    forwarding: ForwardingMode;
+    /** Name of the file that holds the secret, relative to velocity.toml. Velocity 3 default is forwarding.secret */
+    secretFile: string;
+    /** Old versions kept the secret in velocity.toml itself */
+    inlineSecret?: string;
+    bind: string;
+    motd: string;
+    maxPlayers: number;
+    onlineMode: boolean;
+    servers: Record<string, string>;
+    tryOrder: string[];
+    forcedHosts: Record<string, string[]>;
+}
+
+export function parseVelocityToml(content: string): VelocitySummary {
+    const root = getTomlTable(content, '');
+    const mode = String(root['player-info-forwarding-mode'] ?? 'none').toLowerCase();
+    const serversTable = getTomlTable(content, 'servers');
+    const servers: Record<string, string> = {};
+    for (const [name, value] of Object.entries(serversTable)) {
+        if (name !== 'try' && typeof value === 'string') servers[name] = value;
+    }
+    const tryList = serversTable.try;
+    const forced: Record<string, string[]> = {};
+    for (const [host, value] of Object.entries(getTomlTable(content, 'forced-hosts'))) {
+        forced[host] = Array.isArray(value) ? value : [String(value)];
+    }
+    const secret = root['forwarding-secret'];
+
+    return {
+        forwarding: isForwardingMode(mode) ? mode : 'none',
+        secretFile: typeof root['forwarding-secret-file'] === 'string' ? (root['forwarding-secret-file'] as string) : 'forwarding.secret',
+        inlineSecret: typeof secret === 'string' && secret ? secret : undefined,
+        bind: typeof root.bind === 'string' ? root.bind : '0.0.0.0:25565',
+        motd: typeof root.motd === 'string' ? root.motd : '',
+        maxPlayers: typeof root['show-max-players'] === 'number' ? (root['show-max-players'] as number) : 500,
+        onlineMode: root['online-mode'] !== false,
+        servers,
+        tryOrder: Array.isArray(tryList) ? tryList : [],
+        forcedHosts: forced,
+    };
+}
+
+export interface VelocityServerEntry {
+    name: string;
+    address: string;
+    /** Host names players join with, e.g. survival.example.com */
+    hostnames: string[];
+}
+
+/**
+ * Adds a server to velocity.toml, or updates it.
+ *
+ * The server is never added to `try`: that list is where Velocity sends players when the server they were on
+ * stops, and a server must not fall back to somebody else's world. It is also taken out of `try` if an older
+ * version of this manager put it there. Players reach it through its forced host.
+ */
+export function addServerToVelocityToml(content: string, entry: VelocityServerEntry): string {
+    let next = setTomlValue(content, 'servers', entry.name, tomlString(entry.address));
+
+    const summary = parseVelocityToml(next);
+    if (summary.tryOrder.includes(entry.name)) {
+        next = setTomlValue(next, 'servers', 'try', tomlArray(summary.tryOrder.filter(name => name !== entry.name)));
+    }
+
+    for (const hostname of entry.hostnames) {
+        next = setTomlValue(next, 'forced-hosts', hostname, tomlArray([entry.name]));
+    }
+    return next;
+}
+
+export function removeServerFromVelocityToml(content: string, name: string): string {
+    let next = removeTomlKey(content, 'servers', name);
+
+    const summary = parseVelocityToml(next);
+    if (summary.tryOrder.includes(name)) {
+        next = setTomlValue(next, 'servers', 'try', tomlArray(summary.tryOrder.filter(item => item !== name)));
+    }
+    for (const [host, names] of Object.entries(summary.forcedHosts)) {
+        if (!names.includes(name)) continue;
+        const rest = names.filter(item => item !== name);
+        next = rest.length > 0 ? setTomlValue(next, 'forced-hosts', host, tomlArray(rest)) : removeTomlKey(next, 'forced-hosts', host);
+    }
+    return next;
+}
+
+/** Empties `try` so no player is ever moved to a server they did not ask for */
+export function disableVelocityFallback(content: string): string {
+    return parseVelocityToml(content).tryOrder.length === 0 ? content : setTomlValue(content, 'servers', 'try', tomlArray([]));
+}
+
+export function setVelocityForwarding(content: string, mode: ForwardingMode): string {
+    return setTomlValue(content, '', 'player-info-forwarding-mode', tomlString(mode));
+}
+
+export { getTomlValue };
+
+// ----------------------------------------------------------- BungeeCord
+
+export interface BungeeSummary {
+    forwarding: ForwardingMode;
+    ipForward: boolean;
+    onlineMode: boolean;
+    host: string;
+    motd: string;
+    maxPlayers: number;
+    servers: Record<string, string>;
+    priorities: string[];
+    forcedHosts: Record<string, string>;
+}
+
+type YamlRecord = Record<string, unknown>;
+
+function record(value: unknown): YamlRecord {
+    return value && typeof value === 'object' && !Array.isArray(value) ? (value as YamlRecord) : {};
+}
+
+export function parseBungeeYaml(content: string, bungeeGuard = false): BungeeSummary {
+    const data = record(YAML.parse(content));
+    const listener = record(Array.isArray(data.listeners) ? data.listeners[0] : undefined);
+    const servers: Record<string, string> = {};
+    for (const [name, value] of Object.entries(record(data.servers))) {
+        const address = record(value).address;
+        if (typeof address === 'string') servers[name] = address;
+    }
+    const forcedHosts: Record<string, string> = {};
+    for (const [host, value] of Object.entries(record(listener.forced_hosts))) {
+        if (typeof value === 'string') forcedHosts[host] = value;
+    }
+    const ipForward = data.ip_forward === true;
+    return {
+        forwarding: !ipForward ? 'none' : bungeeGuard ? 'bungeeguard' : 'legacy',
+        ipForward,
+        onlineMode: data.online_mode !== false,
+        host: typeof listener.host === 'string' ? listener.host : '0.0.0.0:25577',
+        motd: typeof listener.motd === 'string' ? listener.motd : '',
+        maxPlayers: typeof listener.max_players === 'number' ? listener.max_players : 1,
+        servers,
+        priorities: Array.isArray(listener.priorities) ? (listener.priorities as unknown[]).map(String) : [],
+        forcedHosts,
+    };
+}
+
+/** Name of a server that does not exist, used as the default server so that nobody is moved anywhere */
+export const NO_FALLBACK_SERVER = 'unavailable';
+
+/**
+ * Adds a server to BungeeCord's or Waterfall's config.yml. Comments and unknown settings are kept.
+ * The default server list (`priorities`) is pointed at a name that does not exist: the proxy has no server to
+ * send a player to when theirs stops, so it disconnects them instead of dropping them somewhere else.
+ */
+export function addServerToBungeeYaml(content: string, entry: VelocityServerEntry): string {
+    const doc = YAML.parseDocument(content);
+    doc.setIn(['servers', entry.name], { motd: entry.name, address: entry.address, restricted: false });
+    if (!doc.hasIn(['listeners', 0])) doc.setIn(['listeners'], [{}]);
+    for (const hostname of entry.hostnames) doc.setIn(['listeners', 0, 'forced_hosts', hostname], entry.name);
+    doc.setIn(['listeners', 0, 'priorities'], [NO_FALLBACK_SERVER]);
+    return doc.toString();
+}
+
+export function removeServerFromBungeeYaml(content: string, name: string): string {
+    const doc = YAML.parseDocument(content);
+    doc.deleteIn(['servers', name]);
+    const forced = record(doc.getIn(['listeners', 0, 'forced_hosts'], false) && (doc.getIn(['listeners', 0, 'forced_hosts']) as { toJSON?: () => unknown })?.toJSON?.());
+    for (const [host, value] of Object.entries(forced)) {
+        if (value === name) doc.deleteIn(['listeners', 0, 'forced_hosts', host]);
+    }
+    return doc.toString();
+}
+
+export function setBungeeForwarding(content: string, mode: ForwardingMode): string {
+    const doc = YAML.parseDocument(content);
+    doc.set('ip_forward', mode === 'legacy' || mode === 'bungeeguard');
+    return doc.toString();
+}
+
+// --------------------------------------------------------- plugins on a proxy or server
+
+export interface PluginFlags {
+    viaversion: boolean;
+    viabackwards: boolean;
+    viarewind: boolean;
+    geyser: boolean;
+    floodgate: boolean;
+    edugeyser: boolean;
+    bungeeguard: boolean;
+}
+
+/** Looks at the file names in a plugins folder */
+export function detectPlugins(fileNames: string[]): PluginFlags {
+    const names = fileNames.map(name => name.toLowerCase());
+    const has = (pattern: RegExp) => names.some(name => pattern.test(name));
+    return {
+        viaversion: has(/^viaversion/),
+        viabackwards: has(/^viabackwards/),
+        viarewind: has(/^viarewind/),
+        // EduGeyser is a Geyser fork, it ships jars with its own name
+        edugeyser: has(/edugeyser/),
+        geyser: has(/^geyser/) || has(/edugeyser/),
+        floodgate: has(/floodgate/),
+        bungeeguard: has(/bungeeguard/),
+    };
+}
+
+export interface GeyserSettings {
+    bedrockPort: number;
+    bedrockAddress: string;
+    /** Geyser reuses the Java port as its Bedrock port */
+    clonesRemotePort: boolean;
+}
+
+export function parseGeyserConfig(content: string): GeyserSettings {
+    const bedrock = record(record(YAML.parse(content)).bedrock);
+    return {
+        bedrockPort: typeof bedrock.port === 'number' ? bedrock.port : 19132,
+        bedrockAddress: typeof bedrock.address === 'string' ? bedrock.address : '0.0.0.0',
+        clonesRemotePort: bedrock['clone-remote-port'] === true,
+    };
+}
+
+/** BungeeGuard's proxy plugin keeps its token in token.yml (or config.yml on some builds) */
+export function parseBungeeGuardToken(content: string): string | undefined {
+    const data = record(YAML.parse(content));
+    if (typeof data.token === 'string' && data.token) return data.token;
+    const allowed = data['allowed-tokens'];
+    if (Array.isArray(allowed) && typeof allowed[0] === 'string') return allowed[0];
+    return undefined;
+}
+
+export interface EducationJoinInfo {
+    links: string[];
+    /** Output lines that mention a join code, for display as they are */
+    lines: string[];
+}
+
+/** Reads the answer of `/edu joincode`: the share links and the lines that carry the codes */
+export function parseEducationJoinOutput(text: string): EducationJoinInfo {
+    const links = [...new Set((text.match(/https:\/\/education\.minecraft\.net\/joinworld\/[^\s"'<>]+/g) ?? []).map(link => link.replace(/[).,;\]]+$/, '')))];
+    const lines = text
+        .split(/\r?\n/)
+        // eslint-disable-next-line no-control-regex
+        .map(line => line.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '').trim())
+        .filter(line => /join\s*code|joincode/i.test(line) && !/^>?\s*\/?edu\s+joincode/i.test(line));
+    return { links, lines: [...new Set(lines)].slice(-8) };
+}
