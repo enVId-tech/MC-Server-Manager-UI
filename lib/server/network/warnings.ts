@@ -24,6 +24,8 @@ export function warningMessage(code: NetworkWarning['code'], port: number | unde
             return `The proxy's forwarding key could not be found${detail ? ` (${detail})` : ''}, so the server was not connected to it. ${note}`;
         case 'link-failed':
             return `The proxy could not be updated${detail ? `: ${detail}` : ''}. ${note}`;
+        case 'host-taken':
+            return `${detail ?? 'An address of this server'} is already a forced host that leads to another server, so the proxy was left as it is and players using that address do not reach this server.`;
     }
 }
 

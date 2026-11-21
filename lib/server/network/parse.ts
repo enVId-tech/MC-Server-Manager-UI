@@ -58,8 +58,32 @@ export interface VelocityServerEntry {
     hostnames: string[];
 }
 
+/** Finds a forced host regardless of the case it is written in */
+function findForced<T>(forced: Record<string, T>, hostname: string): { host: string; value: T } | undefined {
+    const wanted = hostname.trim().toLowerCase();
+    const host = Object.keys(forced).find(key => key.trim().toLowerCase() === wanted);
+    return host === undefined ? undefined : { host, value: forced[host] };
+}
+
+/**
+ * Host names of an entry that are already forced hosts leading somewhere else. The proxy keeps those as they are:
+ * a forced host somebody set up is never taken over by a server that is added later.
+ */
+export function takenForcedHosts(forced: Record<string, string[]>, entry: VelocityServerEntry): Array<{ host: string; leadsTo: string[] }> {
+    const taken: Array<{ host: string; leadsTo: string[] }> = [];
+    for (const hostname of entry.hostnames) {
+        const existing = findForced(forced, hostname);
+        if (existing && !existing.value.includes(entry.name)) taken.push({ host: hostname, leadsTo: existing.value });
+    }
+    return taken;
+}
+
 /**
  * Adds a server to velocity.toml, or updates it.
+ *
+ * Forced hosts that already exist are never overwritten. A host name that leads to another server stays as it is,
+ * one that already leads here stays too. Only the host names this entry used to have and does not use any more are
+ * taken away, which is what changing a server's address does.
  *
  * The server is never added to `try`: that list is where Velocity sends players when the server they were on
  * stops, and a server must not fall back to somebody else's world. It is also taken out of `try` if an older
@@ -74,12 +98,15 @@ export function addServerToVelocityToml(content: string, entry: VelocityServerEn
     }
 
     // Host names this entry had before and does not use any more (a proxy changed its base subdomain)
+    const wanted = entry.hostnames.map(name => name.trim().toLowerCase());
     for (const [host, names] of Object.entries(parseVelocityToml(next).forcedHosts)) {
-        if (entry.hostnames.includes(host) || !names.includes(entry.name)) continue;
+        if (wanted.includes(host.trim().toLowerCase()) || !names.includes(entry.name)) continue;
         const rest = names.filter(item => item !== entry.name);
         next = rest.length > 0 ? setTomlValue(next, 'forced-hosts', host, tomlArray(rest)) : removeTomlKey(next, 'forced-hosts', host);
     }
+    const existing = parseVelocityToml(next).forcedHosts;
     for (const hostname of entry.hostnames) {
+        if (findForced(existing, hostname)) continue;
         next = setTomlValue(next, 'forced-hosts', hostname, tomlArray([entry.name]));
     }
     return next;
@@ -176,10 +203,14 @@ export function addServerToBungeeYaml(content: string, entry: VelocityServerEntr
     doc.setIn(['servers', entry.name], { motd: entry.name, address: entry.address, restricted: false });
     if (!doc.hasIn(['listeners', 0])) doc.setIn(['listeners'], [{}]);
     const forced = record(doc.getIn(['listeners', 0, 'forced_hosts'], false) && (doc.getIn(['listeners', 0, 'forced_hosts']) as { toJSON?: () => unknown })?.toJSON?.());
+    const wanted = entry.hostnames.map(name => name.trim().toLowerCase());
     for (const [host, value] of Object.entries(forced)) {
-        if (value === entry.name && !entry.hostnames.includes(host)) doc.deleteIn(['listeners', 0, 'forced_hosts', host]);
+        if (value === entry.name && !wanted.includes(host.trim().toLowerCase())) doc.deleteIn(['listeners', 0, 'forced_hosts', host]);
     }
-    for (const hostname of entry.hostnames) doc.setIn(['listeners', 0, 'forced_hosts', hostname], entry.name);
+    for (const hostname of entry.hostnames) {
+        if (findForced(forced, hostname)) continue;
+        doc.setIn(['listeners', 0, 'forced_hosts', hostname], entry.name);
+    }
     doc.setIn(['listeners', 0, 'priorities'], [NO_FALLBACK_SERVER]);
     return doc.toString();
 }

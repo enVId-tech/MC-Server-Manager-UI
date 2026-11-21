@@ -38,6 +38,8 @@ export interface ProxyInspection {
     maxPlayers: number;
     bind: string;
     servers: Record<string, string>;
+    /** Host name to the entry names it leads to */
+    forcedHosts: Record<string, string[]>;
     error?: string;
 }
 
@@ -124,7 +126,7 @@ export async function inspectProxy(ref: ProxyRef): Promise<ProxyInspection> {
     if (content === null) {
         return {
             readable: false, forwarding: ref.proxy.forwarding, plugins, bedrockPort, ...bedrock, motd: '', maxPlayers: 0, bind: '',
-            servers: {}, error: `The configuration file ${ref.proxy.configPath} was not found`,
+            servers: {}, forcedHosts: {}, error: `The configuration file ${ref.proxy.configPath} was not found`,
         };
     }
 
@@ -136,7 +138,7 @@ export async function inspectProxy(ref: ProxyRef): Promise<ProxyInspection> {
             if (secretText) secret = secretText.trim() || secret;
             return {
                 readable: true, forwarding: summary.forwarding, secret, plugins, bedrockPort, ...bedrock, motd: summary.motd,
-                maxPlayers: summary.maxPlayers, bind: summary.bind, servers: summary.servers,
+                maxPlayers: summary.maxPlayers, bind: summary.bind, servers: summary.servers, forcedHosts: summary.forcedHosts,
             };
         }
 
@@ -153,11 +155,12 @@ export async function inspectProxy(ref: ProxyRef): Promise<ProxyInspection> {
         return {
             readable: true, forwarding: summary.forwarding, secret: token, plugins, bedrockPort, ...bedrock, motd: summary.motd,
             maxPlayers: summary.maxPlayers, bind: summary.host, servers: summary.servers,
+            forcedHosts: Object.fromEntries(Object.entries(summary.forcedHosts).map(([host, name]) => [host, [name]])),
         };
     } catch (error) {
         return {
             readable: false, forwarding: ref.proxy.forwarding, plugins, bedrockPort, ...bedrock, motd: '', maxPlayers: 0, bind: '',
-            servers: {}, error: `The configuration could not be read: ${error instanceof Error ? error.message : 'unknown error'}`,
+            servers: {}, forcedHosts: {}, error: `The configuration could not be read: ${error instanceof Error ? error.message : 'unknown error'}`,
         };
     }
 }

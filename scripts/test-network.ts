@@ -10,7 +10,7 @@ import {
 } from '../lib/server/network/versions';
 import { getTomlTable, getTomlValue, removeTomlKey, setTomlValue, tomlArray } from '../lib/server/network/toml';
 import {
-    addServerToBungeeYaml, addServerToVelocityToml, detectPlugins, disableVelocityFallback, parseBungeeYaml,
+    addServerToBungeeYaml, addServerToVelocityToml, takenForcedHosts, detectPlugins, disableVelocityFallback, parseBungeeYaml,
     parseEducationJoinOutput, parseGeyserConfig, parseVelocityToml, removeServerFromBungeeYaml,
     removeServerFromVelocityToml, setVelocityForwarding,
 } from '../lib/server/network/parse';
@@ -229,5 +229,18 @@ assert.ok(compose.services['waterfall-1'].environment.includes('TYPE=WATERFALL')
 const velocityCompose = YAML.parse(proxyCompose({ kind: 'velocity', name: 'v', containerName: 'velocity-1', image: 'envidtech/velocity:latest', hostPort: 25565, hostFolder: '/mnt/p/v', networkName: 'proxy-net', memory: '512M' }));
 assert.deepEqual(velocityCompose.services['velocity-1'].volumes, ['/mnt/p/v:/velocity']);
 assert.equal(velocityCompose.networks['proxy-net'].external, true);
+
+// Forced hosts that exist are kept; a server only replaces its own
+const withHost = 'bind = "0.0.0.0:25565"\n[servers]\nlobby = "lobby:25565"\ntry = ["lobby"]\n[forced-hosts]\n"Play.example.com" = ["lobby"]\n';
+const keptOther = addServerToVelocityToml(withHost, { name: 'survival', address: 's:25565', hostnames: ['play.example.com', 'survival.example.com'] });
+assert.deepEqual(parseVelocityToml(keptOther).forcedHosts['Play.example.com'], ['lobby'], 'a forced host of another server is not taken over');
+assert.deepEqual(parseVelocityToml(keptOther).forcedHosts['survival.example.com'], ['survival']);
+assert.equal(parseVelocityToml(keptOther).forcedHosts['play.example.com'], undefined);
+assert.deepEqual(takenForcedHosts(parseVelocityToml(withHost).forcedHosts, { name: 'survival', address: 's:25565', hostnames: ['play.example.com'] }), [{ host: 'play.example.com', leadsTo: ['lobby'] }]);
+assert.deepEqual(takenForcedHosts(parseVelocityToml(withHost).forcedHosts, { name: 'lobby', address: 'lobby:25565', hostnames: ['play.example.com'] }), [], 'its own forced host is not a conflict');
+const renamed = addServerToVelocityToml(keptOther, { name: 'survival', address: 's:25565', hostnames: ['smp.example.com'] });
+assert.equal(parseVelocityToml(renamed).forcedHosts['survival.example.com'], undefined, 'the old address of the server is removed');
+assert.deepEqual(parseVelocityToml(renamed).forcedHosts['smp.example.com'], ['survival']);
+assert.deepEqual(parseVelocityToml(renamed).forcedHosts['Play.example.com'], ['lobby']);
 
 console.log('network tests passed');

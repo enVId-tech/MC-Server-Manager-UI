@@ -98,7 +98,7 @@ export interface NetworkLink {
 }
 
 export interface NetworkWarning {
-    code: 'no-proxy' | 'unsupported-version' | 'unsupported-type' | 'no-secret' | 'link-failed';
+    code: 'no-proxy' | 'unsupported-version' | 'unsupported-type' | 'no-secret' | 'link-failed' | 'host-taken';
     message: string;
     /** Port that has to be reachable from the internet for players to join */
     port?: number;
