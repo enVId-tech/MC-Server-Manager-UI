@@ -625,3 +625,15 @@
     font-size: 0.8rem;
   }
 }
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.9rem 1rem;
+  align-items: start;
+
+  > .hint {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+}

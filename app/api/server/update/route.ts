@@ -8,6 +8,7 @@ import { findServerForUser } from '@/lib/server/access';
 import { createMinecraftServerFromRecord } from '@/lib/server/minecraft';
 import { syncServerNetwork } from '@/lib/server/network/service';
 import { getContainerName } from '@/lib/server/containerNames';
+import { computeMemoryMb, getPlatformSettings } from '@/lib/server/memory';
 
 const VERSION_PATTERN = /^(LATEST|SNAPSHOT|\d{1,2}\.\d{1,2}(\.\d{1,2})?(-(pre|rc)\d+)?|\d{2}w\d{2}[a-z])$/i;
 
@@ -29,7 +30,28 @@ export async function POST(request: NextRequest) {
         if (server.imported) {
             return NextResponse.json({ message: 'This server was imported. Its container is defined elsewhere, so its image and version are changed there.' }, { status: 409 });
         }
-        if (body.action !== 'image' && body.action !== 'version') return NextResponse.json({ message: 'Unknown action.' }, { status: 400 });
+        if (body.action !== 'image' && body.action !== 'version' && body.action !== 'memory') return NextResponse.json({ message: 'Unknown action.' }, { status: 400 });
+
+        if (body.action === 'memory') {
+            const config = (server.serverConfig ?? {}) as unknown as Record<string, unknown>;
+            let mb: number;
+            let mode: 'auto' | 'manual';
+            if (body.memoryMb === 'auto') {
+                mb = computeMemoryMb({
+                    serverType: String(config.serverType ?? ''),
+                    plugins: Array.isArray(config.plugins) ? config.plugins.length : 0,
+                    mods: Array.isArray(config.mods) ? config.mods.length : 0,
+                    players: Number(config.maxPlayers) || 20,
+                }, await getPlatformSettings());
+                mode = 'auto';
+            } else {
+                mb = Math.round(Number(body.memoryMb));
+                if (!Number.isFinite(mb) || mb < 512 || mb > 1024 * 1024) return NextResponse.json({ message: 'Memory has to be at least 512 MB.' }, { status: 400 });
+                mode = 'manual';
+            }
+            await Server.updateOne({ _id: server._id }, { $set: { 'serverConfig.serverMemory': mb, 'serverConfig.memoryMode': mode } });
+            return NextResponse.json({ success: true, message: `Memory is ${mb} MB (${mode}). It applies the next time the container is recreated.`, memory: { mb, mode } });
+        }
 
         if (body.action === 'version') {
             const version = String(body.version ?? '').trim();

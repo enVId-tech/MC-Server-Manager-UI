@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import styles from '../admin.module.scss';
 import { useAdminData } from './shared';
+import { useNotifications } from '@/lib/contexts/NotificationContext';
 
 interface SystemStatus {
     counts: { servers: number; imported: number; users: number; pendingUsers: number };
@@ -32,6 +33,67 @@ function formatUptime(seconds: number): string {
     return [days ? `${days}d` : '', hours ? `${hours}h` : '', `${minutes}m`].filter(Boolean).join(' ');
 }
 
+interface PlatformSettings {
+    maxMemoryMb: number; minMemoryMb: number; baseMemoryMb: number; moddedExtraMb: number; modpackExtraMb: number;
+    perPluginMb: number; perModMb: number; perPlayerMb: number; maxStartFailures: number;
+}
+
+const PLATFORM_FIELDS: Array<[keyof PlatformSettings, string, string]> = [
+    ['maxMemoryMb', 'Largest heap (MB)', 'The most memory the automatic sizing gives a server.'],
+    ['minMemoryMb', 'Smallest heap (MB)', 'Every server gets at least this much.'],
+    ['baseMemoryMb', 'Base heap (MB)', 'A plain server with no plugins, mods or extra players.'],
+    ['moddedExtraMb', 'Extra for modded (MB)', 'Added for Forge, NeoForge, Fabric and Quilt servers.'],
+    ['modpackExtraMb', 'Extra for modpacks (MB)', 'Added for servers that install a modpack.'],
+    ['perPluginMb', 'Per plugin (MB)', 'Added for every plugin.'],
+    ['perModMb', 'Per mod (MB)', 'Added for every mod.'],
+    ['perPlayerMb', 'Per player above 10 (MB)', 'Added for every player slot above ten.'],
+    ['maxStartFailures', 'Failed starts before stopping', 'A server that fails to start this many times in a row is stopped for good.'],
+];
+
+/** Memory rules and limits that administrators set for every server */
+function PlatformCard() {
+    const { showNotification } = useNotifications();
+    const platform = useAdminData<{ settings: PlatformSettings; example: number }>('/api/admin/platform');
+    const [draft, setDraft] = useState<Record<string, string>>({});
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- fills the form once the settings are loaded
+        if (platform.data) setDraft(Object.fromEntries(Object.entries(platform.data.settings).map(([key, value]) => [key, String(value)])));
+    }, [platform.data]);
+
+    const save = async () => {
+        setSaving(true);
+        const response = await fetch('/api/admin/platform', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) });
+        setSaving(false);
+        showNotification({ type: response.ok ? 'success' : 'error', title: 'Limits', message: response.ok ? 'Saved. New and changed servers use these rules.' : 'The limits could not be saved.' });
+        if (response.ok) await platform.reload();
+    };
+
+    return (
+        <section className={styles.card}>
+            <div className={styles.cardHeader}>
+                <div>
+                    <h2>Memory and limits</h2>
+                    <p className={styles.hint}>Users cannot choose memory. It is worked out from the plugins, mods and player slots of each server, between your smallest and largest heap. Only administrators can set it by hand.</p>
+                </div>
+                <button className={`${styles.btn} ${styles.primary}`} disabled={saving || !platform.data} onClick={() => void save()}>{saving ? 'Saving…' : 'Save'}</button>
+            </div>
+            {platform.data && (
+                <div className={styles.formGrid}>
+                    {PLATFORM_FIELDS.map(([key, label, hint]) => (
+                        <label key={key} className={styles.field}>{label}
+                            <input className={styles.input} type="number" min={0} value={draft[key] ?? ''} onChange={event => setDraft({ ...draft, [key]: event.target.value })} />
+                            <span className={styles.hint}>{hint}</span>
+                        </label>
+                    ))}
+                    <p className={styles.hint}>Example: a Paper server with 10 plugins and 20 player slots gets {platform.data.example} MB.</p>
+                </div>
+            )}
+        </section>
+    );
+}
+
 export default function SettingsSection() {
     const system = useAdminData<SystemStatus>('/api/admin/system');
     const data = system.data;
@@ -50,6 +112,8 @@ export default function SettingsSection() {
 
             {system.error && <div className={`${styles.notice} ${styles.error}`}>{system.error}</div>}
             {system.loading && !data && <div className={styles.loading}><span className={styles.spinner} /> Reading settings…</div>}
+
+            <PlatformCard />
 
             {data && (
                 <>
