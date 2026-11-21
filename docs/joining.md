@@ -29,8 +29,14 @@ Pick the icons in the order shown in the Education join screen, or open the link
 
 ## No address yet
 
-Servers imported from an existing proxy take their address from that proxy's forced hosts. If the proxy has none for the server, the server has no address yet and the **Network** tab asks you (or an administrator) to set one. Until then the card shows the port instead.
+Servers imported from an existing proxy take their address from that proxy's forced hosts. If the proxy has none for the server, the server has no address yet and the **Network** tab asks you to set one. Until then the card shows the port instead.
 
 ## Not joinable?
 
 A warning on the **Network** tab means the server probably cannot be joined from outside: it has no proxy, no forwarding key, no proxy supports its version, or its port is not reachable. You can dismiss a warning, and it returns only if the situation changes. See [Troubleshooting](/docs/troubleshooting).
+
+## Changing a server's address
+
+The owner of a server can change its address at any time in the **Network** tab. The new name works as soon as the proxy has reloaded, and the old one stops working.
+
+The name cannot be one that another server already uses. The manager also never takes over a forced host that already exists on a proxy and leads to another server: it tells you so instead and leaves the proxy as it is. Only a server's own forced hosts are replaced when it changes its address.

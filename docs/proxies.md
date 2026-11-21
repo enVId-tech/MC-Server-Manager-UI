@@ -61,3 +61,6 @@ Online mode and the other options the proxy depends on are grayed out for users 
 ## Warnings
 
 A server without a proxy, without a key, or that no proxy supports shows a warning that it will most likely not be joinable unless its port is forwarded or exposed to the internet. Users and administrators can dismiss it; it returns only if the situation changes. A server's **Network** tab has **Check** and **Check and restart** actions to re-apply the network settings.
+
+> [!NOTE]
+> Existing forced hosts are never overridden. If an address of a server is already a forced host that leads to another server, the manager keeps it, shows a warning in the **Network** tab and does not use the name for this server.
