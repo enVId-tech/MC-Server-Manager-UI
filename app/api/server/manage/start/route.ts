@@ -7,6 +7,7 @@ import portainer from "@/lib/server/portainer";
 import verificationService from "@/lib/server/verify";
 import { getContainerName } from '@/lib/server/containerNames';
 import { clearStartGuard } from '@/lib/server/startGuard';
+import { applyStagedAddons } from '@/lib/server/addons/manager';
 
 export async function POST(request: NextRequest) {
     await dbConnect();
@@ -42,6 +43,9 @@ export async function POST(request: NextRequest) {
         if (!server) {
             return NextResponse.json({ message: 'Server not found or access denied.' }, { status: 404 });
         }
+
+        // Mods that were downloaded while the server ran are put in place now that it is stopped
+        await applyStagedAddons(server).catch(error => console.warn('Staged add-ons not applied:', error instanceof Error ? error.message : error));
 
         // Dynamically get Portainer environment ID - fail if not available
         let portainerEnvironmentId: number;

@@ -32,6 +32,8 @@ export interface IServer extends pkg.Document {
     proxy?: ProxySettings;
     /** Set when the server was stopped for good after failing to start too many times in a row */
     startGuard?: { stoppedAt: Date; failures: number; exitCode?: number; lastLog?: string };
+    /** Plugins and mods installed through the manager (see lib/server/addons/manager.ts) */
+    addons?: Array<Record<string, unknown>>;
     /** Files the manager installed that users may not change or remove, such as the proxy forwarding mods */
     managedFiles?: Array<{ path: string; slug: string; reason: string }>;
     /** How a game server is connected to the proxy network */
@@ -175,6 +177,7 @@ const ServerSchema: pkg.Schema = new pkg.Schema({
     network: { type: pkg.Schema.Types.Mixed, required: false },
     startGuard: { type: pkg.Schema.Types.Mixed, required: false },
     managedFiles: { type: pkg.Schema.Types.Mixed, required: false },
+    addons: { type: pkg.Schema.Types.Mixed, required: false },
     createdAt: {
         type: Date,
         default: Date.now,
