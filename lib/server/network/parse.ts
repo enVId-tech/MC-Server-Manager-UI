@@ -94,9 +94,15 @@ export function removeServerFromVelocityToml(content: string, name: string): str
     return next;
 }
 
-/** Empties `try` so no player is ever moved to a server they did not ask for */
-export function disableVelocityFallback(content: string): string {
-    return parseVelocityToml(content).tryOrder.length === 0 ? content : setTomlValue(content, 'servers', 'try', tomlArray([]));
+/**
+ * Empties `try` so no player is ever moved to a server they did not ask for. An administrator may name one
+ * default server, for players that arrive without a host name (Bedrock players through Geyser have none).
+ */
+export function disableVelocityFallback(content: string, defaultServer?: string): string {
+    const summary = parseVelocityToml(content);
+    const wanted = defaultServer && defaultServer in summary.servers ? [defaultServer] : [];
+    const same = summary.tryOrder.length === wanted.length && summary.tryOrder.every((name, index) => name === wanted[index]);
+    return same ? content : setTomlValue(content, 'servers', 'try', tomlArray(wanted));
 }
 
 export function setVelocityForwarding(content: string, mode: ForwardingMode): string {
