@@ -24,6 +24,7 @@ import { editProxyConfig, inspectProxy, type ProxyInspection, type ProxyRef } fr
 import { chooseProxies, isPluginServer, type BalancingStrategy, type ForwardingMode, type ProxyKind, type RoutableProxy } from './versions';
 import { mergeWarnings } from './warnings';
 import { baseDomainOf, hostnameFor, identityIssues } from './identity';
+import { refreshImportedAddresses } from './forcedHosts';
 
 export interface NetworkProxy extends RoutableProxy {
     name: string;
@@ -221,9 +222,10 @@ async function internalPort(server: IServer): Promise<number> {
 }
 
 /** Host names players join the server with */
-export function hostnamesFor(server: Pick<IServer, 'subdomainName'>, proxy?: Pick<NetworkProxy, 'baseDomain'>): string[] {
+export function hostnamesFor(server: Pick<IServer, 'subdomainName' | 'extraHostnames'>, proxy?: Pick<NetworkProxy, 'baseDomain'>): string[] {
     const host = hostnameFor(server.subdomainName, proxy?.baseDomain ?? getServerDomain());
-    return host ? [host] : [];
+    const extra = (server.extraHostnames ?? []).map(name => name.trim().toLowerCase()).filter(name => name && name !== host);
+    return host ? [host, ...extra] : [];
 }
 
 export interface SyncOptions {
@@ -518,8 +520,14 @@ export async function unlinkServerFromNetwork(server: IServer, options: { reload
 
 /** Runs the sync for every game server, one proxy reload at the end. Used when proxies are added or changed */
 export async function syncAllServers(options: { environmentId?: number } = {}): Promise<{ servers: number; details: string[] }> {
-    const servers = await Server.find({ kind: { $ne: 'proxy' } });
     const details: string[] = [];
+    // Imported servers take their address from the forced hosts the proxies already have
+    try {
+        details.push(...await refreshImportedAddresses(options.environmentId));
+    } catch (error) {
+        details.push(`Could not read the addresses from the proxies: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
+    const servers = await Server.find({ kind: { $ne: 'proxy' } });
     const changed = new Set<string>();
 
     for (const server of servers) {
@@ -557,7 +565,7 @@ export function javaAddress(host: string, port: number): string {
 }
 
 /** How players join a server through each proxy it is linked to */
-export async function getJoinAddresses(server: Pick<IServer, 'subdomainName' | 'network'>): Promise<JoinAddress[]> {
+export async function getJoinAddresses(server: Pick<IServer, 'subdomainName' | 'extraHostnames' | 'network'>): Promise<JoinAddress[]> {
     const links = (server.network?.links ?? []) as NetworkLink[];
     if (links.length === 0) return [];
     const proxies = await listProxies();

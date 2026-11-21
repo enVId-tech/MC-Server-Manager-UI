@@ -5,7 +5,8 @@ import serverStorage from '@/lib/server/storage';
 import portainer from '@/lib/server/portainer';
 import PortManager from '@/lib/server/portManager';
 import { getImportRoots, getParentRoot, hostPathToAppPath } from '@/lib/server/importPaths';
-import { buildServerHostname } from '@/lib/config/domain';
+import { findForcedHosts, readProxyEntries, resolveAddress } from '@/lib/server/network/forcedHosts';
+import { publicSubdomain } from '@/lib/server/subdomain';
 import { getContainerName } from '@/lib/server/containerNames';
 import { discoverVelocityInstances } from '@/lib/server/velocityDiscovery';
 import { getServerType, isVelocityCompatible } from '@/lib/data/itzg/serverTypes';
@@ -293,20 +294,12 @@ export async function discoverImportCandidates(environmentId: number): Promise<I
     return merged.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-async function uniqueSubdomain(name: string): Promise<string> {
-    const base = slugify(name);
-    for (let attempt = 0; attempt < 50; attempt++) {
-        const label = attempt === 0 ? base : `${base}-${attempt + 1}`;
-        const hostname = buildServerHostname(label);
-        if (!(await Server.exists({ subdomainName: hostname }))) return hostname;
-    }
-    return buildServerHostname(`${base}-${randomUUID().slice(0, 6)}`);
-}
-
 /** Add the chosen candidates to the dashboard under `owner`. Their files and containers are not changed. */
 export async function importCandidates(keys: string[], owner: IUser, environmentId: number): Promise<ImportResult[]> {
     const candidates = await discoverImportCandidates(environmentId);
     const results: ImportResult[] = [];
+    // The addresses these servers already have are the forced hosts of the proxies they sit behind
+    const proxies = await readProxyEntries(environmentId).catch(() => []);
 
     for (const key of keys) {
         const notes: string[] = [];
@@ -335,7 +328,14 @@ export async function importCandidates(keys: string[], owner: IUser, environment
                 notes.push(`Recorded under port ${port}; the container keeps its own port settings`);
             }
 
-            const subdomainName = await uniqueSubdomain(candidate.name);
+            const forcedHosts = findForcedHosts(proxies, { name: candidate.name, containerName: candidate.containerName });
+            const address = await resolveAddress(forcedHosts);
+            const subdomainName = address.subdomainName;
+            notes.push(address.found
+                ? `Address ${subdomainName} taken from the proxy${address.extraHostnames.length > 0 ? `, also reachable as ${address.extraHostnames.join(', ')}` : ''}`
+                : forcedHosts.length > 0
+                    ? 'The proxy hosts of this server are already used by another server; set an address on its page'
+                    : 'No proxy has a forced host for this server, so it has no address yet; set one on its page');
             const uniqueId = randomUUID();
             const bool = (value: string | undefined, fallback: boolean) => (value === undefined ? fallback : value === 'true');
             const number = (value: string | undefined, fallback: number) => (Number.isFinite(Number(value)) && value !== undefined && value !== '' ? Number(value) : fallback);
@@ -344,6 +344,8 @@ export async function importCandidates(keys: string[], owner: IUser, environment
                 uniqueId,
                 email: owner.email,
                 subdomainName,
+                extraHostnames: address.extraHostnames.length > 0 ? address.extraHostnames : undefined,
+                subdomainSource: address.found ? 'forced-host' : 'guessed',
                 isOnline: candidate.state === 'running',
                 folderPath: candidate.folderPath,
                 serverName: candidate.name.slice(0, 50),
@@ -389,7 +391,7 @@ export async function importCandidates(keys: string[], owner: IUser, environment
                     broadcastRconToOps: true,
                     broadcastConsoleToOps: true,
                     serverMemory: parseMemoryMb(candidate.memory) ?? 2048,
-                    subdomain: subdomainName.split('.')[0],
+                    subdomain: address.subdomainLabel,
                     plugins: [],
                     mods: [],
                 },
@@ -399,7 +401,7 @@ export async function importCandidates(keys: string[], owner: IUser, environment
             if (!candidate.velocityCompatible) {
                 notes.push(`Server type "${candidate.type}" cannot be connected to Velocity by this app`);
             }
-            results.push({ key, success: true, uniqueId, subdomain: subdomainName, notes });
+            results.push({ key, success: true, uniqueId, subdomain: publicSubdomain(subdomainName), notes });
         } catch (error) {
             results.push({ key, success: false, error: error instanceof Error ? error.message : 'Import failed.', notes });
         }
