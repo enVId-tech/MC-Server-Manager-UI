@@ -102,6 +102,8 @@ export interface ServerNetwork {
     /** Forwarding mode the server is configured for. The container environment is built from it */
     forwarding?: 'modern' | 'bungeeguard' | 'legacy' | 'none';
     syncedAt?: Date;
+    /** Files of the server that did not exist yet when the proxy setup ran (it has not finished its first start) */
+    pendingFiles?: string[];
 }
 
 const ServerSchema: pkg.Schema = new pkg.Schema({

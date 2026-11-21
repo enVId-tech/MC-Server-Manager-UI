@@ -411,6 +411,7 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
 
     // Set the server up for the way the proxy forwards players
     let restartNeeded = false;
+    let pendingFiles: string[] = [];
     let managedFiles: ManagedFile[] | undefined;
     const proxiesToRestart = new Set<string>();
     if (links.length > 0 && forwarding) {
@@ -419,6 +420,7 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
         const result = await applyBackendForwarding({ folder: server.folderPath, forwarding, secret, tokens, version, type });
         details.push(...result.details);
         restartNeeded = result.restartNeeded;
+        pendingFiles = result.missing;
         if (result.missing.length > 0) details.push(`Not created yet, applied at the next sync after the first start: ${result.missing.join(', ')}`);
 
         if (forwarding === 'bungeeguard') details.push(await installBungeeGuard(server.folderPath));
@@ -483,7 +485,7 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
     const warnings = mergeWarnings(server.network?.warnings as NetworkWarning[] | undefined, concerns);
     await Server.updateOne({ _id: server._id }, {
         $set: {
-            network: { links, warnings, forwarding: links.length > 0 ? forwarding ?? undefined : 'none', syncedAt: new Date() },
+            network: { links, warnings, forwarding: links.length > 0 ? forwarding ?? undefined : 'none', syncedAt: new Date(), ...(pendingFiles.length > 0 ? { pendingFiles } : {}) },
             proxyIds: links.map(link => link.proxyId),
             ...(managedFiles ? { managedFiles } : {}),
         },
