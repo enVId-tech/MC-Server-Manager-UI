@@ -159,7 +159,7 @@ export async function applyBackendForwarding(settings: BackendSettings): Promise
 // ------------------------------------------------------------------ plugin downloads
 
 const USER_AGENT = 'enVId-tech/MC-Server-Manager-UI (server network setup)';
-const MAX_JAR_BYTES = 40 * 1024 * 1024;
+const MAX_JAR_BYTES = 150 * 1024 * 1024;
 
 async function download(url: string): Promise<Buffer> {
     const response = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(60_000), redirect: 'follow' });
