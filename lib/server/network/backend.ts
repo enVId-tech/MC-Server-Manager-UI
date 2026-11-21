@@ -174,8 +174,8 @@ interface ModrinthVersion {
 }
 
 /** Newest release of a Modrinth plugin that works on this Minecraft version, or on any version when none matches */
-async function modrinthJar(slug: string, version?: string): Promise<{ url: string; filename: string } | null> {
-    const loaders = encodeURIComponent(JSON.stringify(['paper', 'spigot', 'bukkit']));
+async function modrinthJar(slug: string, version?: string, loaderNames: string[] = ['paper', 'spigot', 'bukkit']): Promise<{ url: string; filename: string } | null> {
+    const loaders = encodeURIComponent(JSON.stringify(loaderNames));
     const attempts = version && compareMinecraftVersions(version, '1.0') > 0 && !/^(LATEST|SNAPSHOT)$/i.test(version)
         ? [`&game_versions=${encodeURIComponent(JSON.stringify([version]))}`, '']
         : [''];
@@ -251,4 +251,46 @@ export async function installBungeeGuard(folder: string): Promise<string> {
     } catch (error) {
         return `BungeeGuard could not be installed: ${error instanceof Error ? error.message : 'unknown error'}`;
     }
+}
+
+/** Plugins of a proxy that can be installed when it is created, downloaded from Modrinth */
+export const PROXY_PLUGIN_SLUGS = {
+    viaversion: 'viaversion',
+    viabackwards: 'viabackwards',
+    viarewind: 'viarewind',
+    geyser: 'geyser',
+    floodgate: 'floodgate',
+} as const;
+export type ProxyPluginName = keyof typeof PROXY_PLUGIN_SLUGS;
+
+export async function installProxyPlugins(folder: string, kind: 'velocity' | 'bungeecord' | 'waterfall', names: ProxyPluginName[]): Promise<string[]> {
+    const details: string[] = [];
+    if (names.length === 0) return details;
+    try {
+        await serverStorage.createDirectory(`${folder}/plugins`);
+    } catch {
+        // exists
+    }
+    const existing = (await serverStorage.getDirectoryContents(`${folder}/plugins`).catch(() => [])).map(entry => entry.basename.toLowerCase());
+    // Geyser and Floodgate publish their BungeeCord build for Waterfall too
+    const loaders = kind === 'velocity' ? ['velocity'] : ['bungeecord', 'waterfall'];
+
+    for (const name of names) {
+        if (existing.some(file => file.startsWith(name))) {
+            details.push(`${name} is already installed`);
+            continue;
+        }
+        try {
+            const jar = await modrinthJar(PROXY_PLUGIN_SLUGS[name], undefined, loaders);
+            if (!jar) {
+                details.push(`${name}: no ${kind} release found`);
+                continue;
+            }
+            await serverStorage.uploadFile(`${folder}/plugins/${jar.filename.replace(/[^\w.\-+]/g, '_')}`, await download(jar.url), true);
+            details.push(`${name} installed (${jar.filename})`);
+        } catch (error) {
+            details.push(`${name}: ${error instanceof Error ? error.message : 'install failed'}`);
+        }
+    }
+    return details;
 }

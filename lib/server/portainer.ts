@@ -1838,6 +1838,20 @@ export class PortainerApiClient {
     }
 
     /**
+     * Makes sure a Docker network exists, creating a bridge network when it does not.
+     * Proxy stacks declare their network as external so several stacks can share it.
+     */
+    async ensureNetwork(networkName: string, environmentId: number | null = this.defaultEnvironmentId): Promise<'created' | 'exists'> {
+        if (environmentId === null) {
+            throw new Error('Environment ID is required to create a network.');
+        }
+        const existing = await this.axiosInstance.get<Array<{ Name: string }>>(`/api/endpoints/${environmentId}/docker/networks`);
+        if (Array.isArray(existing.data) && existing.data.some(network => network.Name === networkName)) return 'exists';
+        await this.axiosInstance.post(`/api/endpoints/${environmentId}/docker/networks/create`, { Name: networkName, Driver: 'bridge', CheckDuplicate: true });
+        return 'created';
+    }
+
+    /**
      * Connects a running or stopped container to a Docker network, so it can be reached by name from the other
      * containers on that network. Does nothing when it is connected already.
      */

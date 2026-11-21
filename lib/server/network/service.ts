@@ -108,7 +108,7 @@ async function describeProxy(record: IServer, linked: number, runningNames: Set<
         forwarding: inspection.forwarding,
         containerName: ref.containerName ?? getContainerName(record),
         networkName: settings.networkName,
-        port: record.port,
+        port: settings.publicPort ?? record.port,
         folder: record.folderPath,
         configPath: settings.configPath,
         publicHost: settings.publicHost || getServerDomain(),
