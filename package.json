@@ -30,7 +30,8 @@
     "test:existing-servers": "tsx scripts/test-existing-servers.ts",
     "test:world": "tsx scripts/test-world.ts",
     "test:addons": "tsx scripts/test-addons.ts",
-    "test:backups": "tsx scripts/test-backups.ts"
+    "test:backups": "tsx scripts/test-backups.ts",
+    "test:live": "tsx scripts/test-live.ts"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",

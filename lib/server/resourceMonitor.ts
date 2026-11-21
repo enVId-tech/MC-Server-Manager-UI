@@ -2,6 +2,7 @@ import portainer from './portainer';
 import Server from '@/lib/objects/Server';
 import dbConnect from '@/lib/db/dbConnect';
 import { getContainerName } from '@/lib/server/containerNames';
+import { getPlayers, getUsage } from '@/lib/server/liveStats';
 
 interface ResourceStats {
     containerId: string;
@@ -23,6 +24,16 @@ interface ScalingRules {
     cpuPerPlayer: number; // CPU quota per player (microseconds)
     baseCpu: number; // Base CPU quota
     scalingThreshold: number; // Resource usage percentage threshold for scaling
+}
+
+/** The memory of a server as it is stored: 2048, "2048", "2G" or "2048M" */
+export function parseMemoryMB(value: unknown): number {
+    if (typeof value === 'number') return value > 0 ? value : 0;
+    const match = /^(\d+(?:\.\d+)?)\s*([GMK]?)/i.exec(String(value ?? '').trim());
+    if (!match) return 0;
+    const amount = parseFloat(match[1]);
+    const unit = match[2].toUpperCase();
+    return Math.round(unit === 'G' ? amount * 1024 : unit === 'K' ? amount / 1024 : amount);
 }
 
 export class ResourceMonitor {
@@ -49,63 +60,31 @@ export class ResourceMonitor {
     /**
      * Get real-time resource statistics for a container
      */
-    async getResourceStats(containerId: string, environmentId: number): Promise<ResourceStats | null> {
+    async getResourceStats(containerId: string, environmentId: number, configuredMemoryMB = 0): Promise<ResourceStats | null> {
         try {
-            console.log(`📊 Getting resource stats for container ${containerId}...`);
-            
-            // Get container stats from Docker API
-            const stats = await portainer.getContainerStats(containerId, environmentId);
-            console.log(`📈 Container stats retrieved: ${stats ? 'success' : 'null'}`);
-            
-            const playerInfo = await portainer.getMinecraftServerPlayerCount(containerId, environmentId);
-            console.log(`👥 Player info retrieved:`, {
-                playersOnline: playerInfo.playersOnline,
-                maxPlayers: playerInfo.maxPlayers,
-                error: playerInfo.error || 'none'
-            });
+            // The limit that was set on the container; without one Docker reports the memory of the machine
+            let limitBytes = 0;
+            try {
+                limitBytes = (await portainer.getContainerDetails(containerId, environmentId)).HostConfig?.Memory || 0;
+            } catch { /* the stats still tell something */ }
+            if (limitBytes <= 0 && configuredMemoryMB > 0) limitBytes = configuredMemoryMB * 1024 * 1024;
 
-            if (!stats) {
-                console.log(`❌ No container stats available for ${containerId}`);
-                return null;
-            }
-
-            // Parse CPU usage
-            let cpuUsagePercent = 0;
-            if (stats.cpu_stats && stats.precpu_stats) {
-                const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
-                const systemDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
-                const numCpus = stats.cpu_stats.online_cpus || 1;
-                
-                if (systemDelta > 0) {
-                    cpuUsagePercent = (cpuDelta / systemDelta) * numCpus * 100;
-                }
-            }
-
-            // Parse memory usage
-            const memoryUsage = stats.memory_stats?.usage || 0;
-            const memoryLimit = stats.memory_stats?.limit || 0;
-            const memoryUsagePercent = memoryLimit > 0 ? (memoryUsage / memoryLimit) * 100 : 0;
-
-            // Parse network I/O
-            let networkRx = 0;
-            let networkTx = 0;
-            if (stats.networks) {
-                Object.values(stats.networks).forEach((network: { rx_bytes?: number; tx_bytes?: number }) => {
-                    networkRx += network.rx_bytes || 0;
-                    networkTx += network.tx_bytes || 0;
-                });
-            }
+            const [usage, players] = await Promise.all([
+                getUsage(containerId, environmentId, limitBytes),
+                getPlayers(containerId, environmentId),
+            ]);
+            if (!usage) return null;
 
             return {
                 containerId,
-                cpuUsagePercent: Math.round(cpuUsagePercent * 100) / 100,
-                memoryUsageMB: Math.round(memoryUsage / 1024 / 1024),
-                memoryLimitMB: Math.round(memoryLimit / 1024 / 1024),
-                memoryUsagePercent: Math.round(memoryUsagePercent * 100) / 100,
-                playersOnline: playerInfo.playersOnline,
-                maxPlayers: playerInfo.maxPlayers,
-                networkRxMB: Math.round(networkRx / 1024 / 1024 * 100) / 100,
-                networkTxMB: Math.round(networkTx / 1024 / 1024 * 100) / 100,
+                cpuUsagePercent: usage.cpuPercent,
+                memoryUsageMB: usage.memoryMB,
+                memoryLimitMB: usage.memoryLimitMB,
+                memoryUsagePercent: usage.memoryPercent,
+                playersOnline: players.online,
+                maxPlayers: players.max ?? 0,
+                networkRxMB: usage.networkRxMB,
+                networkTxMB: usage.networkTxMB,
             };
         } catch (error) {
             console.error(`❌ Failed to get resource stats for container ${containerId}:`, error);
@@ -158,12 +137,7 @@ export class ResourceMonitor {
             }
 
             // Get Portainer environment
-            const environments = await portainer.getEnvironments();
-            if (environments.length === 0) {
-                return { scaled: false, error: 'No Portainer environments found' };
-            }
-
-            const environmentId = environments[0].Id;
+            const environmentId = await portainer.getValidEnvironmentId(server.environmentId ?? null);
             const containerIdentifier = getContainerName(server);
 
             // Get container
@@ -315,12 +289,7 @@ export class ResourceMonitor {
                 return null;
             }
 
-            const environments = await portainer.getEnvironments();
-            if (environments.length === 0) {
-                return null;
-            }
-
-            const environmentId = environments[0].Id;
+            const environmentId = await portainer.getValidEnvironmentId(server.environmentId ?? (process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID, 10) : null));
             const containerIdentifier = getContainerName(server);
             const container = await portainer.getContainerByIdentifier(containerIdentifier, environmentId);
             
@@ -328,10 +297,12 @@ export class ResourceMonitor {
                 return null;
             }
 
-            const stats = await this.getResourceStats(container.Id, environmentId);
+            const stats = await this.getResourceStats(container.Id, environmentId, parseMemoryMB(server.serverConfig?.serverMemory));
             if (!stats) {
                 return null;
             }
+            // The player limit of the server itself when it could not be asked
+            if (!stats.maxPlayers) stats.maxPlayers = Number(server.serverConfig?.maxPlayers) || 20;
 
             // Generate recommendations
             const recommendations = [];

@@ -8,6 +8,7 @@ import verificationService from "@/lib/server/verify";
 import { isSingleLineCommand, shellQuote } from '@/lib/server/shell';
 import { consoleInputScript, getBlockServerSwitching, isServerSwitchCommand } from '@/lib/server/consoleCommands';
 import { getContainerName } from '@/lib/server/containerNames';
+import { cleanExecOutput } from '@/lib/server/liveStats';
 
 export async function POST(request: NextRequest) {
     await dbConnect();
@@ -63,11 +64,7 @@ export async function POST(request: NextRequest) {
         // single literal argument, otherwise `$(...)`, backticks or a backslash could run other commands.
         const rconCommand = `rcon-cli ${shellQuote(command)}`;
 
-        const clean = (text: string) => text
-            .replace(/\u001b\[[0-9;]*[A-Za-z]/g, '')
-            .replace(/§[0-9a-fk-or]/gi, '')
-            .replace(/[\u0000-\u0008\u000b-\u001f]/g, '')
-            .trim();
+        const clean = cleanExecOutput;
 
         const result = await portainer.executeCommand(container.Id, rconCommand, environmentId);
         // The answer of the server is not in its log (the log only notes that an RCON client came and went), so it

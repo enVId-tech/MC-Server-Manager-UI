@@ -8,6 +8,7 @@ import { publicSubdomain } from '@/lib/server/subdomain';
 import { getContainerName } from '@/lib/server/containerNames';
 import { statusFromContainer, type LiveStatus } from '@/lib/server/containerStatus';
 import type { PortainerContainer } from '@/lib/server/portainer';
+import { getPlayers } from '@/lib/server/liveStats';
 
 /** Route to fetch server configuration for the authenticated user.
   * @param request - The incoming request object.
@@ -47,6 +48,30 @@ export async function GET(request: NextRequest) {
             return statusFromContainer(container, server.transition);
         };
 
+        // Players are asked from every server that is online, a few at a time, and none may hold the list up
+        const containerOf = (server: (typeof servers)[number]) => {
+            const name = getContainerName(server);
+            return containersByEnvironment.get(server.environmentId ?? defaultEnvironment)?.find(candidate => candidate.Names?.some(item => item.replace(/^\//, '') === name));
+        };
+        const online = servers.filter(server => liveStatus(server) === 'online');
+        const live = new Map<string, { online: number; max: number | null }>();
+        const queue = [...online];
+        const worker = async () => {
+            for (let server = queue.shift(); server; server = queue.shift()) {
+                const container = containerOf(server);
+                if (!container) continue;
+                try {
+                    const environmentId = await portainer.getValidEnvironmentId(server.environmentId ?? defaultEnvironment);
+                    const count = await Promise.race([
+                        getPlayers(container.Id, environmentId),
+                        new Promise<null>(resolve => setTimeout(() => resolve(null), 4000)),
+                    ]);
+                    if (count) live.set(server.uniqueId, { online: count.online, max: count.max });
+                } catch { /* shown as 0 */ }
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(4, online.length) }, worker));
+
         // Format the server data
         const serverData = servers.map(server => ({
             id: server.uniqueId,
@@ -54,8 +79,9 @@ export async function GET(request: NextRequest) {
             isOnline: liveStatus(server),
             subdomainName: publicSubdomain(server.subdomainName),
             serverType: server.serverConfig?.serverType || "unknown",
-            players: server.serverConfig?.players || 0,
-            maxPlayers: server.serverConfig?.maxPlayers || 0,
+            // Nobody is on a server that is not running; a running one is asked
+            players: live.get(server.uniqueId)?.online ?? 0,
+            maxPlayers: live.get(server.uniqueId)?.max || server.serverConfig?.maxPlayers || 0,
             version: server.serverConfig?.version || "unknown",
         }));
 
