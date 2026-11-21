@@ -6,6 +6,7 @@ import portainer from '@/lib/server/portainer';
 import { getContainerName } from '@/lib/server/containerNames';
 import { authorizeFile, isDenied } from '@/lib/server/fileAccess';
 import { extractWorldZip, installWorld, MAX_WORLD_MB } from '@/lib/server/world/install';
+import { DOWNGRADE_WARNING, judgeWorld } from '@/lib/server/world/analyze';
 
 /**
  * POST /api/server/world   multipart: server, file (a .zip), acknowledgeDowngrade
@@ -39,6 +40,16 @@ export async function POST(request: NextRequest) {
 
         const extracted = await extractWorldZip(temp);
         try {
+            if (form.get('checkOnly') === 'true') {
+                // Only look: say whether the world fits, without touching the server
+                const config = (access.server.serverConfig ?? {}) as { version?: string };
+                const { info } = extracted;
+                const judgement = judgeWorld(info, String(config.version ?? 'LATEST'));
+                return NextResponse.json({
+                    success: true, checked: true, judgement, found: info.found, levelName: info.levelName, versionName: info.versionName,
+                    downgradeWarning: judgement.status === 'downgrade' ? DOWNGRADE_WARNING : undefined,
+                });
+            }
             const config = (access.server.serverConfig ?? {}) as { serverType?: string; version?: string };
             const result = await installWorld(extracted, {
                 serverFolder: access.base,
