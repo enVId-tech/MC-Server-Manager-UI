@@ -218,6 +218,18 @@
   }
 
   // Enhanced Select Dropdown Styling
+  select optgroup {
+    font-style: normal;
+    font-weight: 600;
+    color: $accent-blue;
+    background-color: $dark-bg;
+  }
+
+  select option {
+    font-weight: 400;
+    color: $text-primary;
+  }
+
   select {
     width: 100%;
     padding: 0.75rem 1rem;

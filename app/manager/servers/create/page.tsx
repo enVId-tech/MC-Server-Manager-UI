@@ -105,6 +105,14 @@ Object.entries(propertyMapping).forEach(([general, advanced]) => {
 });
 
 // Interfaces for ServerConfig
+/** The server type list is split into sections by what the server can run */
+const SERVER_TYPE_GROUPS: Array<{ label: string; families: string[] }> = [
+  { label: 'Vanilla and plugins', families: ['vanilla', 'bukkit'] },
+  { label: 'Modded', families: ['modded', 'modpack'] },
+  { label: 'Hybrid (plugins and mods)', families: ['hybrid'] },
+  { label: 'Other', families: ['other'] },
+];
+
 interface ServerTypes {
   id: string;
   name: string;
@@ -1741,9 +1749,16 @@ export default function ServerGenerator() {
                     value={serverTypes.find(type => type.id === serverConfig.serverType)?.id || ''}
                     onChange={handleChange}
                   >
-                    {serverTypes.map(type => (
-                      <option key={type.id} value={type.id}>{type.name}</option>
-                    ))}
+                    {SERVER_TYPE_GROUPS.map(group => {
+                      const members = serverTypes.filter(type => group.families.includes(getServerType(type.id)?.family ?? 'other'));
+                      return members.length > 0 ? (
+                        <optgroup key={group.label} label={group.label}>
+                          {members.map(type => (
+                            <option key={type.id} value={type.id}>{type.name}</option>
+                          ))}
+                        </optgroup>
+                      ) : null;
+                    })}
                   </select>
                   {getServerType(serverConfig.serverType)?.description && (
                     <small className={styles.fieldHint}>{getServerType(serverConfig.serverType)?.description}</small>
