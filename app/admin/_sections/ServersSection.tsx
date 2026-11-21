@@ -208,10 +208,10 @@ export default function ServersSection() {
                                             </td>
                                             <td>
                                                 <div className={styles.primaryText}>
-                                                    {server.serverName}{' '}
+                                                    <Link className={styles.nameLink} href={`/manager/servers/${encodeURIComponent(server.uniqueId)}`}>{server.serverName}</Link>{' '}
                                                     {server.imported && <span className={`${styles.badge} ${styles.info}`}>imported</span>}
                                                 </div>
-                                                <div className={styles.mutedText}>{server.subdomainName ?? 'no address'}</div>
+                                                <div className={styles.mutedText}>{server.subdomainName || 'no address yet'}</div>
                                             </td>
                                             <td>
                                                 <div>{server.email}</div>
@@ -228,7 +228,7 @@ export default function ServersSection() {
                                                     <button className={`${styles.btn} ${styles.small}`} disabled={busy || running} onClick={() => void run('start', [server.uniqueId])}>Start</button>
                                                     <button className={`${styles.btn} ${styles.small}`} disabled={busy || !running} onClick={() => void run('stop', [server.uniqueId])}>Stop</button>
                                                     <button className={`${styles.btn} ${styles.small}`} disabled={busy} onClick={() => void run('restart', [server.uniqueId])}>Restart</button>
-                                                    <Link className={`${styles.btn} ${styles.small}`} href={`/manager/servers/${encodeURIComponent(server.subdomainName ?? server.uniqueId)}`}>Open</Link>
+                                                    <Link className={`${styles.btn} ${styles.small}`} href={`/manager/servers/${encodeURIComponent(server.uniqueId)}`}>Open</Link>
                                                     <button className={`${styles.btn} ${styles.small} ${styles.danger}`} disabled={busy} onClick={() => confirmDelete([server.uniqueId])}>Delete</button>
                                                 </div>
                                             </td>

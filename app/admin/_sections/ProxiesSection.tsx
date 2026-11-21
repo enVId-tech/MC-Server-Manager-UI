@@ -408,7 +408,7 @@ export default function ProxiesSection() {
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', justifyContent: 'space-between' }}>
                                         <div>
                                             <div className={styles.primaryText}>
-                                                {proxy.name}{' '}
+                                                <Link className={styles.nameLink} href={`/manager/servers/${proxy.id}`}>{proxy.name}</Link>{' '}
                                                 <span className={`${styles.badge} ${proxy.running ? styles.ok : styles.bad}`}>{proxy.running ? 'running' : 'stopped'}</span>{' '}
                                                 {!proxy.enabled && <span className={`${styles.badge} ${styles.warn}`}>disabled</span>}{' '}
                                                 {proxy.imported && <span className={`${styles.badge} ${styles.info}`}>existing</span>}

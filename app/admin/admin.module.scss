@@ -637,3 +637,13 @@
     margin: 0;
   }
 }
+
+.nameLink {
+  color: inherit;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
+}
