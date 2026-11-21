@@ -19,6 +19,8 @@ export interface IUser extends pkg.Document {
     reservedPortRanges: PortReservationRange[]; // Array of reserved port ranges for the user
     createdAt?: Date; // Added by the schema timestamps option
     updatedAt?: Date;
+    /** Set only while an administrator is acting as this account. Never stored */
+    impersonation?: { by: string; mode: 'preview' | 'user' | 'admin' };
     comparePassword(candidatePassword: string): Promise<boolean>; // Method to compare passwords
 }
 

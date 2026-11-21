@@ -18,7 +18,11 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ message: 'Your account has not been activated yet.' }, { status: 403 });
         }
 
-        return NextResponse.json({ status: 200 });
+        return NextResponse.json({
+            status: 200,
+            ...(user.impersonation ? { impersonating: { as: user.email, by: user.impersonation.by, mode: user.impersonation.mode } } : {}),
+            isAdmin: Boolean(user.isAdmin),
+        });
     } catch (error) {
         console.error('Session check error:', error);
         return NextResponse.json({ message: 'An error occurred while checking the session.', error: (error as Error).message }, { status: 500 });

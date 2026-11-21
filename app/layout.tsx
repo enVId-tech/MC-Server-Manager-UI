@@ -3,6 +3,7 @@ import { poppins, pressStart2P } from './fonts';
 import "./globals.scss";
 import Navbar from "@/app/_components/Navbar/Navbar";
 import { NotificationProvider } from "@/lib/contexts/NotificationContext";
+import ImpersonationBanner from "@/app/_components/ImpersonationBanner/ImpersonationBanner";
 import NotificationSystem from "@/app/_components/NotificationSystem/NotificationSystem";
 import MinecraftServer from "@/public/minecraft-server.svg";
 
@@ -44,6 +45,7 @@ export default function RootLayout({
                     <Navbar />
                     {children}
                     <NotificationSystem />
+                    <ImpersonationBanner />
                 </NotificationProvider>
             </body>
         </html>

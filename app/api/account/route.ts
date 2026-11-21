@@ -28,6 +28,9 @@ export async function PUT(request: NextRequest) {
         if (!existingUser.isActive) {
             return NextResponse.json({ message: 'Your account has not been activated yet.' }, { status: 403 });
         }
+        if (existingUser.impersonation) {
+            return NextResponse.json({ message: 'The email and password cannot be changed while acting as another account.' }, { status: 403 });
+        }
 
         const { email, currentPassword, newPassword } = await request.json();
 
@@ -133,6 +136,9 @@ export async function DELETE(request: NextRequest) {
         }
 
         const user: IUser | null = await verificationService.getUserFromToken(request);
+        if (user?.impersonation) {
+            return NextResponse.json({ message: 'An account cannot be deleted while acting as it.' }, { status: 403 });
+        }
 
         if (!user) {
             return NextResponse.json({ message: 'User not found.' }, { status: 404 });

@@ -1,0 +1,32 @@
+@use '../../_variables.scss' as *;
+
+.banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  background: #b7791f;
+  color: #fffaf0;
+  font-size: 0.9rem;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
+
+  button {
+    padding: 0.3rem 0.9rem;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.25);
+    color: inherit;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: rgba(0, 0, 0, 0.4);
+    }
+  }
+}

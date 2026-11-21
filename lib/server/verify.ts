@@ -3,6 +3,17 @@ import jwt from "jsonwebtoken";
 import User, { IUser } from "../objects/User";
 import { getJwtSecret } from './jwt';
 
+export const IMPERSONATION_COOKIE = 'impersonation';
+
+export type ImpersonationMode = 'preview' | 'user' | 'admin';
+
+interface ImpersonationClaim {
+    typ: 'impersonation';
+    admin: string;
+    target: string | null;
+    mode: ImpersonationMode;
+}
+
 interface Token {
     status: number;
     token?: string;
@@ -93,11 +104,55 @@ class VerificationService {
                 return null;
             }
 
-            return user;
+            return (await this.applyImpersonation(request, user)) ?? user;
         } catch (error) {
             console.error('Error getting user from token:', error);
             throw new Error('Internal server error.');
         }
+    }
+
+    /**
+     * The administrator behind the session, whatever they are impersonating at the moment.
+     * Only the impersonation endpoints use it: everything else sees the effective user.
+     */
+    async getRealUser(request: NextRequest): Promise<IUser | null> {
+        try {
+            const verification = await this.verifyToken(request);
+            if (verification.status !== 200) return null;
+            const user: IUser | null = await User.findById((verification.decoded as { id: string }).id);
+            if (!user || !user.sessionToken || user.sessionToken !== verification.token) return null;
+            return user;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Applies the impersonation cookie of an administrator. The cookie is a signed token that names the administrator
+     * and the account being used, and is ignored unless it belongs to the signed in administrator.
+     * Three modes: `preview` (the administrator as an ordinary user), `user` (another account, with that account's
+     * rights) and `admin` (another account, keeping administrator rights to act on their behalf).
+     */
+    private async applyImpersonation(request: NextRequest, real: IUser): Promise<IUser | null> {
+        const raw = request.cookies.get(IMPERSONATION_COOKIE)?.value;
+        if (!raw || !real.isAdmin) return null;
+
+        let claim: ImpersonationClaim;
+        try {
+            claim = jwt.verify(raw, getJwtSecret()) as ImpersonationClaim;
+        } catch {
+            return null;
+        }
+        if (claim.typ !== 'impersonation' || claim.admin !== String(real._id)) return null;
+
+        const target = claim.mode === 'preview' ? real : await User.findById(claim.target);
+        if (!target || !target.isActive) return null;
+
+        // Own properties shadow the stored fields on this instance only. Nothing here can be saved to the database
+        Object.defineProperty(target, 'impersonation', { value: { by: real.email, mode: claim.mode }, enumerable: false });
+        if (claim.mode === 'preview') Object.defineProperty(target, 'isAdmin', { value: false, enumerable: false });
+        if (claim.mode === 'admin') Object.defineProperty(target, 'isAdmin', { value: true, enumerable: false });
+        return target;
     }
 }
 

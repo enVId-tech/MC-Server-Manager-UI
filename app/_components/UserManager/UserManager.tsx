@@ -109,6 +109,20 @@ export default function UserManager() {
         void updateUser(user, { maxServers: value }, `server limit set to ${value}`);
     };
 
+    const impersonate = async (mode: 'preview' | 'user' | 'admin', user?: ManagedUser) => {
+        const response = await fetch('/api/admin/impersonate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode, userId: user?.id }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            showNotification({ type: 'error', title: 'Cannot switch', message: data.message ?? 'Switching failed.' });
+            return;
+        }
+        window.location.assign('/manager/dashboard');
+    };
+
     const deleteUser = (user: ManagedUser) => {
         showConfirmDialog({
             title: 'Delete user',
@@ -159,6 +173,7 @@ export default function UserManager() {
                     />
                     <button type="submit">Search</button>
                 </form>
+                <button onClick={() => void impersonate('preview')} title="Use the site exactly as a regular user does, with your own account">Preview as regular user</button>
 
                 <div className={styles.filters} role="group" aria-label="Filter users">
                     {(['all', 'pending', 'active'] as StatusFilter[]).map((option) => (
@@ -233,6 +248,12 @@ export default function UserManager() {
                                             >
                                                 {user.isAdmin ? 'Remove admin' : 'Make admin'}
                                             </button>
+                                            {user.isActive && (
+                                                <>
+                                                    <button disabled={busy} title="See what this user sees, with their permissions" onClick={() => void impersonate('user', user)}>View as</button>
+                                                    <button disabled={busy} title="Act on their behalf while keeping administrator rights" onClick={() => void impersonate('admin', user)}>Act as</button>
+                                                </>
+                                            )}
                                             <button className={styles.dangerButton} disabled={busy} onClick={() => deleteUser(user)}>
                                                 Delete
                                             </button>
