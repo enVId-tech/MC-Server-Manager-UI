@@ -118,7 +118,7 @@ export default function Home() {
             <footer className={styles.footer}>
                 <div className={styles.footer__container}>
                     <div className={styles.footer__links}>
-                        <Link href="/get-started">Get Started</Link>
+                        <Link href="/docs">Documentation</Link>
                         <Link href="https://github.com/enVId-tech/MinecraftServerCreator" target="_blank">GitHub Page</Link>
                     </div>
                     <div className={styles.footer__copy}>

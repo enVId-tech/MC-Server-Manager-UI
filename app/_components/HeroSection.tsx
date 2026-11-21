@@ -35,7 +35,7 @@ export default function HeroSection() {
                     Create, manage, and deploy Minecraft servers automatically with Docker and Portainer.
                 </p>
                 <div className={styles.hero__buttons}>
-                    <Link href="/get-started" className={`${styles.button} ${styles['button--primary']}`}>
+                    <Link href="/docs" className={`${styles.button} ${styles['button--primary']}`}>
                         Documentation
                     </Link>
                     <Link href={"/auth/signup"} className={`${styles.button} ${styles['button--primary']}`}>

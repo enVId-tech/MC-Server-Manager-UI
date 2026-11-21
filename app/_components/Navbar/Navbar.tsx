@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { FaRocket, FaServer } from 'react-icons/fa';
+import { FaBook, FaServer } from 'react-icons/fa';
 import { IoMdLogIn, IoMdLogOut } from "react-icons/io";
 import { HiMenu, HiX } from "react-icons/hi";
 import { useEffect, useState } from 'react';
@@ -133,6 +133,10 @@ export default function Navbar() {
                 </button>
 
                 <nav id="main-navigation" aria-label="Main" className={`${styles.links} ${isMobileMenuOpen ? styles.mobileOpen : ''}`}>
+                    <Link href="/docs" className={`${styles.link} ${isActive('/docs') ? styles.active : ''}`} aria-current={isActive('/docs') ? 'page' : undefined} onClick={closeMobileMenu}>
+                        <FaBook />
+                        <span>Docs</span>
+                    </Link>
                     {isLoading ? (
                         <span className={styles.link}>Loading...</span>
                     ) : isLoggedIn ? (
@@ -152,10 +156,6 @@ export default function Navbar() {
                         </>
                     ) : (
                         <>
-                            <Link href="/get-started" className={`${styles.link} ${isActive('/get-started') ? styles.active : ''}`} aria-current={isActive('/get-started') ? 'page' : undefined} onClick={closeMobileMenu}>
-                                <FaRocket />
-                                <span>Get Started</span>
-                            </Link>
                             <Link href="/auth/login" className={`${styles.link} ${styles.button}`} onClick={closeMobileMenu}>
                                 <IoMdLogIn />
                                 <span>Login</span>
