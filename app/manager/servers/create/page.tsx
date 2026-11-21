@@ -18,6 +18,8 @@ import {
 } from '.';
 import { ClientServerConfig, FileAnalysis, AnalyzedFile } from '@/lib/server/minecraft';
 import VersionWarningModal from './VersionWarningModal';
+import NetworkPanel, { type NetworkPlan } from './NetworkPanel';
+import { compareMinecraftVersions } from '@/lib/data/itzg/versions';
 import ItzgOptionsPanel from '@/app/_components/ItzgOptions/ItzgOptionsPanel';
 import {
   getServerType,
@@ -205,6 +207,7 @@ export default function ServerGenerator() {
     pvp: true,
   });
 
+  const [plan, setPlan] = useState<NetworkPlan | null>(null);
   const [fullyLoaded, setFullyLoaded] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [creationSuccess, setCreationSuccess] = useState(false);
@@ -1595,6 +1598,20 @@ export default function ServerGenerator() {
     }
   };
 
+  // Behind a modern forwarding proxy only 1.13 and newer can join; regular users do not get older versions to pick
+  const lockedToProxy = Boolean(plan && plan.hasProxy && plan.forwarding && !plan.isAdmin);
+  const selectableVersions = plan && plan.minVersion && !plan.isAdmin
+    ? versions.filter(version => version === 'LATEST' || version === 'SNAPSHOT' || compareMinecraftVersions(version, plan.minVersion as string) >= 0)
+    : versions;
+
+  useEffect(() => {
+    if (!plan || plan.isAdmin || plan.allowed || selectableVersions.length === 0) return;
+    // The chosen version cannot join the proxy network: move to the newest one that can
+    setServerConfig(previous => ({ ...previous, version: selectableVersions[0] }));
+  }, [plan, selectableVersions]);
+
+  const stepIndex = tabs.findIndex(tab => tab.id === activeTab);
+
   return (
     <main className={styles.serverGenerator} style={{ backgroundImage: `url('${createBackground.src}')` }}>
       {/* Version Warning Modal */}
@@ -1731,6 +1748,8 @@ export default function ServerGenerator() {
           />
         )}
 
+        <div className={styles.createLayout}>
+        <div>
         <div className={styles.tabs}>
           {tabs.map(tab => (
             <TabButton
@@ -1793,7 +1812,7 @@ export default function ServerGenerator() {
                         onChange={handleChange}
                         disabled={versionsLoading}
                       >
-                        {versions.map(version => (
+                        {selectableVersions.map(version => (
                           <option key={version} value={version}>{version}</option>
                         ))}
                       </select>
@@ -2062,6 +2081,7 @@ export default function ServerGenerator() {
                 version={serverConfig.version}
                 onPropertiesChange={handleServerPropertiesChange}
                 initialProperties={serverConfig.serverProperties}
+                lockedKeys={lockedToProxy ? ['online-mode', 'prevent-proxy-connections', 'enforce-secure-profile'] : []}
               />
               <div className={styles.formSection}>
                 <h2 className={styles.sectionTitle}>Container Settings</h2>
@@ -2076,37 +2096,21 @@ export default function ServerGenerator() {
                   values={serverConfig.itzgEnv ?? {}}
                   onChange={handleItzgChange}
                   showPlatformInfo
+                  lockedEnv={lockedToProxy ? ['ONLINE_MODE', 'PREVENT_PROXY_CONNECTIONS', 'ENFORCE_SECURE_PROFILE'] : []}
                 />
               </div>
             </>
           )}
 
-          <div className={styles.serverPreview}>
-            <h2 className={styles.sectionTitle}>Server Preview</h2>
-            <div className={styles.previewInfo}>
-              <div>
-                <PreviewDetail label="Name" value={serverConfig.name || 'Unnamed Server'} />
-                <PreviewDetail
-                  label="Type"
-                  value={serverTypes.find(t => t.id === serverConfig.serverType)?.name || 'Vanilla'}
-                />
-                <PreviewDetail label="Version" value={serverConfig.version} />
-                <PreviewDetail label="Game Mode" value={serverConfig.gameMode} />
-                <PreviewDetail label="Difficulty" value={serverConfig.difficulty} />
-              </div>
-              <div>
-                <PreviewDetail
-                  label="World"
-                  value={serverConfig.worldFiles ? 'Custom World Import' : 'New Generated World'}
-                />
-                <PreviewDetail label="Plugins" value={`${serverConfig.plugins.length} plugin(s)`} />
-                <PreviewDetail label="Mods" value={`${serverConfig.mods.length} mod(s)`} />
-                <PreviewDetail label="Max Players" value={serverConfig.maxPlayers} />
-              </div>
-              <p className={styles.previewNote}>
-                <strong>Note:</strong> This is not a permanent server configuration. You can modify these settings later in the server management dashboard (or in Minecraft if it is command based).
-              </p>
-            </div>
+          <div className={styles.stepNav}>
+            <button type="button" className={`${styles.button} ${styles.secondary}`} disabled={stepIndex <= 0} onClick={() => setActiveTab(tabs[Math.max(0, stepIndex - 1)].id)}>
+              Back
+            </button>
+            {stepIndex < tabs.length - 1 && (
+              <button type="button" className={`${styles.button} ${styles.secondary}`} onClick={() => setActiveTab(tabs[stepIndex + 1].id)}>
+                Next
+              </button>
+            )}
           </div>
 
           {error && (
@@ -2121,12 +2125,33 @@ export default function ServerGenerator() {
 
           {fullyLoaded && (
             <div className={styles.actionButtons}>
-              <button type="submit" className={`${styles.button} ${styles.primary}`}>
+              <button type="submit" className={`${styles.button} ${styles.primary}`} disabled={Boolean(plan && !plan.allowed)}>
                 Create Server
               </button>
             </div>
           )}
         </form>
+        </div>
+        <aside className={styles.createSide}>
+          <NetworkPanel version={serverConfig.version} onPlan={setPlan} />
+          <div className={styles.serverPreview}>
+            <h2 className={styles.sectionTitle}>Summary</h2>
+            <div className={styles.previewInfo}>
+              <PreviewDetail label="Name" value={serverConfig.name || 'Unnamed Server'} />
+              <PreviewDetail label="Type" value={serverTypes.find(t => t.id === serverConfig.serverType)?.name || 'Vanilla'} />
+              <PreviewDetail label="Version" value={serverConfig.version} />
+              <PreviewDetail label="Address" value={serverConfig.subdomain ? `${serverConfig.subdomain}${serverDomain ? `.${serverDomain}` : ''}` : 'not chosen yet'} />
+              <PreviewDetail label="Game Mode" value={serverConfig.gameMode} />
+              <PreviewDetail label="Difficulty" value={serverConfig.difficulty} />
+              <PreviewDetail label="World" value={serverConfig.worldFiles ? 'Custom World Import' : 'New Generated World'} />
+              <PreviewDetail label="Plugins" value={`${serverConfig.plugins.length}`} />
+              <PreviewDetail label="Mods" value={`${serverConfig.mods.length}`} />
+              <PreviewDetail label="Max Players" value={serverConfig.maxPlayers} />
+              <p className={styles.previewNote}>Everything here can be changed later in the server dashboard.</p>
+            </div>
+          </div>
+        </aside>
+        </div>
 
         {/* Retry Deployment Button */}
         {canRetryDeployment && (

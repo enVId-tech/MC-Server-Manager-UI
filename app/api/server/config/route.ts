@@ -1,3 +1,5 @@
+import { listProxies } from '@/lib/server/network/service';
+import { versionAllowance } from '@/lib/server/network/versions';
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db/dbConnect";
 import mongoose from "mongoose";
@@ -107,6 +109,15 @@ export async function POST(request: NextRequest) {
         // Modpacks decide the Minecraft version themselves, every other type needs one
         if (!config.serverType || (!config.version && !serverTypeDefinition.versionFromPack)) {
             return NextResponse.json({ error: "Server type and version are required." }, { status: 400 });
+        }
+
+        // Behind a modern forwarding proxy only Minecraft 1.13 and newer can join; administrators may go below it
+        if (!user.isAdmin && !serverTypeDefinition.versionFromPack && config.version) {
+            const proxies = (await listProxies()).filter(proxy => proxy.enabled);
+            const allowance = versionAllowance(proxies, String(config.version));
+            if (!allowance.allowed) {
+                return NextResponse.json({ error: allowance.reason ?? 'This version cannot join the proxy network.' }, { status: 400 });
+            }
         }
 
         // Validate the subdomain format

@@ -22,10 +22,13 @@ export async function GET(request: NextRequest) {
     const decision = version ? chooseProxies(enabled, version, settings.strategy) : null;
 
     return NextResponse.json({
+        isAdmin: Boolean(user.isAdmin),
         hasProxy: enabled.length > 0,
         minVersion: allowance.minVersion,
         // Administrators may create servers that no proxy takes, they get the warning
         allowed: allowance.allowed || Boolean(user.isAdmin),
+        // What is true for regular users, so administrators can see the warning
+        wouldBeAllowed: allowance.allowed,
         reason: allowance.reason,
         forwarding: decision?.forwarding ?? null,
         proxyCount: decision?.proxies.length ?? 0,

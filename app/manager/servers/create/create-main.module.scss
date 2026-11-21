@@ -1606,3 +1606,61 @@
 .fieldHint {
   margin-top: 0.4rem;
 }
+
+// Layout with a sticky summary next to the form -------------------------------------
+.createLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 1.5rem;
+  align-items: start;
+
+  @media (max-width: 1000px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.createSide {
+  position: sticky;
+  top: 6.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+
+  @media (max-width: 1000px) {
+    position: static;
+  }
+}
+
+.networkPanel {
+  padding: 1rem 1.1rem;
+  border: 1px solid $border-color;
+  border-radius: 10px;
+  background-color: rgba($dark-card, 0.8);
+
+  h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+  }
+
+  p {
+    margin: 0 0 0.6rem;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: $text-secondary;
+  }
+
+  .networkWarning {
+    color: $warning-yellow;
+  }
+
+  .networkHint {
+    color: $text-secondary;
+  }
+}
+
+.stepNav {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
