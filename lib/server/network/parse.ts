@@ -254,7 +254,6 @@ export function parseEducationJoinOutput(text: string): EducationJoinInfo {
     const links = [...new Set((text.match(/https:\/\/education\.minecraft\.net\/joinworld\/[^\s"'<>]+/g) ?? []).map(link => link.replace(/[).,;\]]+$/, '')))];
     const lines = text
         .split(/\r?\n/)
-        // eslint-disable-next-line no-control-regex
         .map(line => line.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '').trim())
         .filter(line => /join\s*code|joincode/i.test(line) && !/^>?\s*\/?edu\s+joincode/i.test(line));
     return { links, lines: [...new Set(lines)].slice(-8) };

@@ -66,6 +66,8 @@ export interface NetworkLink {
     proxyName: string;
     /** Name the server has in the proxy's configuration */
     entryName: string;
+    /** Docker network the server shares with the proxy */
+    networkName?: string;
     forwarding: 'modern' | 'bungeeguard' | 'legacy' | 'none';
     linkedAt: Date;
 }

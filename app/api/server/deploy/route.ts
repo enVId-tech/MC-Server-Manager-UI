@@ -8,9 +8,10 @@ import MinecraftServerManager from "@/lib/server/serverManager";
 import { createMinecraftServer, convertClientConfigToServerConfig, ClientServerConfig } from "@/lib/server/minecraft";
 import verificationService from "@/lib/server/verify";
 import velocityService from "@/lib/server/velocity";
+import { getContainerName } from "@/lib/server/containerNames";
+import { adoptExistingProxies } from "@/lib/server/network/proxyManagement";
+import { planServerNetwork, syncServerNetwork } from "@/lib/server/network/service";
 import { FileInfo } from "@/lib/objects/ServerConfig";
-import { definedProxies } from "@/lib/config/proxies";
-import { proxyManager } from "@/lib/server/proxy-manager";
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getServerFolderPath } from '@/lib/server/serverPaths';
@@ -238,7 +239,7 @@ export async function POST(request: NextRequest) {
             { id: 'deploy', name: 'Deploying to container platform', status: 'pending', progress: 0 },
             { id: 'files', name: 'Setting up file directories', status: 'pending', progress: 0 },
             { id: 'upload', name: 'Uploading server files', status: 'pending', progress: 0 },
-            { id: 'velocity', name: 'Configuring Velocity proxy integration', status: 'pending', progress: 0 },
+            { id: 'velocity', name: 'Connecting to the proxy network', status: 'pending', progress: 0 },
             { id: 'finalize', name: 'Finalizing deployment', status: 'pending', progress: 0 }
         );
 
@@ -402,8 +403,8 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             // This ensures YAML config matches Portainer state
             await updateStep(serverId, 'prerequisites', 'running', 75, 'Syncing Velocity proxies with configuration...');
             
-            // Ensure Velocity proxies are running and synced with YAML
-            const proxyDetails = await proxyManager.ensureProxies(portainerEnvironmentId);
+            // Proxies that exist already (Docker, import folders, proxies.yaml) become manageable ones
+            const proxyDetails = await adoptExistingProxies(user.email);
             
             if (proxyDetails.length > 0) {
                 console.log('Proxy sync details:', proxyDetails);
@@ -580,6 +581,11 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
         // Ensure SUBDOMAIN is set in the config for proxy routing
         minecraftConfig.SUBDOMAIN = getSubdomainLabel(server.subdomainName);
 
+        // Decide now which proxies the server joins: the container is created for that forwarding mode
+        // (online-mode off, the proxy's Docker network) instead of being rebuilt after the first start
+        const networkPlan = await planServerNetwork(server);
+        minecraftConfig.NETWORK_FORWARDING = networkPlan.forwarding ?? undefined;
+
         const updatedMinecraftServer = createMinecraftServer(
             minecraftConfig,
             server.serverName,
@@ -588,6 +594,8 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             user.email,
             server.proxyIds || []
         );
+        updatedMinecraftServer.setProxyNetworks(networkPlan.networks);
+        await Server.updateOne({ uniqueId: serverId }, { $set: { 'network.forwarding': networkPlan.forwarding ?? 'none' } });
 
         await new Promise(resolve => setTimeout(resolve, 800));
         await updateStep(serverId, 'docker', 'completed', 100, 'Docker configuration generated');
@@ -854,170 +862,44 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             throw uploadError;
         }
 
-        // Step 9: Configure Velocity proxy integration
+        // Step 9: Connect the server to the proxy network
         await assertServerNotDeleted(serverId);
-        await updateStep(serverId, 'velocity', 'running', 0, 'Configuring Velocity proxy integration...');
+        await updateStep(serverId, 'velocity', 'running', 0, 'Connecting to the proxy network...');
 
         try {
-            // Check if Velocity integration is enabled
-            const velocityEnabled = definedProxies.length > 0;
-            
-            if (velocityEnabled) {
-                console.log('[Deploy] Velocity integration enabled, configuring server...');
-                
-                // Ensure at least one Velocity proxy exists before configuring servers
-                await updateStep(serverId, 'velocity', 'running', 10, 'Ensuring Velocity proxy exists...');
-                console.log('[Deploy] Checking for existing Velocity proxy instances...');
-                
-                try {
-                    const ensureDetails = await proxyManager.ensureProxies(portainerEnvironmentId);
-                    console.log('[Deploy] Velocity proxy check completed:', ensureDetails.join(', '));
-                    await updateStep(serverId, 'velocity', 'running', 20, 'Velocity proxy verified');
-                } catch (proxyError) {
-                    console.error('[Deploy] Failed to ensure Velocity proxy exists:', proxyError);
-                    throw new Error(`Failed to ensure Velocity proxy: ${proxyError instanceof Error ? proxyError.message : 'Unknown error'}`);
+            const freshServer = await Server.findOne({ uniqueId: serverId });
+            if (!freshServer) throw new Error('The server record disappeared during deployment');
+
+            const containers = await portainer.getContainers(portainerEnvironmentId);
+            const serverContainer = containers.find(container =>
+                container.Names.some(name => name.replace(/^\//, '') === getContainerName(freshServer) || name.includes(`minecraft-${serverId}`) || name.includes(serverId))
+            );
+
+            // The server has to create its files once (server.properties, spigot.yml, paper-global.yml) before they can be set up
+            let filesReady = false;
+            if (serverContainer) {
+                if (serverContainer.State === 'created' || serverContainer.State === 'exited') {
+                    await updateStep(serverId, 'velocity', 'running', 20, 'Starting the server so it creates its files...');
+                    await portainer.axiosInstance.post(`/api/endpoints/${portainerEnvironmentId}/docker/containers/${serverContainer.Id}/start`);
                 }
-                
-                // Find the deployed container - use multiple patterns to find it
-                const containers = await portainer.getContainers(portainerEnvironmentId);
-                console.log(`[Deploy] Found ${containers.length} containers in environment ${portainerEnvironmentId}`);
-                
-                // Log all container names for debugging
-                console.log('[Deploy] Available containers:', containers.map(c => ({
-                    id: c.Id.slice(0, 12),
-                    names: c.Names,
-                    state: c.State
-                })));
-                
-                // Try multiple name patterns - the stack name is "minecraft-{uniqueId}"
-                const serverContainer = containers.find(container =>
-                    container.Names.some(name => 
-                        name.includes(`minecraft-${serverId}`) ||
-                        name.includes(`mc-${serverId}`) ||
-                        name.includes(serverId)
-                    )
-                );
-                
-                if (serverContainer) {
-                    console.log(`[Deploy] Found server container: ${serverContainer.Names.join(', ')} (ID: ${serverContainer.Id.slice(0, 12)}, State: ${serverContainer.State})`);
-                    
-                    // Ensure the container is running before trying to execute commands
-                    if (serverContainer.State === 'created' || serverContainer.State === 'exited') {
-                        await updateStep(serverId, 'velocity', 'running', 25, 'Starting server container...');
-                        console.log(`[Deploy] Container is in '${serverContainer.State}' state, starting it...`);
-                        
-                        try {
-                            await portainer.axiosInstance.post(
-                                `/api/endpoints/${portainerEnvironmentId}/docker/containers/${serverContainer.Id}/start`
-                            );
-                            console.log(`[Deploy] Container start command sent, waiting for container to be running...`);
-                            
-                            // Wait for container to be in running state
-                            let attempts = 0;
-                            const maxAttempts = 30;
-                            while (attempts < maxAttempts) {
-                                await new Promise(resolve => setTimeout(resolve, 2000));
-                                const containers = await portainer.getContainers(portainerEnvironmentId);
-                                const currentContainer = containers.find(c => c.Id === serverContainer.Id);
-                                
-                                if (currentContainer?.State === 'running') {
-                                    console.log(`[Deploy] Container is now running`);
-                                    break;
-                                }
-                                
-                                console.log(`[Deploy] Waiting for container to start (attempt ${attempts + 1}/${maxAttempts}, current state: ${currentContainer?.State})...`);
-                                attempts++;
-                            }
-                            
-                            if (attempts >= maxAttempts) {
-                                throw new Error('Container did not start within expected time');
-                            }
-                        } catch (startError) {
-                            console.error(`[Deploy] Failed to start container:`, startError);
-                            throw new Error(`Failed to start server container: ${startError instanceof Error ? startError.message : 'Unknown error'}`);
-                        }
-                    }
-                    
-                    // Wait for server files to be created
-                    await updateStep(serverId, 'velocity', 'running', 30, 'Waiting for server files to be ready...');
-                    
-                    const filesReady = await velocityService.waitForServerFilesToBeCreated(
-                        serverContainer.Id,
-                        portainerEnvironmentId,
-                        120000 // 2 minutes timeout
-                    );
-
-                    if (filesReady.success) {
-                        // Stop container for configuration
-                        await updateStep(serverId, 'velocity', 'running', 55, 'Stopping server for Velocity configuration...');
-                        
-                        // Re-fetch container state to ensure we have current state
-                        const currentContainers = await portainer.getContainers(portainerEnvironmentId);
-                        const currentContainer = currentContainers.find(c => c.Id === serverContainer.Id);
-                        
-                        if (currentContainer?.State === 'running') {
-                            await portainer.axiosInstance.post(
-                                `/api/endpoints/${portainerEnvironmentId}/docker/containers/${serverContainer.Id}/stop`
-                            );
-                            await new Promise(resolve => setTimeout(resolve, 3000));
-                        }
-
-                        // Configure for Velocity
-                        await updateStep(serverId, 'velocity', 'running', 80, 'Applying Velocity configuration...');
-                        
-                        const velocityConfig = {
-                            serverId: serverId,
-                            serverName: server.serverName,
-                            address: `mc-${serverId}:25565`,
-                            port: allocatedPort,
-                            motd: server.serverConfig?.motd || server.serverName,
-                            restrictedToProxy: true,
-                            playerInfoForwardingMode: 'legacy' as const,
-                            forwardingSecret: 'velocity-secret',
-                            subdomain: server.serverConfig?.subdomain // Add subdomain for forced host mapping
-                        };
-
-                        const configResult = await velocityService.configureServerForVelocity(
-                            velocityConfig,
-                            user.email,
-                            serverId
-                        );
-
-                        if (configResult.success) {
-                            // Restart container with new configuration
-                            await portainer.axiosInstance.post(
-                                `/api/endpoints/${portainerEnvironmentId}/docker/containers/${serverContainer.Id}/start`
-                            );
-                            
-                            // velocity.toml changed: make the running proxy read it. This is a reload, so players that are
-                            // connected through the proxy stay connected (see VelocityService.reloadVelocity).
-                            await updateStep(serverId, 'velocity', 'running', 90, 'Reloading the Velocity proxy...');
-                            const reload = await velocityService.reloadProxies(portainerEnvironmentId);
-                            reload.details.forEach(line => console.log(`[Deploy] ${line}`));
-
-                            await updateStep(serverId, 'velocity', 'completed', 100,
-                                reload.success ? 'Velocity updated and reloaded without disconnecting players' : 'Velocity configuration saved, but the proxy could not be reloaded');
-                        } else {
-                            throw new Error(configResult.error || 'Failed to configure Velocity');
-                        }
-                    } else {
-                        console.warn(`[Deploy] Velocity file wait failed: ${filesReady.error}`);
-                        // Don't fail - Velocity config will be applied later via WebDAV
-                        await updateStep(serverId, 'velocity', 'completed', 100, `Velocity integration skipped: ${filesReady.error}`);
-                    }
-                } else {
-                    console.warn(`[Deploy] Server container not found for Velocity configuration. Looking for patterns: minecraft-${serverId}, mc-${serverId}, or ${serverId}`);
-                    // Don't fail deployment - the server is deployed but Velocity integration will need manual config
-                    await updateStep(serverId, 'velocity', 'completed', 100, 'Server container not found, Velocity integration skipped');
-                }
-            } else {
-                await updateStep(serverId, 'velocity', 'completed', 100, 'Velocity integration disabled, skipping...');
+                await updateStep(serverId, 'velocity', 'running', 30, 'Waiting for the server files...');
+                const ready = await velocityService.waitForServerFilesToBeCreated(serverContainer.Id, portainerEnvironmentId, 120000);
+                filesReady = ready.success;
+                if (!ready.success) console.warn(`[Deploy] Server files not ready: ${ready.error}`);
             }
 
-        } catch (velocityError) {
-            console.error('Velocity configuration failed:', velocityError);
-            await updateStep(serverId, 'velocity', 'failed', 0, `Velocity configuration failed: ${velocityError instanceof Error ? velocityError.message : 'Unknown error'}`);
-            // Don't throw the error - continue with deployment
+            await updateStep(serverId, 'velocity', 'running', 60, 'Adding the server to its proxies...');
+            await adoptExistingProxies(user.email).catch(() => []);
+            const result = await syncServerNetwork(freshServer, { restart: filesReady, environmentId: portainerEnvironmentId });
+            const message = result.linked.length > 0
+                ? `Connected to ${result.linked.length} prox${result.linked.length === 1 ? 'y' : 'ies'} (${result.forwarding} forwarding)`
+                : result.warnings.length > 0 ? result.warnings[0].message : 'No proxy to connect to';
+            console.log('[Deploy] Network setup:', result.details.join(' | '));
+            await updateStep(serverId, 'velocity', 'completed', 100, message);
+        } catch (networkError) {
+            console.error('Proxy network setup failed:', networkError);
+            // The server itself is deployed; the dashboard shows the network state and can retry
+            await updateStep(serverId, 'velocity', 'completed', 100, `Proxy setup skipped: ${networkError instanceof Error ? networkError.message : 'Unknown error'}`);
         }
 
         // Step 10: Finalize deployment

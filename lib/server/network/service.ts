@@ -233,6 +233,57 @@ export interface SyncResult {
     changedProxies: string[];
 }
 
+
+interface ProxyPick {
+    chosen: NetworkProxy[];
+    forwarding: ForwardingMode | null;
+    concerns: Array<{ code: NetworkWarning['code']; port?: number; detail?: string }>;
+    details: string[];
+}
+
+/**
+ * Which proxies a server of this version and type joins, and why not when it joins none. Servers behind several
+ * proxies need one shared key, so proxies with another key are left out; a proxy without a key cannot be used.
+ */
+export function pickProxies(proxies: NetworkProxy[], version: string, type: string, strategy: BalancingStrategy, port: number): ProxyPick {
+    const concerns: ProxyPick['concerns'] = [];
+    const details: string[] = [];
+    let decision = chooseProxies(proxies, version, strategy);
+
+    if (type && !isVelocityCompatible(type) && decision.proxies.length > 0) {
+        concerns.push({ code: 'unsupported-type', port, detail: type });
+        decision = { proxies: [], forwarding: null, reason: 'This kind of server cannot sit behind a proxy.' };
+    } else if (decision.proxies.length === 0) {
+        concerns.push({ code: proxies.length === 0 ? 'no-proxy' : 'unsupported-version', port, detail: proxies.length === 0 ? undefined : version });
+    }
+
+    let chosen = decision.proxies;
+    const forwarding = decision.forwarding;
+    if (forwarding === 'modern' || forwarding === 'bungeeguard') {
+        const withKey = chosen.filter(proxy => proxy.secret);
+        if (withKey.length === 0) {
+            concerns.push({ code: 'no-secret', port, detail: chosen.map(proxy => proxy.name).join(', ') });
+            chosen = [];
+        } else if (forwarding === 'modern') {
+            const secret = withKey[0].secret;
+            const sameKey = withKey.filter(proxy => proxy.secret === secret);
+            if (sameKey.length < withKey.length) details.push('Some proxies use a different forwarding secret than the first one and were left out. Give them the same secret in the admin panel');
+            chosen = sameKey;
+        } else {
+            chosen = withKey;
+        }
+    }
+    return { chosen, forwarding: chosen.length > 0 ? forwarding : null, concerns, details };
+}
+
+/** Forwarding mode and Docker networks a server will have, worked out before its container is created */
+export async function planServerNetwork(server: Pick<IServer, 'serverConfig' | 'port' | 'network'>): Promise<{ forwarding: ForwardingMode | null; networks: string[] }> {
+    const settings = await getNetworkSettings();
+    const proxies = (await listProxies()).filter(proxy => proxy.enabled);
+    const picked = pickProxies(proxies, String(server.serverConfig?.version ?? 'LATEST'), String(server.serverConfig?.serverType ?? ''), settings.strategy, server.port);
+    return { forwarding: picked.forwarding, networks: picked.chosen.map(proxy => proxy.networkName) };
+}
+
 /** Entries of a proxy that lead to this container, whatever they are called. Older versions named them differently */
 function entriesFor(proxy: Pick<NetworkProxy, 'entries'>, containerName: string): string[] {
     return Object.entries(proxy.entries)
@@ -269,31 +320,11 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
     const entryName = previousLinks[0]?.entryName ?? entryNameFor(server);
     const port = server.port;
 
-    let decision = chooseProxies(adjusted, version, settings.strategy);
-    if (type && !isVelocityCompatible(type) && decision.proxies.length > 0) {
-        concerns.push({ code: 'unsupported-type', port, detail: type });
-        decision = { proxies: [], forwarding: null, reason: 'This kind of server cannot sit behind a proxy.' };
-    } else if (decision.proxies.length === 0) {
-        concerns.push({ code: adjusted.length === 0 ? 'no-proxy' : 'unsupported-version', port, detail: adjusted.length === 0 ? undefined : version });
-    }
-
-    // Every proxy of one backend has to share the secret (modern) or may list several tokens (BungeeGuard)
-    let chosen = decision.proxies;
-    const forwarding = decision.forwarding;
-    if (forwarding === 'modern' || forwarding === 'bungeeguard') {
-        const withKey = chosen.filter(proxy => proxy.secret);
-        if (withKey.length === 0) {
-            concerns.push({ code: 'no-secret', port, detail: chosen.map(proxy => proxy.name).join(', ') });
-            chosen = [];
-        } else if (forwarding === 'modern') {
-            const secret = withKey[0].secret;
-            const sameKey = withKey.filter(proxy => proxy.secret === secret);
-            if (sameKey.length < withKey.length) details.push('Some proxies use a different forwarding secret than the first one and were left out. Give them the same secret in the admin panel');
-            chosen = sameKey;
-        } else {
-            chosen = withKey;
-        }
-    }
+    const picked = pickProxies(adjusted, version, type, settings.strategy, port);
+    const chosen = picked.chosen;
+    const forwarding = picked.forwarding;
+    concerns.push(...picked.concerns);
+    details.push(...picked.details);
 
     const hostnames = hostnamesFor(server);
     const address = `${getContainerName(server)}:${await internalPort(server)}`;
@@ -329,7 +360,7 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
                 return next;
             });
             changed.add(proxy.id);
-            links.push({ proxyId: proxy.id, proxyName: proxy.name, entryName, forwarding: proxy.forwarding, linkedAt: previousLinks.find(link => link.proxyId === proxy.id)?.linkedAt ?? new Date() });
+            links.push({ proxyId: proxy.id, proxyName: proxy.name, entryName, networkName: proxy.networkName, forwarding: proxy.forwarding, linkedAt: previousLinks.find(link => link.proxyId === proxy.id)?.linkedAt ?? new Date() });
             details.push(`Added to ${proxy.name}`);
 
             // The server has to be on the proxy's Docker network to be reached by name

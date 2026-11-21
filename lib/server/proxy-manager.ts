@@ -641,21 +641,8 @@ export class ProxyManager {
     async ensureProxies(environmentId: number = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1): Promise<string[]> {
         const details: string[] = [];
 
-        // Reload proxies from YAML to get latest configuration
-        const definedProxies = getDefinedProxies();
-
-        // First, remove any orphaned proxies
-        details.push('Checking for orphaned proxies...');
-        await this.removeOrphanedProxies(environmentId, details);
-
-        // Then ensure all defined proxies exist
-        for (const def of definedProxies) {
-            try {
-                await this.ensureProxyExists(def, environmentId, details);
-            } catch (error) {
-                details.push(`Failed to ensure proxy ${def.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            }
-        }
+        // Proxies are managed by the network service now (admin Proxies tab); this only keeps the server containers in place
+        details.push('Proxies are managed by the network service; nothing to create here.');
 
         // Sync servers after ensuring proxies
         try {
@@ -702,7 +689,7 @@ export class ProxyManager {
             // 4. Handle Missing (DB exists, Container missing)
             for (const server of dbServers) {
                 // Imported servers keep the container they came with; this app has no definition to recreate it from
-                if (server.imported) continue;
+                if (server.imported || server.kind === 'proxy') continue;
                 const containerName = getContainerName(server);
                 const exists = serverContainers.some(c => c.Names.some(n => n.includes(containerName)));
                 if (exists) continue;

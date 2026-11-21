@@ -177,6 +177,8 @@ export interface MinecraftServerConfig {
     // Core Server Settings
     EULA?: boolean; // Must be true to run the server
     VERSION?: string; // e.g., "1.20.4", "LATEST"
+    /** Forwarding mode of the proxy this server is behind. The proxy checks accounts then, not the server */
+    NETWORK_FORWARDING?: string;
     TYPE?: string; // Value of the itzg TYPE variable, see lib/data/itzg/serverTypes.ts
     MOTD?: string;
     SERVER_NAME?: string;
@@ -326,7 +328,6 @@ export type MinecraftPropertiesV1_21 = MinecraftPropertiesV1_20_2;
 import { getSubdomainLabel } from '@/lib/config/domain';
 import portainer from './portainer';
 import { PortainerContainer } from './portainer';
-import { proxyManager } from './proxy-manager';
 import serverStorage from './storage';
 import { getServerAppBase, getServerHostBase } from './serverPaths';
 import {
@@ -359,6 +360,12 @@ export class MinecraftServer {
     private uniqueId: string;
     private environmentId: number;
     private proxyIds: string[];
+    /** Docker networks of the proxies the server is linked to */
+    private extraNetworks: string[] = [];
+
+    setProxyNetworks(names: string[]): void {
+        this.extraNetworks = [...new Set(names)];
+    }
 
     constructor(config: MinecraftServerConfig, serverName: string, uniqueId: string, environmentId: number = process.env.PORTAINER_ENV_ID ? parseInt(process.env.PORTAINER_ENV_ID) : 1, proxyIds: string[] = []) {
         this.config = config;
@@ -546,19 +553,9 @@ export class MinecraftServer {
         const proxyNetworks: { [key: string]: { external: boolean; name: string } } = {};
         const proxyNetworkNames: string[] = [];
 
-        if (this.proxyIds && this.proxyIds.length > 0) {
-            for (const proxyId of this.proxyIds) {
-                const proxy = proxyManager.getProxy(proxyId);
-                if (proxy && proxy.networkName) {
-                    proxyNetworks[proxy.networkName] = {
-                        external: true,
-                        name: proxy.networkName
-                    };
-                    if (!proxyNetworkNames.includes(proxy.networkName)) {
-                        proxyNetworkNames.push(proxy.networkName);
-                    }
-                }
-            }
+        for (const networkName of this.extraNetworks) {
+            proxyNetworks[networkName] = { external: true, name: networkName };
+            if (!proxyNetworkNames.includes(networkName)) proxyNetworkNames.push(networkName);
         }
 
         const environment = this.buildEnvironment(serverTypeConfig.definition);
@@ -701,7 +698,13 @@ export class MinecraftServer {
             platform.RCON_PASSWORD = this.config.RCON_PASSWORD;
         }
 
-        return { ...defaults, ...configured, ...platform };
+        // Behind a proxy the proxy checks the accounts. These win over anything set in the panels, because the
+        // end user must not be able to turn them back on (the server would refuse every forwarded player)
+        const network: Record<string, string> = this.config.NETWORK_FORWARDING && this.config.NETWORK_FORWARDING !== 'none'
+            ? { ONLINE_MODE: 'FALSE', PREVENT_PROXY_CONNECTIONS: 'FALSE', ENFORCE_SECURE_PROFILE: 'FALSE' }
+            : {};
+
+        return { ...defaults, ...configured, ...platform, ...network };
     }
 
     /**
@@ -868,36 +871,7 @@ export class MinecraftServer {
             if (deploymentExists) {
                 console.log(`🎉 Successfully deployed Minecraft server ${this.serverName} to Portainer as ${deploymentMethod}: ${stackName}`);
 
-                // === MULTI-PROXY REGISTRATION ===
-                // Register this server with all configured proxies
-                if (this.proxyIds && this.proxyIds.length > 0) {
-                    console.log(`🔗 Registering server with ${this.proxyIds.length} proxies...`);
-                    
-                    // Create server config for proxies
-                    const serverProxyConfig = {
-                        serverId: this.uniqueId,
-                        serverName: this.serverName,
-                        address: `mc-${this.uniqueId}`, // Docker container name
-                        port: 25565, // Internal port
-                        motd: this.config.MOTD || 'A Minecraft Server',
-                        restrictedToProxy: true,
-                        targetProxies: this.proxyIds,
-                        subdomain: this.config.SUBDOMAIN // Pass subdomain for forced hosts
-                    };
-
-                    // Deploy to all proxies
-                    const proxyResult = await proxyManager.deployServerToProxies(
-                        serverProxyConfig,
-                        this.getUserEmail(),
-                        this.uniqueId
-                    );
-
-                    console.log('🔗 Proxy registration result:', JSON.stringify(proxyResult, null, 2));
-                    
-                    if (!proxyResult.success) {
-                        console.warn('⚠️ Some proxy registrations failed:', proxyResult.overallDetails);
-                    }
-                }
+                // The proxy network is set up by syncServerNetwork once the server has created its files
                 // === END MULTI-PROXY REGISTRATION ===
 
                 if (deploymentMethod === 'container') {
@@ -1933,6 +1907,7 @@ export function createMinecraftServerFromRecord(
         subdomainName?: string;
         proxyIds?: string[];
         serverConfig?: unknown;
+        network?: { forwarding?: string; links?: Array<{ networkName?: string }> };
     },
     environmentId: number,
     userEmail?: string
@@ -1949,8 +1924,11 @@ export function createMinecraftServerFromRecord(
 
     const config = convertClientConfigToServerConfig(clientConfig);
     config.SUBDOMAIN = subdomain;
+    config.NETWORK_FORWARDING = server.network?.forwarding;
 
-    return createMinecraftServer(config, server.serverName, server.uniqueId, environmentId, userEmail ?? server.email ?? '', server.proxyIds ?? []);
+    const instance = createMinecraftServer(config, server.serverName, server.uniqueId, environmentId, userEmail ?? server.email ?? '', server.proxyIds ?? []);
+    instance.setProxyNetworks((server.network?.links ?? []).map(link => link.networkName).filter((name): name is string => Boolean(name)));
+    return instance;
 }
 
 /**
