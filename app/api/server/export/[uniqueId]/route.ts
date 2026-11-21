@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Readable } from 'stream';
 import { authorizeFile, isDenied } from '@/lib/server/fileAccess';
 import { createBackupStream } from '@/lib/server/backup';
+import { collectSecrets } from '@/lib/server/backups/service';
 
 /**
  * GET /api/server/export/<id>        a zip of the server folder with everything about the proxy network removed
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         if (raw && !access.user.isAdmin) return NextResponse.json({ message: 'Administrative privileges required.' }, { status: 403 });
 
         const name = access.server.serverName.replace(/[^\w.-]+/g, '_');
-        return new NextResponse(Readable.toWeb(createBackupStream(access.base, { raw })) as unknown as ReadableStream, {
+        return new NextResponse(Readable.toWeb(createBackupStream(access.base, { raw, secrets: raw ? [] : await collectSecrets(access.server) })) as unknown as ReadableStream, {
             headers: {
                 'Content-Type': 'application/zip',
                 'Content-Disposition': `attachment; filename="${name}-backup.zip"`,

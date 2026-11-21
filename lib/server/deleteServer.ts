@@ -239,6 +239,17 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
             }
         }
 
+        // Backups go with the server, unless the folder is kept under a DELETED- name: then the backups stay with it
+        if (imported || process.env.DELETE_SERVER_FOLDERS?.toLowerCase() === 'true') {
+            try {
+                const { deleteAllBackups } = await import('@/lib/server/backups/service');
+                const removed = await deleteAllBackups(String(server.uniqueId));
+                if (removed > 0) details.push(`Deleted ${removed} backup(s) of this server`);
+            } catch (backupError) {
+                details.push(`Warning: Could not delete the backups - ${backupError instanceof Error ? backupError.message : 'Unknown error'}`);
+            }
+        }
+
         // 4. Clean up local temporary files
         try {
             details.push('Cleaning up temporary files...');

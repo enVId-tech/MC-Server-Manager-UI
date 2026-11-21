@@ -29,7 +29,8 @@
     "test:folder-naming": "tsx scripts/test-folder-naming.ts",
     "test:existing-servers": "tsx scripts/test-existing-servers.ts",
     "test:world": "tsx scripts/test-world.ts",
-    "test:addons": "tsx scripts/test-addons.ts"
+    "test:addons": "tsx scripts/test-addons.ts",
+    "test:backups": "tsx scripts/test-backups.ts"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",

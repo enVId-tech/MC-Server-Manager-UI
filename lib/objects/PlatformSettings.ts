@@ -30,6 +30,12 @@ export interface IPlatformSettings extends pkg.Document {
     folderNaming: 'uuid' | 'name';
     /** Users may not run commands that move players to another server (server, send, transfer ...). Administrators still can */
     blockServerSwitching: boolean;
+    /** Automatic backups for every server that has no policy of its own */
+    backupEnabled: boolean;
+    /** Hours between two automatic backups */
+    backupIntervalHours: number;
+    /** Automatic backups kept per server; older ones are deleted */
+    backupKeep: number;
     /** Keys of found servers that administrators chose not to add to the dashboard */
     ignoredImportKeys: string[];
 }
@@ -50,6 +56,9 @@ const PlatformSettingsSchema = new pkg.Schema({
     updateWindowEnd: { type: Number, default: 5, min: 0, max: 24 },
     folderNaming: { type: String, enum: ['uuid', 'name'], default: 'uuid' },
     blockServerSwitching: { type: Boolean, default: false },
+    backupEnabled: { type: Boolean, default: true },
+    backupIntervalHours: { type: Number, default: 24, min: 1, max: 720 },
+    backupKeep: { type: Number, default: 7, min: 1, max: 100 },
     ignoredImportKeys: { type: [String], default: [] },
 }, { timestamps: true });
 

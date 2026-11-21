@@ -10,6 +10,17 @@ export interface IServer extends pkg.Document {
     extraHostnames?: string[];
     /** Set while a start or stop is under way, so the dashboard can say starting or stopping instead of offline */
     transition?: { action: 'starting' | 'stopping'; at: Date };
+    /**
+     * Automatic backups of this server. 'default' follows the platform setting, 'custom' uses its own interval and
+     * number of copies, 'off' turns them off. Only administrators change it
+     */
+    backupPolicy?: { mode: 'default' | 'custom' | 'off'; intervalHours?: number; keep?: number };
+    /** When the last backup, automatic or by hand, finished */
+    lastBackupAt?: Date;
+    /** Why the last automatic backup failed. Cleared by the next one that works */
+    lastBackupError?: string;
+    /** When an automatic backup was last tried, so a failing one is not retried every few minutes */
+    lastBackupAttemptAt?: Date;
     /** Where the address came from: read from a proxy's forced hosts, chosen by a person, or only guessed (imported servers) */
     subdomainSource?: 'forced-host' | 'chosen' | 'guessed';
     folderPath: string;
@@ -127,6 +138,10 @@ const ServerSchema: pkg.Schema = new pkg.Schema({
     },
     extraHostnames: { type: [String], required: false, default: undefined },
     transition: { type: pkg.Schema.Types.Mixed, required: false },
+    backupPolicy: { type: pkg.Schema.Types.Mixed, required: false },
+    lastBackupAt: { type: Date, required: false },
+    lastBackupError: { type: String, required: false },
+    lastBackupAttemptAt: { type: Date, required: false },
     subdomainSource: { type: String, enum: ['forced-host', 'chosen', 'guessed'], required: false },
     isOnline: {
         type: Boolean,

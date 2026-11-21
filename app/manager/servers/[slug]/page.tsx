@@ -7,6 +7,7 @@ import { useNotifications } from '@/lib/contexts/NotificationContext';
 import ServerSettings from '@/app/_components/ServerSettings/ServerSettings';
 import styles from './dashboard.module.scss';
 import OverviewTab from './_components/OverviewTab';
+import BackupsTab from './_components/BackupsTab';
 import ConsoleTab from './_components/ConsoleTab';
 import FilesTab from './_components/FilesTab';
 import NetworkTab from './_components/NetworkTab';
@@ -163,6 +164,7 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
             { id: 'files', label: 'Files' },
         ];
         if (!isProxy) {
+            list.push({ id: 'backups', label: 'Backups' });
             list.push({ id: 'addons', label: 'Plugins & mods' });
             list.push({ id: 'world', label: 'World' });
             list.push({ id: 'settings', label: 'Settings' });
@@ -238,6 +240,7 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
                     {tab === 'overview' && <OverviewTab info={info} stats={stats} network={network} onOpenNetwork={() => setTab('network')} />}
                     {tab === 'console' && <ConsoleTab uniqueId={info.uniqueId} status={stats.status} />}
                     {tab === 'files' && <FilesTab slug={slug} uniqueId={info.uniqueId} version={info.version} />}
+                    {tab === 'backups' && !isProxy && <BackupsTab uniqueId={info.uniqueId} />}
                     {tab === 'addons' && !isProxy && <div className={styles.card}><AddonManager uniqueId={info.uniqueId} /></div>}
                     {tab === 'world' && !isProxy && <div className={styles.card}><h2>World</h2><WorldUpload uniqueId={info.uniqueId} version={info.version} running={running} /></div>}
                     {tab === 'settings' && !isProxy && <ServerSettings serverSlug={slug} />}

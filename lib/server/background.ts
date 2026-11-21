@@ -3,6 +3,7 @@ import { runAutoUpdate } from './autoUpdate';
 import { adoptForSoleAdmin } from './existingServers';
 import { runAddonUpdates } from './addons/manager';
 import { finishPendingNetworkSetups } from './network/finishSetup';
+import { runScheduledBackups } from './backups/service';
 
 const globalState = globalThis as unknown as { __mcsmJobs?: boolean };
 
@@ -18,11 +19,13 @@ export function startBackgroundJobs(): void {
     const update = () => void runAutoUpdate().catch(error => console.warn('[auto-update]', error instanceof Error ? error.message : error));
 
     const network = () => void finishPendingNetworkSetups().catch(error => console.warn('[network-setup]', error instanceof Error ? error.message : error));
+    const backups = () => void runScheduledBackups().then(notes => notes.length && console.log('[backups]', notes.join('; '))).catch(error => console.warn('[backups]', error instanceof Error ? error.message : error));
     const adopt = () => void adoptForSoleAdmin();
     const addons = () => void runAddonUpdates().catch(error => console.warn('[addons]', error instanceof Error ? error.message : error));
 
     setInterval(guard, 60 * 1000).unref();
     setInterval(network, 60 * 1000).unref();
+    setInterval(backups, 10 * 60 * 1000).unref();
     setInterval(adopt, 10 * 60 * 1000).unref();
     setInterval(update, 60 * 60 * 1000).unref();
     setInterval(addons, 6 * 60 * 60 * 1000).unref();
@@ -30,7 +33,8 @@ export function startBackgroundJobs(): void {
     setTimeout(guard, 20 * 1000).unref();
     setTimeout(network, 30 * 1000).unref();
     setTimeout(update, 2 * 60 * 1000).unref();
+    setTimeout(backups, 3 * 60 * 1000).unref();
     setTimeout(adopt, 45 * 1000).unref();
     setTimeout(addons, 5 * 60 * 1000).unref();
-    console.log('Background jobs started: start failure guard (every minute), unfinished proxy setups (every minute), image updates (every hour), existing server detection (every 10 minutes), plugin and mod updates (every 6 hours)');
+    console.log('Background jobs started: start failure guard (every minute), unfinished proxy setups (every minute), image updates (every hour), existing server detection (every 10 minutes), plugin and mod updates (every 6 hours), automatic backups (checked every 10 minutes)');
 }
