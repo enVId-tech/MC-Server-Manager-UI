@@ -331,7 +331,7 @@ export interface MinecraftPropertiesV1_20_2 extends MinecraftPropertiesV1_20 {
 /** Properties for Minecraft 1.21, adding the latest configurations. */
 export type MinecraftPropertiesV1_21 = MinecraftPropertiesV1_20_2;
 
-import { getSubdomainLabel } from '@/lib/config/domain';
+import { subdomainLabel } from '@/lib/server/subdomain';
 import portainer from './portainer';
 import { PortainerContainer } from './portainer';
 import serverStorage from './storage';
@@ -1933,7 +1933,7 @@ export function createMinecraftServerFromRecord(
     environmentId: number,
     userEmail?: string
 ): MinecraftServer {
-    const subdomain = getSubdomainLabel(server.subdomainName ?? '');
+    const subdomain = subdomainLabel(server.subdomainName);
     const clientConfig = {
         ...((server.serverConfig ?? {}) as Record<string, unknown>),
         port: server.port,

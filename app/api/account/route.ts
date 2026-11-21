@@ -5,6 +5,7 @@ import Server from '@/lib/objects/Server';
 import bcrypt from 'bcrypt';
 import verificationService from '@/lib/server/verify';
 import { deleteUserWithServers } from "@/lib/server/deleteUser";
+import { publicSubdomain } from '@/lib/server/subdomain';
 
 // Emails end up in folder names, so path separators are not allowed
 const EMAIL_PATTERN = /^(?!\.+@)[^\s@/\\]+@[^\s@/\\]+\.[^\s@/\\]+$/;
@@ -106,7 +107,7 @@ export async function GET(request: NextRequest) {
         const ownedServers = servers.map(server => ({
             uniqueId: server.uniqueId,
             name: server.serverName,
-            subdomain: server.subdomainName,
+            subdomain: publicSubdomain(server.subdomainName),
             isOnline: server.isOnline,
         }));
 

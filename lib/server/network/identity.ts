@@ -5,6 +5,7 @@
  * Pure functions, no Docker or database.
  */
 
+import { isUnassignedSubdomain } from '@/lib/server/subdomain';
 export interface ProxyIdentity {
     id: string;
     name: string;
@@ -35,7 +36,7 @@ export function baseDomainOf(baseSubdomain: string | undefined, serverDomain: st
 /** Host names a server is reached with through a proxy. A name that already has dots is a full host name and stays as it is */
 export function hostnameFor(subdomainName: string | undefined | null, baseDomain: string): string | undefined {
     const name = (subdomainName ?? '').trim().toLowerCase();
-    if (!name) return undefined;
+    if (!name || isUnassignedSubdomain(name)) return undefined;
     return name.includes('.') ? name : `${name}.${baseDomain}`;
 }
 

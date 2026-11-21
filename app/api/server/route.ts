@@ -4,6 +4,7 @@ import { IUser } from "@/lib/objects/User";
 import Server from "@/lib/objects/Server";
 import portainer from "@/lib/server/portainer";
 import verificationService from "@/lib/server/verify";
+import { publicSubdomain } from '@/lib/server/subdomain';
 
 /** Route to fetch server configuration for the authenticated user.
   * @param request - The incoming request object.
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
             id: server.uniqueId,
             serverName: server.serverName,
             isOnline: server.isOnline ? "online" : "offline",
-            subdomainName: server.subdomainName,
+            subdomainName: publicSubdomain(server.subdomainName),
             serverType: server.serverConfig?.serverType || "unknown",
             players: server.serverConfig?.players || 0,
             maxPlayers: server.serverConfig?.maxPlayers || 0,

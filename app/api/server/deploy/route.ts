@@ -18,7 +18,7 @@ import { getServerFolderPath } from '@/lib/server/serverPaths';
 import { safeJarName, userUploadPath } from '@/lib/server/uploadsDir';
 import { extractWorldZip, installWorld } from '@/lib/server/world/install';
 import { installFromLink } from '@/lib/server/addons/manager';
-import { getSubdomainLabel } from '@/lib/config/domain';
+import { subdomainLabel } from '@/lib/server/subdomain';
 
 // Interface for server config as stored in database (with FileInfo instead of AnalyzedFile)
 interface DatabaseServerConfig {
@@ -576,13 +576,13 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             itzgEnv: server.serverConfig.itzgEnv,
             plugins: [],
             mods: [],
-            subdomain: getSubdomainLabel(server.subdomainName)
+            subdomain: subdomainLabel(server.subdomainName)
         };
 
         const minecraftConfig = convertClientConfigToServerConfig(updatedClientConfig);
         
         // Ensure SUBDOMAIN is set in the config for proxy routing
-        minecraftConfig.SUBDOMAIN = getSubdomainLabel(server.subdomainName);
+        minecraftConfig.SUBDOMAIN = subdomainLabel(server.subdomainName);
 
         // Decide now which proxies the server joins: the container is created for that forwarding mode
         // (online-mode off, the proxy's Docker network) instead of being rebuilt after the first start

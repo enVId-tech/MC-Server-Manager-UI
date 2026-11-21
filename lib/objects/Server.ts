@@ -6,6 +6,10 @@ export interface IServer extends pkg.Document {
     uniqueId: string;
     isOnline: boolean;
     subdomainName: string;
+    /** More host names the proxies send to this server (imported servers can have several forced hosts) */
+    extraHostnames?: string[];
+    /** Where the address came from: read from a proxy's forced hosts, chosen by a person, or only guessed (imported servers) */
+    subdomainSource?: 'forced-host' | 'chosen' | 'guessed';
     folderPath: string;
     serverName: string;
     port: number;
@@ -117,6 +121,8 @@ const ServerSchema: pkg.Schema = new pkg.Schema({
         required: [true, 'Subdomain name is required.'],
         unique: true,
     },
+    extraHostnames: { type: [String], required: false, default: undefined },
+    subdomainSource: { type: String, enum: ['forced-host', 'chosen', 'guessed'], required: false },
     isOnline: {
         type: Boolean,
         default: false,

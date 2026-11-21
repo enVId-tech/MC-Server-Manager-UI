@@ -7,6 +7,7 @@ import BodyParser from '@/lib/db/bodyParser';
 import portainer from '@/lib/server/portainer';
 import { deleteServer } from '@/lib/server/deleteServer';
 import { getContainerName } from '@/lib/server/containerNames';
+import { publicSubdomain } from '@/lib/server/subdomain';
 
 // GET - Get all servers for admin management (admin only)
 function escapeRegExp(value: string): string {
@@ -136,6 +137,7 @@ export async function GET(request: NextRequest) {
 
                 return {
                     ...server.toObject(),
+                    subdomainName: publicSubdomain(server.subdomainName),
                     user: user ? {
                         email: user.email,
                         isActive: user.isActive,

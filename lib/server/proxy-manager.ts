@@ -17,6 +17,7 @@ import Server from '@/lib/objects/Server';
 import { createMinecraftServerFromRecord } from '@/lib/server/minecraft';
 import { findExistingVelocity } from '@/lib/server/velocityDiscovery';
 import { getContainerName } from '@/lib/server/containerNames';
+import { isUnassignedSubdomain } from '@/lib/server/subdomain';
 
 export type ProxyType = 'velocity' | 'bungeecord' | 'waterfall';
 
@@ -856,7 +857,7 @@ export class ProxyManager {
                             }
 
                             // Add forced host if subdomain exists
-                            if (server.subdomainName) {
+                            if (!isUnassignedSubdomain(server.subdomainName)) {
                                 // subdomainName is stored as the full hostname already
                                 const host = server.subdomainName;
                                 if (!velocityConfig['forced-hosts']) velocityConfig['forced-hosts'] = {};
