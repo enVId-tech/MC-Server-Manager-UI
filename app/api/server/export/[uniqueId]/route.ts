@@ -1,71 +1,31 @@
-import { ownerFilter } from '@/lib/server/access';
-import { NextRequest, NextResponse } from "next/server";
-import dbConnect from "@/lib/db/dbConnect";
-import { IUser } from "@/lib/objects/User";
-import Server from "@/lib/objects/Server";
-import portainer from "@/lib/server/portainer";
-import verificationService from "@/lib/server/verify";
+import { NextRequest, NextResponse } from 'next/server';
 import { Readable } from 'stream';
-import { getContainerName } from '@/lib/server/containerNames';
+import { authorizeFile, isDenied } from '@/lib/server/fileAccess';
+import { createBackupStream } from '@/lib/server/backup';
 
-export async function GET(
-    request: NextRequest,
-    { params }: { params: { uniqueId: string } }
-) {
-    await dbConnect();
+/**
+ * GET /api/server/export/<id>        a zip of the server folder with everything about the proxy network removed
+ * GET /api/server/export/<id>?raw=1  the same without cleaning, administrators only
+ */
+export async function GET(request: NextRequest, { params }: { params: Promise<{ uniqueId: string }> }) {
     try {
-        const user: IUser | null = await verificationService.getUserFromToken(request);
-
-        if (!user) {
-            return NextResponse.json({ message: 'User not found.' }, { status: 404 });
-        }
-
         const { uniqueId } = await params;
-        if (!uniqueId) {
-            return NextResponse.json({ message: 'Server identifier is required.' }, { status: 400 });
-        }
+        const access = await authorizeFile(request, uniqueId, 'read');
+        if (isDenied(access)) return access.response;
 
-        // Find the server
-        const server = await Server.findOne({
-            $and: [
-                { ...ownerFilter(user) },
-                { uniqueId: uniqueId }
-            ]
-        });
+        const raw = new URL(request.url).searchParams.get('raw') === '1';
+        if (raw && !access.user.isAdmin) return NextResponse.json({ message: 'Administrative privileges required.' }, { status: 403 });
 
-        if (!server) {
-            return NextResponse.json({ message: 'Server not found or access denied.' }, { status: 404 });
-        }
-
-        // Get container
-        const containerIdentifier = getContainerName(server);
-        const container = await portainer.getContainerByIdentifier(containerIdentifier);
-        
-        if (!container) {
-            return NextResponse.json({ message: `Container '${containerIdentifier}' not found.` }, { status: 404 });
-        }
-
-        // Get archive stream
-        // We archive /data which contains the server files
-        const archiveStream = await portainer.getContainerArchive(
-            container.Id,
-            '/data',
-            server.environmentId || undefined
-        );
-
-        // Return stream
-        return new NextResponse(Readable.toWeb(archiveStream as Readable) as unknown as ReadableStream, {
+        const name = access.server.serverName.replace(/[^\w.-]+/g, '_');
+        return new NextResponse(Readable.toWeb(createBackupStream(access.base, { raw })) as unknown as ReadableStream, {
             headers: {
-                'Content-Type': 'application/x-tar',
-                'Content-Disposition': `attachment; filename="${server.serverName}-${server.uniqueId}.tar"`,
+                'Content-Type': 'application/zip',
+                'Content-Disposition': `attachment; filename="${name}-backup.zip"`,
+                'Cache-Control': 'no-store',
             },
         });
-
     } catch (error) {
         console.error('Export error:', error);
-        return NextResponse.json(
-            { message: 'Failed to export server.', error: error instanceof Error ? error.message : 'Unknown error' },
-            { status: 500 }
-        );
+        return NextResponse.json({ message: 'Failed to export the server.' }, { status: 500 });
     }
 }

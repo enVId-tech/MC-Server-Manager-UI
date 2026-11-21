@@ -115,6 +115,14 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
         if (!info) return;
         const { ok, body } = await postJson('/api/server/manage/download', { uniqueId: info.uniqueId });
         showNotification({ type: ok ? 'success' : 'error', title: ok ? 'Backup' : 'Backup failed', message: body.message ?? (ok ? 'The backup is ready.' : 'It could not be prepared.') });
+        if (ok && typeof body.downloadUrl === 'string') {
+            const link = document.createElement('a');
+            link.href = body.downloadUrl;
+            link.download = '';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        }
     };
 
     const remove = () => {
