@@ -17,6 +17,7 @@ import {
   ServerPropertiesSection
 } from '.';
 import WorldVerdict, { type WorldJudgementView } from '@/app/_components/WorldUpload/WorldVerdict';
+import ProxyCreatePanel from './ProxyCreatePanel';
 import AddonLinkPicker from '@/app/_components/AddonManager/AddonLinkPicker';
 import { ClientServerConfig, FileAnalysis, AnalyzedFile } from '@/lib/server/minecraft';
 import NetworkPanel, { type NetworkPlan } from './NetworkPanel';
@@ -204,6 +205,7 @@ export default function ServerGenerator() {
   });
 
   const [plan, setPlan] = useState<NetworkPlan | null>(null);
+  const [createMode, setCreateMode] = useState<'server' | 'proxy'>('server');
   const [worldCheck, setWorldCheck] = useState<{ judgement: WorldJudgementView; levelName?: string } | null>(null);
   const worldFileName = serverConfig.worldFiles?.uploadedFileInfo?.fileName ?? null;
   const worldVersion = serverConfig.version;
@@ -1691,7 +1693,15 @@ export default function ServerGenerator() {
           />
         )}
 
-        <div className={styles.createLayout}>
+        {plan?.isAdmin && (
+          <div className={styles.tabs} role="tablist" aria-label="What to create">
+            <TabButton tab={{ id: 'server', label: 'Server', icon: FiServer }} isActive={createMode === 'server'} onClick={() => setCreateMode('server')} />
+            <TabButton tab={{ id: 'proxy', label: 'Proxy', icon: FiGlobe }} isActive={createMode === 'proxy'} onClick={() => setCreateMode('proxy')} />
+          </div>
+        )}
+        {plan?.isAdmin && createMode === 'proxy' && <ProxyCreatePanel />}
+
+        <div className={styles.createLayout} style={createMode === 'proxy' && plan?.isAdmin ? { display: 'none' } : undefined}>
         <div>
         <div className={styles.tabs}>
           {tabs.map(tab => (
@@ -2121,8 +2131,8 @@ export default function ServerGenerator() {
               <PreviewDetail label="Game Mode" value={serverConfig.gameMode} />
               <PreviewDetail label="Difficulty" value={serverConfig.difficulty} />
               <PreviewDetail label="World" value={serverConfig.worldFiles ? 'Custom World Import' : 'New Generated World'} />
-              <PreviewDetail label="Plugins" value={`${serverConfig.plugins.length}`} />
-              <PreviewDetail label="Mods" value={`${serverConfig.mods.length}`} />
+              <PreviewDetail label="Plugins and mods" value={`${serverConfig.plugins.length + serverConfig.mods.length + (serverConfig.addons?.length ?? 0)}`} />
+              <PreviewDetail label="Folder" value={serverConfig.folderNaming === 'name' ? 'Server name' : 'Unique ID'} />
               <PreviewDetail label="Max Players" value={serverConfig.maxPlayers} />
               <p className={styles.previewNote}>Everything here can be changed later in the server dashboard.</p>
             </div>
