@@ -21,6 +21,8 @@ interface LoadedSettings {
     form: Record<string, unknown>;
     itzgEnv: OptionValues;
     serverProperties: Record<string, string>;
+    lockedEnv?: string[];
+    lockedProperties?: string[];
 }
 
 type SettingsTab = OptionTab | 'properties';
@@ -152,6 +154,12 @@ export default function ServerSettings({ serverSlug }: { serverSlug: string }) {
                 </div>
             </div>
 
+            {loaded.lockedEnv && (
+                <div className={`${styles.feedback} ${styles.info}`} role="note">
+                    This server is part of a proxy network. Online mode and the other options that depend on the proxy are managed for you and are grayed out.
+                </div>
+            )}
+
             {feedback && (
                 <div className={`${styles.feedback} ${styles[feedback.kind]}`} role="status">{feedback.text}</div>
             )}
@@ -181,6 +189,7 @@ export default function ServerSettings({ serverSlug }: { serverSlug: string }) {
                         version={loaded.version}
                         onPropertiesChange={handleProperties}
                         initialProperties={properties}
+                        lockedKeys={loaded.lockedProperties}
                     />
                 </>
             ) : (
@@ -192,6 +201,7 @@ export default function ServerSettings({ serverSlug }: { serverSlug: string }) {
                     values={values}
                     onChange={handleChange}
                     showPlatformInfo={tab === 'advanced'}
+                    lockedEnv={loaded.lockedEnv}
                 />
             )}
         </div>

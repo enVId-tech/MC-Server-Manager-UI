@@ -30,6 +30,8 @@ interface ItzgOptionsPanelProps {
     /** Show the Java version and the settings the platform controls */
     showPlatformInfo?: boolean;
     disabled?: boolean;
+    /** Environment variables managed by the proxy network: shown, grayed out and not editable */
+    lockedEnv?: string[];
 }
 
 function describeRestriction(option: OptionDefinition): string | null {
@@ -175,6 +177,7 @@ const ItzgOptionsPanel: React.FC<ItzgOptionsPanelProps> = ({
     omitFormManaged = false,
     showPlatformInfo = false,
     disabled = false,
+    lockedEnv = [],
 }) => {
     const idPrefix = useId();
     const [query, setQuery] = useState('');
@@ -264,9 +267,10 @@ const ItzgOptionsPanel: React.FC<ItzgOptionsPanelProps> = ({
                             const restriction = describeRestriction(option);
                             const value = values[option.env];
                             const wide = option.kind === 'multiline' || option.kind === 'list';
+                            const isLocked = lockedEnv.includes(option.env);
 
                             return (
-                                <div key={option.env} className={wide ? styles.fieldWide : styles.field}>
+                                <div key={option.env} className={wide ? styles.fieldWide : styles.field} style={isLocked ? { opacity: 0.55 } : undefined}>
                                     <div className={styles.fieldHead}>
                                         <label id={`${inputId}-label`} htmlFor={option.kind === 'boolean' ? undefined : inputId}>
                                             {option.label}
@@ -275,7 +279,7 @@ const ItzgOptionsPanel: React.FC<ItzgOptionsPanelProps> = ({
                                             <button
                                                 type="button"
                                                 className={styles.reset}
-                                                disabled={disabled}
+                                                disabled={disabled || isLocked}
                                                 onClick={() => onChange(option.env, undefined)}
                                                 aria-label={`Reset ${option.label} to the default`}
                                             >
@@ -287,10 +291,10 @@ const ItzgOptionsPanel: React.FC<ItzgOptionsPanelProps> = ({
                                         option={option}
                                         value={value}
                                         onChange={next => onChange(option.env, next)}
-                                        disabled={disabled}
+                                        disabled={disabled || isLocked}
                                         inputId={inputId}
                                     />
-                                    <p className={styles.help}>{option.description}</p>
+                                    <p className={styles.help}>{isLocked ? 'Managed by the proxy network. Only an administrator can change it.' : option.description}</p>
                                     <p className={styles.meta}>
                                         <code>{option.env}</code>
                                         {restriction && <span>{restriction}</span>}

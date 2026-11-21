@@ -16,6 +16,9 @@ import {
     type OptionValues,
 } from '@/lib/data/itzg';
 
+const PROXY_LOCKED_ENV = ['ONLINE_MODE', 'PREVENT_PROXY_CONNECTIONS', 'ENFORCE_SECURE_PROFILE'];
+const PROXY_LOCKED_PROPERTIES = ['online-mode', 'prevent-proxy-connections', 'enforce-secure-profile'];
+
 async function findOwnedServer(request: NextRequest, identifier: string | null) {
     const user: IUser | null = await verificationService.getUserFromToken(request);
     if (!user || !user.isActive) {
@@ -38,7 +41,7 @@ export async function GET(request: NextRequest) {
         const identifier = new URL(request.url).searchParams.get('server');
         const found = await findOwnedServer(request, identifier);
         if (found.error) return found.error;
-        const { server } = found;
+        const { user, server } = found;
 
         const config = (server.serverConfig ?? {}) as Record<string, unknown>;
         const type = getServerType(config.serverType as string)?.id ?? 'vanilla';
@@ -55,6 +58,10 @@ export async function GET(request: NextRequest) {
             form: config,
             itzgEnv: (itzgEnv as OptionValues) ?? {},
             serverProperties: (serverProperties as Record<string, string>) ?? {},
+            ...(!user.isAdmin && (server.proxyIds?.length ?? 0) + (server.network?.links?.length ?? 0) > 0
+                ? { lockedEnv: PROXY_LOCKED_ENV, lockedProperties: PROXY_LOCKED_PROPERTIES }
+                : {}),
+            isAdmin: Boolean(user.isAdmin),
         });
     } catch (error) {
         console.error('Failed to read server settings:', error);
@@ -87,18 +94,16 @@ export async function PATCH(request: NextRequest) {
         // Behind a proxy these belong to the network. Only administrators change them; for everyone else they are
         // dropped here, whatever the client sent
         const locked = !user.isAdmin && (server.proxyIds?.length ?? 0) + (server.network?.links?.length ?? 0) > 0;
-        const LOCKED_ENV = ['ONLINE_MODE', 'PREVENT_PROXY_CONNECTIONS', 'ENFORCE_SECURE_PROFILE'];
-        const LOCKED_PROPERTIES = ['online-mode', 'prevent-proxy-connections', 'enforce-secure-profile'];
         if (locked) {
             if (body.values && typeof body.values === 'object') {
                 body.values = { ...body.values };
-                for (const key of LOCKED_ENV) {
+                for (const key of PROXY_LOCKED_ENV) {
                     if (key in body.values) { delete body.values[key]; rejected[key] = 'Managed by the proxy network'; }
                 }
             }
             if (body.serverProperties && typeof body.serverProperties === 'object') {
                 body.serverProperties = { ...body.serverProperties };
-                for (const key of LOCKED_PROPERTIES) {
+                for (const key of PROXY_LOCKED_PROPERTIES) {
                     if (key in body.serverProperties) { delete body.serverProperties[key]; rejected[key] = 'Managed by the proxy network'; }
                 }
             }

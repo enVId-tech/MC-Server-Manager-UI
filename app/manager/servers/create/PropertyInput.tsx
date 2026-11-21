@@ -7,12 +7,14 @@ interface PropertyInputProps {
   value: string | number | boolean | undefined;
   onChange: (key: string, value: string | number | boolean) => void;
   error?: string;
+  /** Managed by the proxy network: shown, but cannot be changed */
+  locked?: boolean;
 }
 
-const PropertyInput: React.FC<PropertyInputProps> = ({ property, value, onChange, error }) => {
+const PropertyInput: React.FC<PropertyInputProps> = ({ property, value, onChange, error, locked = false }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     // Prevent changes if the property is server-managed and not client editable
-    if (property.serverManaged && !property.clientEditable) {
+    if (locked || (property.serverManaged && !property.clientEditable)) {
       return;
     }
 
@@ -33,7 +35,7 @@ const PropertyInput: React.FC<PropertyInputProps> = ({ property, value, onChange
     onChange(property.key, newValue);
   };
 
-  const isReadOnly = property.serverManaged && !property.clientEditable;
+  const isReadOnly = locked || (property.serverManaged && !property.clientEditable);
 
   const renderInput = () => {
     const baseClassName = error ? styles.inputError : '';
@@ -48,7 +50,7 @@ const PropertyInput: React.FC<PropertyInputProps> = ({ property, value, onChange
             onChange={handleChange}
             className={className}
             disabled={isReadOnly}
-            title={isReadOnly ? 'This field is managed by the server and cannot be modified' : ''}
+            title={locked ? 'Managed by the proxy network. Only an administrator can change it' : isReadOnly ? 'This field is managed by the server and cannot be modified' : ''}
           >
             <option value="">Default ({property.defaultValue ? 'true' : 'false'})</option>
             <option value="true">True</option>
@@ -63,7 +65,7 @@ const PropertyInput: React.FC<PropertyInputProps> = ({ property, value, onChange
             onChange={handleChange}
             className={className}
             disabled={isReadOnly}
-            title={isReadOnly ? 'This field is managed by the server and cannot be modified' : ''}
+            title={locked ? 'Managed by the proxy network. Only an administrator can change it' : isReadOnly ? 'This field is managed by the server and cannot be modified' : ''}
           >
             <option value="">Default ({property.defaultValue})</option>
             {property.validValues?.map(validValue => (
@@ -86,7 +88,7 @@ const PropertyInput: React.FC<PropertyInputProps> = ({ property, value, onChange
             className={className}
             disabled={isReadOnly}
             readOnly={isReadOnly}
-            title={isReadOnly ? 'This field is managed by the server and cannot be modified' : ''}
+            title={locked ? 'Managed by the proxy network. Only an administrator can change it' : isReadOnly ? 'This field is managed by the server and cannot be modified' : ''}
           />
         );
 
@@ -103,7 +105,7 @@ const PropertyInput: React.FC<PropertyInputProps> = ({ property, value, onChange
               className={className}
               disabled={isReadOnly}
               readOnly={isReadOnly}
-              title={isReadOnly ? 'This field is managed by the server and cannot be modified' : ''}
+              title={locked ? 'Managed by the proxy network. Only an administrator can change it' : isReadOnly ? 'This field is managed by the server and cannot be modified' : ''}
             />
           );
         }
@@ -117,7 +119,7 @@ const PropertyInput: React.FC<PropertyInputProps> = ({ property, value, onChange
             className={className}
             disabled={isReadOnly}
             readOnly={isReadOnly}
-            title={isReadOnly ? 'This field is managed by the server and cannot be modified' : ''}
+            title={locked ? 'Managed by the proxy network. Only an administrator can change it' : isReadOnly ? 'This field is managed by the server and cannot be modified' : ''}
           />
         );
     }

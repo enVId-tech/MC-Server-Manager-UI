@@ -10,12 +10,15 @@ interface ServerPropertiesSectionProps {
   version: string;
   onPropertiesChange: (properties: Record<string, string | number | boolean>, propertiesString: string) => void;
   initialProperties?: Record<string, string | number | boolean>;
+  /** Property keys managed by the proxy network, shown but not editable */
+  lockedKeys?: string[];
 }
 
 const ServerPropertiesSection: React.FC<ServerPropertiesSectionProps> = ({ 
   version, 
   onPropertiesChange, 
-  initialProperties = {} 
+  initialProperties = {},
+  lockedKeys = []
 }) => {
   const [properties, setProperties] = useState<Record<string, string | number | boolean>>(initialProperties);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -197,6 +200,7 @@ const ServerPropertiesSection: React.FC<ServerPropertiesSectionProps> = ({
                     value={properties[property.key]}
                     onChange={handlePropertyChange}
                     error={errors[property.key]}
+                    locked={lockedKeys.includes(property.key)}
                   />
                 ))}
               </div>
