@@ -221,7 +221,7 @@ The **Plugins & mods** tab (and the same step in the create page) shows plugins,
 - **Proxy data stays hidden.** Users cannot see, download, back up or change forwarding secrets, `velocity.toml`, Geyser and Floodgate keys and similar files, and the manager-installed proxy mods cannot be removed. All file routes go through one set of rules (`lib/server/accessPolicy.ts`).
 - **Backups.** The download of a server is a zip that leaves out the proxy data listed above.
 - **Portainer and network settings** can only be changed by administrators.
-- **Impersonation.** Administrators can open the manager as a user, either to look (preview) or to act as that user, and a banner shows it at all times.
+- **Impersonation.** An administrator can preview the site as an ordinary user, or open it as a particular account (as that user, or as that user with admin rights), from Admin → Users. A banner shows it at all times and ends it.
 
 ## Platform settings and background jobs
 
