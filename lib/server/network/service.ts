@@ -13,8 +13,9 @@ import velocityService from '@/lib/server/velocity';
 import serverStorage from '@/lib/server/storage';
 import { getContainerName } from '@/lib/server/containerNames';
 import { getServerDomain } from '@/lib/config/domain';
-import { isVelocityCompatible } from '@/lib/data/itzg';
+import { isModdedType, isVelocityCompatible } from '@/lib/data/itzg';
 import { applyBackendForwarding, installBungeeGuard, installViaPlugins } from './backend';
+import { applyModdedSetup, installProxyAddon, setTomlKey, type ManagedFile } from './modded';
 import {
     addServerToBungeeYaml, addServerToVelocityToml, disableVelocityFallback, parseEducationJoinOutput,
     removeServerFromBungeeYaml, removeServerFromVelocityToml, type EducationJoinInfo, type PluginFlags,
@@ -248,13 +249,19 @@ interface ProxyPick {
 export function pickProxies(proxies: NetworkProxy[], version: string, type: string, strategy: BalancingStrategy, port: number): ProxyPick {
     const concerns: ProxyPick['concerns'] = [];
     const details: string[] = [];
-    let decision = chooseProxies(proxies, version, strategy);
+    // The forwarding mods of Forge, NeoForge, Fabric and Quilt only speak Velocity's modern forwarding
+    const usable = isModdedType(type) ? proxies.filter(proxy => proxy.forwarding === 'modern') : proxies;
+    let decision = chooseProxies(usable, version, strategy);
 
     if (type && !isVelocityCompatible(type) && decision.proxies.length > 0) {
         concerns.push({ code: 'unsupported-type', port, detail: type });
         decision = { proxies: [], forwarding: null, reason: 'This kind of server cannot sit behind a proxy.' };
     } else if (decision.proxies.length === 0) {
-        concerns.push({ code: proxies.length === 0 ? 'no-proxy' : 'unsupported-version', port, detail: proxies.length === 0 ? undefined : version });
+        if (isModdedType(type) && proxies.length > 0 && usable.length === 0) {
+            concerns.push({ code: 'unsupported-type', port, detail: `${type} needs a Velocity proxy with modern forwarding` });
+        } else {
+            concerns.push({ code: proxies.length === 0 ? 'no-proxy' : 'unsupported-version', port, detail: proxies.length === 0 ? undefined : version });
+        }
     }
 
     let chosen = decision.proxies;
@@ -383,6 +390,8 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
 
     // Set the server up for the way the proxy forwards players
     let restartNeeded = false;
+    let managedFiles: ManagedFile[] | undefined;
+    const proxiesToRestart = new Set<string>();
     if (links.length > 0 && forwarding) {
         const secret = chosen[0]?.secret;
         const tokens = chosen.map(proxy => proxy.secret).filter((value): value is string => Boolean(value));
@@ -393,6 +402,30 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
 
         if (forwarding === 'bungeeguard') details.push(await installBungeeGuard(server.folderPath));
 
+        // Mod loaders get their forwarding mod, and the proxy what the loader needs on its side
+        if (isModdedType(type)) {
+            const modded = await applyModdedSetup({ folder: server.folderPath, type, version, secret });
+            details.push(...modded.details);
+            if (modded.restartNeeded) restartNeeded = true;
+            if (modded.managed.length > 0) {
+                const known = (server.managedFiles ?? []).filter(entry => !modded.managed.some(next => next.path === entry.path));
+                managedFiles = [...known, ...modded.managed];
+            }
+            for (const proxy of chosen.filter(candidate => candidate.kind === 'velocity')) {
+                if (modded.needsAmbassador) {
+                    const added = await installProxyAddon(proxy.folder, 'ambassador', ['ambassador'], details);
+                    if (added) {
+                        proxiesToRestart.add(proxy.id);
+                        details.push(`${proxy.name} restarts to load Ambassador, which Forge ${version} players need to join`);
+                    }
+                }
+                if (modded.announceForge) {
+                    const ref = { uniqueId: proxy.id, serverName: proxy.name, folderPath: proxy.folder, port: proxy.port, proxy: { type: proxy.kind, configPath: proxy.configPath } } as ProxyRef;
+                    await editProxyConfig(ref, content => setTomlKey(content, null, 'announce-forge', true)).then(() => changed.add(proxy.id)).catch(() => undefined);
+                }
+            }
+        }
+
         if (settings.mirrorViaPlugins && isPluginServer(type)) {
             const merged: PluginFlags = { viaversion: false, viabackwards: false, viarewind: false, geyser: false, floodgate: false, edugeyser: false, bungeeguard: false };
             for (const proxy of chosen) {
@@ -401,6 +434,20 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
             const via = await installViaPlugins(server.folderPath, merged, version);
             details.push(...via);
             if (via.some(line => /installed \(/.test(line))) restartNeeded = true;
+        }
+    }
+
+    // Plugins are only loaded when the proxy starts
+    for (const id of proxiesToRestart) {
+        const proxy = proxies.find(candidate => candidate.id === id);
+        if (!proxy) continue;
+        try {
+            const envId = options.environmentId ?? await getEnvironmentId();
+            const container = await portainer.getContainerByIdentifier(proxy.containerName, envId);
+            if (container?.State === 'running') await portainer.restartContainer(container.Id, envId, 30);
+            changed.delete(id);
+        } catch (error) {
+            details.push(`Could not restart ${proxy.name}: ${error instanceof Error ? error.message : 'unknown error'}`);
         }
     }
 
@@ -417,6 +464,7 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
         $set: {
             network: { links, warnings, forwarding: links.length > 0 ? forwarding ?? undefined : 'none', syncedAt: new Date() },
             proxyIds: links.map(link => link.proxyId),
+            ...(managedFiles ? { managedFiles } : {}),
         },
     });
 

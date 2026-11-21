@@ -9,6 +9,7 @@
 import YAML from 'yaml';
 import serverStorage from '@/lib/server/storage';
 import { compareMinecraftVersions } from '@/lib/data/itzg/versions';
+import { isModdedType } from '@/lib/data/itzg/serverTypes';
 import { isPluginServer, type ForwardingMode } from './versions';
 import type { PluginFlags } from './parse';
 
@@ -85,8 +86,8 @@ export async function applyBackendForwarding(settings: BackendSettings): Promise
     const modern = forwarding === 'modern';
     const bungeeStyle = forwarding === 'legacy' || forwarding === 'bungeeguard';
 
-    // spigot.yml: BungeeCord style forwarding
-    {
+    // spigot.yml: BungeeCord style forwarding. Mod loaders have no such file, they use a forwarding mod instead
+    if (!isModdedType(settings.type)) {
         const path = `${folder}/spigot.yml`;
         const content = await readText(path);
         if (content === null) {
@@ -161,7 +162,7 @@ export async function applyBackendForwarding(settings: BackendSettings): Promise
 const USER_AGENT = 'enVId-tech/MC-Server-Manager-UI (server network setup)';
 const MAX_JAR_BYTES = 150 * 1024 * 1024;
 
-async function download(url: string): Promise<Buffer> {
+export async function download(url: string): Promise<Buffer> {
     const response = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(60_000), redirect: 'follow' });
     if (!response.ok) throw new Error(`Download failed (${response.status})`);
     const bytes = Buffer.from(await response.arrayBuffer());
@@ -174,7 +175,7 @@ interface ModrinthVersion {
 }
 
 /** Newest release of a Modrinth plugin that works on this Minecraft version, or on any version when none matches */
-async function modrinthJar(slug: string, version?: string, loaderNames: string[] = ['paper', 'spigot', 'bukkit']): Promise<{ url: string; filename: string } | null> {
+export async function modrinthJar(slug: string, version?: string, loaderNames: string[] = ['paper', 'spigot', 'bukkit']): Promise<{ url: string; filename: string } | null> {
     const loaders = encodeURIComponent(JSON.stringify(loaderNames));
     const attempts = version && compareMinecraftVersions(version, '1.0') > 0 && !/^(LATEST|SNAPSHOT)$/i.test(version)
         ? [`&game_versions=${encodeURIComponent(JSON.stringify([version]))}`, '']

@@ -112,10 +112,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: `Unknown server type "${config.serverType}".` }, { status: 400 });
         }
 
-        // Only software that the Velocity hookup can configure may be created
+        // Only software the proxy network can serve may be created: plugin servers, hybrids, and the mod loaders
+        // (which get their forwarding mod installed automatically)
         if (!isVelocityCompatible(serverTypeDefinition.id)) {
             return NextResponse.json({
-                error: `${serverTypeDefinition.name} cannot be connected to the Velocity proxy, so it is not available for new servers.`
+                error: `${serverTypeDefinition.name} cannot receive player identities from the proxy, so it is not available for new servers.`
             }, { status: 400 });
         }
 
