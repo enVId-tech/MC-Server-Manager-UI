@@ -136,7 +136,8 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 | `LOCAL_STORAGE_PATH`, `LOCAL_STORAGE_HOST_PATH`, `LOCAL_STORAGE_OWNER` | Local storage folder, the same folder as the Docker host sees it (when the app is containerised), and an optional `uid:gid` for created files |
 | `WEBDAV_URL`, `WEBDAV_USERNAME`, `WEBDAV_PASSWORD`, `WEBDAV_SERVER_BASE_PATH` | WebDAV storage for server files |
 | `WEBDAV_REJECT_UNAUTHORIZED` | Set to `false` to accept self-signed WebDAV certificates |
-| `PROXIES_CONFIG_PATH` | Location of the proxy definitions (defaults to `lib/config/proxies.yaml`, see `lib/config/proxies.example.yaml`) |
+| `PROXIES_CONFIG_PATH` | Location of proxy definitions from older versions; they are imported into the Proxies tab |
+| `VELOCITY_IMAGE`, `BUNGEE_IMAGE` | Images for proxies created in the Proxies tab |
 
 ### Running with Docker
 
@@ -165,11 +166,26 @@ npm run test:velocity-reload  # reloading Velocity without disconnecting players
 - New servers get the next free port above 25565. Each candidate is checked against Portainer's containers, the database, ports just handed out to servers that are still being created, and the network itself (a connection attempt on `127.0.0.1` and the Portainer host, see `PORT_CHECK_HOSTS`).
 - When a server is added or removed the manager updates `velocity.toml` and sends `velocity reload` to the proxy console. Velocity re-reads its server list without disconnecting anyone. The proxy container needs `stdin_open: true` (proxies created by the manager have it) or the `mc-send-to-console` helper. If the command cannot be delivered the proxy is restarted, which does disconnect players; set `VELOCITY_RELOAD_FALLBACK=none` to never do that.
 
+## Proxy network
+
+Admins manage proxies in **Admin → Proxies**: Velocity, BungeeCord and Waterfall, as their own type. Regular users cannot see or change them.
+
+- **Servers join automatically.** Every new or existing server is added to the proxy that fits its version (its `[servers]` entry and a forced host for its address), and the backend is configured for that proxy: `online-mode=false`, the forwarding secret in `config/paper-global.yml` (or BungeeGuard token / `spigot.yml` for legacy), and the proxy's Docker network.
+- **No fallback.** Servers are never added to `try`, and the proxies are created with `try = []`. When a server stops its players are disconnected instead of being sent elsewhere.
+- **Forwarding and versions.** Modern forwarding (Velocity) needs Minecraft 1.13+. If modern is the only forwarding in the network, users can only create 1.13+ servers; with a BungeeGuard or legacy proxy they can pick any version. A server goes to the most modern forwarding that supports its version (1.20 to the modern proxy, 1.12 to the BungeeGuard or legacy one). Admins can create servers no proxy supports.
+- **Load balancing.** With several proxies of the same forwarding, choose to register servers on all of them, spread them evenly, or by priority. All modern Velocity proxies share one forwarding secret, because a server can know only one.
+- **Warnings.** A server without a proxy, without a key, or that no proxy supports shows a warning that it will most likely not be joinable unless its port is forwarded or exposed to the internet. Users and admins can dismiss it; it comes back only if the situation changes.
+- **ViaVersion, ViaBackwards, ViaRewind.** When the proxy has them, a copy is installed on each server behind it (can be turned off in the load balancing settings).
+- **Geyser and EduGeyser.** The server dashboard shows the Java address, the Bedrock address and port, and, for EduGeyser, the Education Edition join codes read from the proxy console. Bedrock has no host names, so pick a server in the proxy settings for players without one.
+- **Locked options.** Online mode and the other options the proxy depends on are grayed out for users and ignored if sent; admins can change them. Admins can also update the image and version of a server from its dashboard (Updates tab).
+
+`VELOCITY_IMAGE` (default `envidtech/velocity:latest`) and `BUNGEE_IMAGE` (default `itzg/mc-proxy:latest`) select the proxy images. Legacy forwarding is insecure unless the backend port is not reachable from outside; prefer BungeeGuard. Bungee/Waterfall need the BungeeGuard proxy plugin installed by an admin for BungeeGuard forwarding.
+
 ## Existing servers and Velocity
 
 - **Admin → Servers → Import existing servers** finds itzg Minecraft containers (running or stopped) and folders with a `server.properties` that are not in the dashboard, and adds the ones you choose. Their files and containers are not changed. Folders outside the storage folder need to be listed in `IMPORT_SCAN_PATHS` so the app can read and edit them.
 - Imported servers work like the others: files, console, logs, power buttons, `server.properties` settings and the Velocity hookup. Because their container is defined elsewhere, "Save and apply" restarts the container instead of rebuilding it, and deleting one removes its container and dashboard entry but never its files.
-- An existing Velocity instance is always the one that is changed. It is found through `VELOCITY_CONFIG_PATH`, the mounts of a running Velocity container, or a `velocity.toml` in the storage or import folders. The manager does not create a second proxy while one exists.
+- Existing proxies (a Velocity found through `VELOCITY_CONFIG_PATH`, container mounts or the import folders, a BungeeCord or Waterfall container) are added to the **Proxies** tab automatically and are never recreated.
 
 ## Local file storage
 
