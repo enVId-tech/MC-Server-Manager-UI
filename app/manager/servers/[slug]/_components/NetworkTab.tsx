@@ -1,45 +1,19 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
 import styles from '../dashboard.module.scss';
+import EducationJoin from './EducationJoin';
 import { CopyButton } from './OverviewTab';
 import { postJson, type NetworkStatus, type ServerInfo } from './types';
-
-interface EduInfo {
-    links: string[];
-    lines: string[];
-    connectionIds?: Array<{ label: string; value: string }>;
-    serverList?: { name: string; host: string; port: string };
-    notice?: string;
-    proxyName?: string;
-    error?: string;
-}
 
 const FORWARDING: Record<string, string> = { modern: 'Modern', bungeeguard: 'BungeeGuard', legacy: 'Legacy', none: 'None' };
 
 export default function NetworkTab({ info, network, onChanged }: { info: ServerInfo; network: NetworkStatus | null; onChanged: () => void }) {
     const { showNotification } = useNotifications();
     const [busy, setBusy] = useState(false);
-    const [edu, setEdu] = useState<EduInfo | null>(null);
-    const [eduLoading, setEduLoading] = useState(false);
     const [addressDraft, setAddressDraft] = useState('');
     const hasEdu = Boolean(network?.joinAddresses.some(address => address.edugeyser));
-
-    const loadEdu = useCallback(async (refresh: boolean) => {
-        setEduLoading(true);
-        try {
-            const response = await fetch(`/api/server/network?uniqueId=${encodeURIComponent(info.uniqueId)}&edu=${refresh ? 'refresh' : '1'}`);
-            setEdu(await response.json());
-        } finally {
-            setEduLoading(false);
-        }
-    }, [info.uniqueId]);
-
-    useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- loads once the tab knows the proxy runs EduGeyser
-        if (hasEdu) void loadEdu(false);
-    }, [hasEdu, loadEdu]);
 
     const dismiss = async (code: string) => {
         await postJson('/api/server/network', { uniqueId: info.uniqueId, action: 'dismiss', code });
@@ -138,25 +112,8 @@ export default function NetworkTab({ info, network, onChanged }: { info: ServerI
             {hasEdu && (
                 <section className={styles.card} style={{ marginTop: '1rem' }}>
                     <h2>Education Edition</h2>
-                    <p>The proxy runs EduGeyser. Education Edition players join with a code or link that the proxy prints.</p>
-                    {edu?.error && <div className={`${styles.notice} ${styles.error}`}>{edu.error}</div>}
-                    {edu?.connectionIds?.map(item => (
-                        <div key={item.label} className={styles.addressRow}>
-                            <div><span className={styles.addressLabel}>{item.label}</span><span className={styles.mono}>{item.value}</span></div>
-                            <CopyButton value={item.value} />
-                        </div>
-                    ))}
-                    {edu?.serverList && (edu.serverList.host || edu.serverList.name) && (
-                        <p className={styles.muted}>Server list entry: {edu.serverList.name || 'unnamed'}{edu.serverList.host ? ` at ${edu.serverList.host}${edu.serverList.port ? `:${edu.serverList.port}` : ''}` : ' (address detected by EduGeyser)'}</p>
-                    )}
-                    {edu?.notice && <div className={`${styles.notice} ${styles.warning}`}>{edu.notice}</div>}
-                    {edu?.links.map(link => (
-                        <div key={link} className={styles.addressRow}><span className={styles.mono} style={{ wordBreak: 'break-all' }}>{link}</span><CopyButton value={link} /></div>
-                    ))}
-                    {edu?.lines.map(line => (
-                        <div key={line} className={styles.addressRow}><span className={styles.mono}>{line}</span><CopyButton value={line} /></div>
-                    ))}
-                    <button className={styles.btn} disabled={eduLoading} onClick={() => void loadEdu(true)}>{eduLoading ? 'Reading…' : 'Refresh codes'}</button>
+                    <p>The proxy runs EduGeyser. Education Edition players join with a code or link that the proxy prints. The same codes are on the Overview tab.</p>
+                    <EducationJoin uniqueId={info.uniqueId} />
                 </section>
             )}
         </>

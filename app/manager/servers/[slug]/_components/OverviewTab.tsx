@@ -4,6 +4,7 @@ import React from 'react';
 import { FaCopy } from 'react-icons/fa';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
 import styles from '../dashboard.module.scss';
+import EducationJoin from './EducationJoin';
 import type { NetworkStatus, ServerInfo, ServerStats } from './types';
 
 function percent(value: number, max: number): number {
@@ -87,8 +88,8 @@ export default function OverviewTab({ info, stats, network, onOpenNetwork }: Pro
                                             <CopyButton value={`${address.bedrock.host}:${address.bedrock.port}`} />
                                         </div>
                                     )}
-                                    {address.edugeyser && (
-                                        <p>Education Edition join codes are shown in the Network tab.</p>
+                                    {address.edugeyser && address === network?.joinAddresses.find(item => item.edugeyser) && (
+                                        <EducationJoin uniqueId={info.uniqueId} />
                                     )}
                                 </div>
                             ))}
