@@ -14,6 +14,8 @@ import verificationService from "@/lib/server/verify";
 import { buildServerHostname, getServerDomain } from '@/lib/config/domain';
 import { resolveCreateOptions, CreateOptions } from '@/lib/data/createDefaults';
 import { getServerType, isVelocityCompatible, sanitizeOverrides } from '@/lib/data/itzg';
+import { ADMIN_ONLY_CREATE_FIELDS, dropLocked, lockedEnvFor, lockedPropertiesFor } from '@/lib/server/accessPolicy';
+import { computeMemoryMb, getPlatformSettings } from '@/lib/server/memory';
 
 // Configure body parsing for this API route
 // Note: In Next.js App Router, body size limits are configured in next.config.js or middleware
@@ -87,6 +89,17 @@ export async function POST(request: NextRequest) {
         // Validate the configuration object
         if (!config || typeof config !== 'object' || Array.isArray(config)) {
             return NextResponse.json({ error: "Invalid server configuration format." }, { status: 400 });
+        }
+
+        // Ports, memory, RCON, the network and the container belong to the host: whatever a user sends for them is dropped
+        if (!user.isAdmin) {
+            for (const field of ADMIN_ONLY_CREATE_FIELDS) delete config[field];
+            if (config.serverProperties && typeof config.serverProperties === 'object') {
+                config.serverProperties = dropLocked(config.serverProperties, lockedPropertiesFor(user)).values;
+            }
+            if (config.itzgEnv && typeof config.itzgEnv === 'object') {
+                config.itzgEnv = dropLocked(config.itzgEnv, lockedEnvFor(user)).values;
+            }
         }
 
         // Ensure required fields are provided
@@ -188,6 +201,17 @@ export async function POST(request: NextRequest) {
         const allocatedPort = portAllocation.port!;
         const allocatedRconPort = portAllocation.rconPort;
 
+        const memorySettings = await getPlatformSettings();
+        const adminMemory = user.isAdmin && Number(config.serverMemory) >= 512;
+        const memoryMb = adminMemory
+            ? Math.round(Number(config.serverMemory))
+            : computeMemoryMb({
+                serverType: serverTypeDefinition.id,
+                plugins: Array.isArray(config.plugins) ? config.plugins.length : 0,
+                mods: Array.isArray(config.mods) ? config.mods.length : 0,
+                players: Number(config.maxPlayers) || 20,
+            }, memorySettings);
+
         // === EXTERNAL RESOURCE CREATION PHASE ===
         // Generate unique ID for the server - use UUID for security
         // This ensures complete uniqueness and prevents predictable IDs
@@ -268,8 +292,9 @@ export async function POST(request: NextRequest) {
             broadcastRconToOps: config.broadcastRconToOps !== undefined ? config.broadcastRconToOps : true,
             broadcastConsoleToOps: config.broadcastConsoleToOps !== undefined ? config.broadcastConsoleToOps : true,
 
-            // Memory and performance
-            serverMemory: config.serverMemory || 1024,
+            // Memory and performance: sized from what the server holds, unless an administrator chose a value
+            serverMemory: memoryMb,
+            memoryMode: adminMemory ? 'manual' : 'auto',
 
             // Server properties (from advanced section)
             serverProperties: config.serverProperties || {},

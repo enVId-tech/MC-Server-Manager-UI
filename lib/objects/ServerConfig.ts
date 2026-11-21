@@ -75,6 +75,10 @@ export interface IServerConfig extends Document {
 
     // Memory and performance
     serverMemory: number;
+    /** 'auto' sizes the heap from plugins, mods and players; an administrator can fix it ('manual') */
+    memoryMode?: 'auto' | 'manual';
+    /** What the owner may do with the files of the server. Both start off */
+    fileAccess?: { uploads: boolean; editing: boolean };
 
     // Network configuration
     subdomain: string; // User-chosen subdomain for server address
