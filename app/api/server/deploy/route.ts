@@ -17,6 +17,7 @@ import path from 'path';
 import { getServerFolderPath } from '@/lib/server/serverPaths';
 import { safeJarName, userUploadPath } from '@/lib/server/uploadsDir';
 import { extractWorldZip, installWorld } from '@/lib/server/world/install';
+import { installFromLink } from '@/lib/server/addons/manager';
 import { getSubdomainLabel } from '@/lib/config/domain';
 
 // Interface for server config as stored in database (with FileInfo instead of AnalyzedFile)
@@ -856,6 +857,27 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
 
                 uploadProgress = 100;
                 await updateStep(serverId, 'upload', 'running', uploadProgress, 'World files processed');
+            }
+
+            // Plugins and mods chosen by link (Modrinth, SpigotMC, Bukkit, CurseForge). Other links only for administrators
+            const addonLinks = Array.isArray((server.serverConfig as { addons?: unknown }).addons) ? (server.serverConfig as { addons: string[] }).addons : [];
+            if (addonLinks.length > 0) {
+                const fresh = await Server.findOne({ uniqueId: serverId });
+                let installedCount = 0;
+                for (const [index, addonLink] of addonLinks.entries()) {
+                    await assertServerNotDeleted(serverId);
+                    await updateStep(serverId, 'upload', 'running', 90, `Installing plugin or mod ${index + 1} of ${addonLinks.length}...`);
+                    try {
+                        if (fresh) {
+                            await installFromLink(fresh, addonLink, { addedBy: user.email, allowOther: user.isAdmin === true });
+                            installedCount++;
+                        }
+                    } catch (addonError) {
+                        console.warn(`Add-on not installed (${addonLink}):`, addonError instanceof Error ? addonError.message : addonError);
+                        await updateStep(serverId, 'upload', 'running', 90, `Not installed: ${addonError instanceof Error ? addonError.message : 'unknown error'}`);
+                    }
+                }
+                console.log(`${installedCount} of ${addonLinks.length} add-ons installed`);
             }
 
             await updateStep(serverId, 'upload', 'completed', 100, 'File uploads completed successfully');

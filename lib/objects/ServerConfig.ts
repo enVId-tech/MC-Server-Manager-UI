@@ -97,6 +97,8 @@ export interface IServerConfig extends Document {
     plugins?: FileInfo[];
     mods?: FileInfo[];
     worldFiles?: FileInfo;
+    /** Links to plugins and mods to install once the server exists */
+    addons?: string[];
 }
 
 // Type for plain server configuration object (without Mongoose Document methods)

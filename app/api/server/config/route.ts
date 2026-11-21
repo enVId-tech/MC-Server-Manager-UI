@@ -308,6 +308,9 @@ export async function POST(request: NextRequest) {
             plugins: config.plugins || [],
             mods: config.mods || [],
             worldFiles: config.worldFiles || null,
+            addons: Array.isArray(config.addons)
+                ? config.addons.filter((entry: unknown): entry is string => typeof entry === 'string' && entry.length < 500).slice(0, 50)
+                : [],
             worldDowngradeAccepted: config.worldDowngradeAccepted === true,
         };
 
