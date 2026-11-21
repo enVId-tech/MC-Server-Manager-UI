@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { FaCloudUploadAlt } from 'react-icons/fa';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
 import styles from './WorldUpload.module.scss';
+import WorldVerdict from './WorldVerdict';
 
 interface Judgement { status: 'ok' | 'upgrade' | 'downgrade' | 'blocked'; requiresAcknowledgement: boolean; message: string }
 interface Check { judgement: Judgement; found?: boolean; levelName?: string; versionName?: string; downgradeWarning?: string }
@@ -87,15 +88,7 @@ export default function WorldUpload({ uniqueId, version, running }: { uniqueId: 
             {busy && <div className={styles.muted}>Working…</div>}
             {error && <div className={`${styles.notice} ${styles.error}`}>{error}</div>}
 
-            {check && status === 'blocked' && <div className={styles.blocked}>Cannot be used: {check.judgement.message}</div>}
-            {check && (status === 'ok' || status === 'upgrade') && <div className={styles.info}>{check.levelName ? <strong>{check.levelName}. </strong> : null}{check.judgement.message}</div>}
-            {check && status === 'downgrade' && (
-                <div className={styles.danger} role="alert">
-                    <h3>Warning: unsupported downgrade</h3>
-                    <p>{check.judgement.message}</p>
-                    <label><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} /> I understand that this is not supported, the world may be damaged or fail to load, and I have a copy of the original.</label>
-                </div>
-            )}
+            {check && <WorldVerdict judgement={check.judgement} levelName={check.levelName} accepted={accepted} onAccept={setAccepted} />}
 
             <div className={styles.row}>
                 <button className={`${styles.btn} ${status === 'downgrade' ? styles.red : styles.primary}`} disabled={!ready || busy} onClick={() => void install()}>

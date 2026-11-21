@@ -16,8 +16,9 @@ import {
   PreviewDetail,
   ServerPropertiesSection
 } from '.';
+import WorldVerdict, { type WorldJudgementView } from '@/app/_components/WorldUpload/WorldVerdict';
+import AddonLinkPicker from '@/app/_components/AddonManager/AddonLinkPicker';
 import { ClientServerConfig, FileAnalysis, AnalyzedFile } from '@/lib/server/minecraft';
-import VersionWarningModal from './VersionWarningModal';
 import NetworkPanel, { type NetworkPlan } from './NetworkPanel';
 import { compareMinecraftVersions } from '@/lib/data/itzg/versions';
 import ItzgOptionsPanel from '@/app/_components/ItzgOptions/ItzgOptionsPanel';
@@ -28,11 +29,6 @@ import {
   supportsPlugins,
   type OptionValue,
 } from '@/lib/data/itzg';
-import {
-  extractVersionFromAnalysis,
-  compareVersions,
-  isVersionChangeSafe
-} from '@/lib/utils/versionUtils';
 import { IconType } from 'react-icons';
 
 // Property mapping between general/world settings and advanced properties
@@ -208,6 +204,21 @@ export default function ServerGenerator() {
   });
 
   const [plan, setPlan] = useState<NetworkPlan | null>(null);
+  const [worldCheck, setWorldCheck] = useState<{ judgement: WorldJudgementView; levelName?: string } | null>(null);
+  const worldFileName = serverConfig.worldFiles?.uploadedFileInfo?.fileName ?? null;
+  const worldVersion = serverConfig.version;
+
+  // Whether the chosen world can be loaded by the chosen version. Checked again whenever either changes
+  useEffect(() => {
+    if (!worldFileName) return;
+    let cancelled = false;
+    void fetch('/api/server/world/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileName: worldFileName, version: worldVersion || 'LATEST' }) })
+      .then(response => (response.ok ? response.json() : null))
+      .then(body => { if (!cancelled) setWorldCheck(body?.judgement ? { judgement: body.judgement, levelName: body.levelName } : null); })
+      .catch(() => { if (!cancelled) setWorldCheck(null); });
+    return () => { cancelled = true; };
+  }, [worldFileName, worldVersion]);
+  const activeWorldCheck = worldFileName ? worldCheck : null;
   const [fullyLoaded, setFullyLoaded] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [creationSuccess, setCreationSuccess] = useState(false);
@@ -229,18 +240,6 @@ export default function ServerGenerator() {
     { id: 'mods', label: 'Plugins & Mods', icon: FiPackage },
     { id: 'advanced', label: 'Advanced', icon: FiSettings }
   ]);
-
-  // Version warning modal state
-  const [versionWarning, setVersionWarning] = useState<{
-    isOpen: boolean;
-    currentVersion: string;
-    detectedVersion: string;
-    fileName: string;
-    isUpgrade: boolean;
-    isDowngrade: boolean;
-    onConfirm: () => void;
-    onSwitchVersion: () => void;
-  } | null>(null);
 
   const router = useRouter();
 
@@ -553,68 +552,14 @@ export default function ServerGenerator() {
               })
             }));
 
-            // If it's a world file, potentially update world settings based on analysis
+            // The world's own settings are taken over; whether its version fits is checked by the server (WorldVerdict)
             if (analysis.type === 'world') {
-              // Extract version from analysis
-              const detectedVersion = extractVersionFromAnalysis(analysis);
-              const currentVersion = serverConfig.version;
-
-              // Check for version conflicts if both versions are available
-              if (detectedVersion && currentVersion && detectedVersion !== currentVersion) {
-                const comparison = compareVersions(currentVersion, detectedVersion);
-                const safety = isVersionChangeSafe(detectedVersion, currentVersion);
-
-                // Show version warning modal for significant version differences
-                if (!comparison.isSame && (safety.riskLevel === 'medium' || safety.riskLevel === 'high' || safety.riskLevel === 'extreme')) {
-                  setVersionWarning({
-                    isOpen: true,
-                    currentVersion,
-                    detectedVersion,
-                    fileName: file.name,
-                    isUpgrade: comparison.isNewer,
-                    isDowngrade: comparison.isOlder,
-                    onConfirm: () => {
-                      // User chose to keep current version
-                      setVersionWarning(null);
-                      // Update settings based on world analysis but keep current version
-                      setServerConfig(prevConfig => ({
-                        ...prevConfig,
-                        gameMode: analysis.gameMode || prevConfig.gameMode,
-                        difficulty: analysis.difficulty || prevConfig.difficulty,
-                        seed: analysis.seed || prevConfig.seed,
-                      }));
-                    },
-                    onSwitchVersion: () => {
-                      // User chose to switch to detected version
-                      setVersionWarning(null);
-                      // Update both version and settings
-                      setServerConfig(prevConfig => ({
-                        ...prevConfig,
-                        version: detectedVersion,
-                        gameMode: analysis.gameMode || prevConfig.gameMode,
-                        difficulty: analysis.difficulty || prevConfig.difficulty,
-                        seed: analysis.seed || prevConfig.seed,
-                      }));
-                    }
-                  });
-                } else {
-                  // Minor version difference or same version - proceed without warning
-                  setServerConfig(prevConfig => ({
-                    ...prevConfig,
-                    gameMode: analysis.gameMode || prevConfig.gameMode,
-                    difficulty: analysis.difficulty || prevConfig.difficulty,
-                    seed: analysis.seed || prevConfig.seed,
-                  }));
-                }
-              } else {
-                // No version conflict or version information unavailable
-                setServerConfig(prevConfig => ({
-                  ...prevConfig,
-                  gameMode: analysis.gameMode || prevConfig.gameMode,
-                  difficulty: analysis.difficulty || prevConfig.difficulty,
-                  seed: analysis.seed || prevConfig.seed,
-                }));
-              }
+              setServerConfig(prevConfig => ({
+                ...prevConfig,
+                gameMode: analysis.gameMode || prevConfig.gameMode,
+                difficulty: analysis.difficulty || prevConfig.difficulty,
+                seed: analysis.seed || prevConfig.seed,
+              }));
             }
           } else {
             // Handle analysis error
@@ -1198,6 +1143,19 @@ export default function ServerGenerator() {
       return;
     }
 
+    if (serverConfig.worldFiles && activeWorldCheck) {
+      const verdict = activeWorldCheck.judgement;
+      if (verdict.status === 'blocked' || (verdict.status === 'downgrade' && !serverConfig.worldDowngradeAccepted)) {
+        setActiveTab('world');
+        setError({
+          title: verdict.status === 'blocked' ? 'This world cannot be used' : 'Confirm the world downgrade',
+          message: verdict.status === 'blocked' ? verdict.message : 'The world was saved by a newer version. Downgrading is not supported: confirm that you understand the risk, remove the world, or choose a newer server version.',
+          type: 'warning'
+        });
+        return;
+      }
+    }
+
     setIsCreating(true); // Show loading screen
     setCreationProgress(0);
     setCurrentStep('Initializing server creation...');
@@ -1614,21 +1572,6 @@ export default function ServerGenerator() {
 
   return (
     <main className={styles.serverGenerator} style={{ backgroundImage: `url('${createBackground.src}')` }}>
-      {/* Version Warning Modal */}
-      {versionWarning && (
-        <VersionWarningModal
-          isOpen={versionWarning.isOpen}
-          onClose={() => setVersionWarning(null)}
-          onConfirm={versionWarning.onConfirm}
-          onSwitchVersion={versionWarning.onSwitchVersion}
-          currentVersion={versionWarning.currentVersion}
-          detectedVersion={versionWarning.detectedVersion}
-          fileName={versionWarning.fileName}
-          isUpgrade={versionWarning.isUpgrade}
-          isDowngrade={versionWarning.isDowngrade}
-        />
-      )}
-
       {/* Loading/Success Overlay */}
       {(isCreating || creationSuccess) && (
         <div className={styles.creationOverlay}>
@@ -1877,6 +1820,20 @@ export default function ServerGenerator() {
                 </div>
               </div>
 
+              <div className={styles.formGroup}>
+                <label htmlFor="folderNaming">Folder name</label>
+                <select
+                  id="folderNaming"
+                  name="folderNaming"
+                  value={serverConfig.folderNaming ?? 'uuid'}
+                  onChange={handleChange}
+                >
+                  <option value="uuid">Unique ID (safe, never clashes)</option>
+                  <option value="name">The server&apos;s own name (easier to find)</option>
+                </select>
+                <small className={styles.fieldHint}>If another server already uses the name, a number is added to the new one.</small>
+              </div>
+
               <RadioGroup
                 name="gameMode"
                 options={gameModes}
@@ -1974,6 +1931,15 @@ export default function ServerGenerator() {
                 </div>
               )}
 
+              {serverConfig.worldFiles && activeWorldCheck && (
+                <WorldVerdict
+                  judgement={activeWorldCheck.judgement}
+                  levelName={activeWorldCheck.levelName}
+                  accepted={serverConfig.worldDowngradeAccepted === true}
+                  onAccept={value => setServerConfig(previous => ({ ...previous, worldDowngradeAccepted: value }))}
+                />
+              )}
+
               <input
                 type="file"
                 ref={worldFileRef}
@@ -2036,9 +2002,20 @@ export default function ServerGenerator() {
                       : 'Mods'
               }</h2>
 
-              {supportsPlugins(serverConfig.serverType) && (
+              {(supportsPlugins(serverConfig.serverType) || (supportsMods(serverConfig.serverType) && !getServerType(serverConfig.serverType)?.versionFromPack)) && (
+                <AddonLinkPicker
+                  links={serverConfig.addons ?? []}
+                  onChange={links => setServerConfig(previous => ({ ...previous, addons: links }))}
+                  allowOther={plan?.isAdmin === true}
+                  noun={supportsPlugins(serverConfig.serverType) && supportsMods(serverConfig.serverType) ? 'plugins and mods' : supportsPlugins(serverConfig.serverType) ? 'plugins' : 'mods'}
+                />
+              )}
+
+              {/* Jar files can run any code, so only administrators add them while a server is created. Everyone else can add
+                  them later when uploads are switched on for the server. */}
+              {plan?.isAdmin && supportsPlugins(serverConfig.serverType) && (
                 <FileUploadSection
-                  label="Plugins"
+                  label="Plugin files"
                   files={serverConfig.plugins}
                   onUpload={handlePluginsUpload}
                   onRemove={removePlugin}
@@ -2048,9 +2025,9 @@ export default function ServerGenerator() {
                 />
               )}
 
-              {supportsMods(serverConfig.serverType) && !getServerType(serverConfig.serverType)?.versionFromPack && (
+              {plan?.isAdmin && supportsMods(serverConfig.serverType) && !getServerType(serverConfig.serverType)?.versionFromPack && (
                 <FileUploadSection
-                  label="Mods"
+                  label="Mod files"
                   files={serverConfig.mods}
                   onUpload={handleModsUpload}
                   onRemove={removeMod}

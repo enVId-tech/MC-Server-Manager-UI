@@ -740,6 +740,9 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             }
 
             // Upload plugin files
+            // Uploaded jars run arbitrary code: only administrators may bring their own while creating a server
+            if (!user.isAdmin) { serverConfig.plugins = []; serverConfig.mods = []; }
+
             if (serverConfig.plugins && serverConfig.plugins.length > 0) {
                 await updateStep(serverId, 'upload', 'running', uploadProgress, `Uploading ${serverConfig.plugins.length} plugin(s)...`);
 

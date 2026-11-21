@@ -68,6 +68,12 @@ export interface AnalyzedFile extends File {
  * @see https://github.com/itzg/docker-minecraft-server/blob/main/README.md
  */
 export interface ClientServerConfig {
+    /** Links to plugins and mods installed after the server is created */
+    addons?: string[];
+    /** Folder of the server: its unique id, or its own name */
+    folderNaming?: 'uuid' | 'name';
+    /** The person confirmed that a world from a newer version is an unsupported downgrade */
+    worldDowngradeAccepted?: boolean;
     // Basic server information
     name: string;
     serverType: string;
