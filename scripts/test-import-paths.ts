@@ -27,6 +27,8 @@ async function main() {
     process.env.LOCAL_STORAGE_HOST_PATH = '/mnt/ssd/minecraft';
     process.env.IMPORT_SCAN_PATHS = `${external}=/mnt/ssd/docker/imported`;
     delete process.env.VELOCITY_CONFIG_PATH;
+    // This test is about the escape protections of the folders it names, not about the folder above the storage folder
+    process.env.PROXY_SCAN_PARENT = 'false';
 
     const paths = await import('../lib/server/importPaths');
     const { default: storage } = await import('../lib/server/storage');
