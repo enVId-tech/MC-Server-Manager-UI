@@ -38,6 +38,7 @@ interface PlatformSettings {
     perPluginMb: number; perModMb: number; perPlayerMb: number; maxStartFailures: number;
     autoUpdateImages: number; updateWindowStart: number; updateWindowEnd: number;
     folderNaming: 'uuid' | 'name';
+    blockServerSwitching: boolean;
 }
 
 const PLATFORM_FIELDS: Array<[keyof PlatformSettings, string, string]> = [
@@ -88,6 +89,10 @@ function PlatformCard() {
                     <label className={styles.field}>
                         <span><input type="checkbox" checked={draft.autoUpdateImages === '1'} onChange={event => setDraft({ ...draft, autoUpdateImages: event.target.checked ? '1' : '0' })} /> Update container images automatically</span>
                         <span className={styles.hint}>Newer images are pulled every hour and running containers are recreated on them inside the update window.</span>
+                    </label>
+                    <label className={styles.field}>
+                        <span><input type="checkbox" checked={draft.blockServerSwitching === 'true'} onChange={event => setDraft({ ...draft, blockServerSwitching: String(event.target.checked) })} /> Block server-switching commands for users</span>
+                        <span className={styles.hint}>Users can no longer run server, send, sendall, transfer, hub or lobby from the console (also behind execute ... run). Administrators still can.</span>
                     </label>
                     <label className={styles.field}>Folder names of new servers
                         <select className={styles.input} value={draft.folderNaming ?? 'uuid'} onChange={event => setDraft({ ...draft, folderNaming: event.target.value })}>

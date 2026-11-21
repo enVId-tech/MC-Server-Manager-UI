@@ -28,6 +28,8 @@ export interface IPlatformSettings extends pkg.Document {
     updateWindowEnd: number;
     /** How new server folders are named: the unique id, or the server's own name. Set by administrators for everyone */
     folderNaming: 'uuid' | 'name';
+    /** Users may not run commands that move players to another server (server, send, transfer ...). Administrators still can */
+    blockServerSwitching: boolean;
     /** Keys of found servers that administrators chose not to add to the dashboard */
     ignoredImportKeys: string[];
 }
@@ -47,6 +49,7 @@ const PlatformSettingsSchema = new pkg.Schema({
     updateWindowStart: { type: Number, default: 3, min: 0, max: 23 },
     updateWindowEnd: { type: Number, default: 5, min: 0, max: 24 },
     folderNaming: { type: String, enum: ['uuid', 'name'], default: 'uuid' },
+    blockServerSwitching: { type: Boolean, default: false },
     ignoredImportKeys: { type: [String], default: [] },
 }, { timestamps: true });
 
