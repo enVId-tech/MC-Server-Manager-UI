@@ -138,6 +138,10 @@ MC Server Creator is a full-stack Next.js application that provides users with a
 | `WEBDAV_REJECT_UNAUTHORIZED` | Set to `false` to accept self-signed WebDAV certificates |
 | `PROXIES_CONFIG_PATH` | Location of proxy definitions from older versions; they are imported into the Proxies tab |
 | `VELOCITY_IMAGE`, `BUNGEE_IMAGE` | Images for proxies created in the Proxies tab |
+| `PROXY_SCAN_PARENT` | Existing proxies are looked for in the folder above the storage folder and its subfolders too (so the app can read and write there). Set to `false` to switch this off |
+| `CURSEFORGE_API_KEY` | Lets the manager download plugins and mods from CurseForge. Without it, CurseForge links show a preview but cannot be installed |
+| `MAX_WORLD_UPLOAD_MB` | Largest world zip that is accepted (default 4096) |
+| `BACKGROUND_JOBS` | Set to `false` to turn off the jobs that run inside the app (start failure guard, image updates, plugin and mod updates, existing server detection) |
 
 ### Running with Docker
 
@@ -158,6 +162,8 @@ npm run test:itzg-catalog   # option catalog, version rules, version parsers, co
 npm run test:local-storage  # local storage backend
 npm run test:port-probe     # network check used when allocating ports
 npm run test:velocity-reload  # reloading Velocity without disconnecting players
+npm run test:network test:access test:proxy-discovery test:modded test:proxy-identity   # proxy network, file access rules, proxy detection, modded servers, proxy names and ports
+npm run test:folder-naming test:existing-servers test:world test:addons   # folder names, existing server detection, world checks, plugin and mod links
 ```
 
 
@@ -180,6 +186,53 @@ Admins manage proxies in **Admin → Proxies**: Velocity, BungeeCord and Waterfa
 - **Locked options.** Online mode and the other options the proxy depends on are grayed out for users and ignored if sent; admins can change them. Admins can also update the image and version of a server from its dashboard (Updates tab).
 
 `VELOCITY_IMAGE` (default `envidtech/velocity:latest`) and `BUNGEE_IMAGE` (default `itzg/mc-proxy:latest`) select the proxy images. Legacy forwarding is insecure unless the backend port is not reachable from outside; prefer BungeeGuard. Bungee/Waterfall need the BungeeGuard proxy plugin installed by an admin for BungeeGuard forwarding.
+
+## Creating servers
+
+Open **Create New Server**. Administrators also see a **Proxy** tab there to create a proxy from the same page.
+
+- **Folder name.** A server's folder is its unique id by default, or its own name if you choose that on the General tab. Both kinds are recognised everywhere. If a name is taken, a number is added (`survival`, `survival-2`): the oldest server keeps the plain name, and folders left behind by partly deleted servers count as taken.
+- **Memory.** Users cannot set memory. It is worked out from the server type, the number of plugins and mods, and the player limit, up to the maximum an administrator sets in **Admin → Settings**, and it is worked out again whenever plugins or mods change. A running container picks up a new value the next time it is rebuilt.
+- **Server types.** Modded types (Fabric, Quilt, Forge, NeoForge and modpacks) can be created. The manager adds the mods and config that let them join a Velocity proxy with modern forwarding (Fabric: Fabric API, FabricProxy-Lite, CrossStitch; Forge and NeoForge: proxy-compatible-forge; Ambassador on Velocity for older Forge). These files are marked as managed: users cannot delete or change them, and neither can they see anything proxy related.
+- **Several proxies.** With more than one proxy, each needs its own base subdomain and port. Servers behind a proxy are reached as `name.<base subdomain>.<SERVER_DOMAIN>` (for example `survival.ex1.example.org`).
+
+## Worlds
+
+A world is uploaded as a `.zip` when creating a server, or later from the **World** tab of the dashboard (the server must be stopped and uploads must be on for it, administrators always may). The world is read before it is used and sorted into one of three groups: before 1.17, 1.17 to 1.21.x, and 26.1 and newer (26.1 moved the dimensions into their own folder).
+
+- Upgrading inside a group, or to a newer version, works: the server converts the world the first time it loads it. Keep a copy of the original.
+- Downgrading inside a group is **not supported**. A red warning explains this and the import only goes ahead after the box is ticked. Chunks can be damaged, blocks and items disappear, and the world may not load.
+- A world can never be moved across 1.17 or 26.1, in either direction. These are refused.
+- Only world files are copied, never symlinks. The previous world is moved to `backups/before-world-import-<time>`.
+
+## Plugins and mods
+
+The **Plugins & mods** tab (and the same step in the create page) shows plugins, mods or both, depending on what the server type loads.
+
+- Paste **one link** to see its name and logo before adding it. Modrinth, SpigotMC, Bukkit and CurseForge links are looked up and can be installed by anyone who owns the server and can update themselves. Other links get no lookup and are downloaded as they are, which needs file uploads to be on for the server (or an administrator).
+- **Advanced mode** takes one link per line.
+- Jar files can be dragged in when uploads are on for the server. Each jar is checked: proxy plugins are refused on game servers, and a mod has to match the server's loader.
+- Downloads only go to public hosts: private addresses are refused, including after redirects.
+- **Updates.** Links to the known sites are checked every six hours (or with *Check for updates*). A stopped server is updated at once. For a running server, plugin updates are put in `plugins/update` (Bukkit swaps them at the next start) and mod updates wait in `.mms/staged` and are put in place when the server is started from the dashboard. Auto-update can be turned off for each entry.
+
+## Files, backups and what users can see
+
+- **Files.** Uploading files and editing them directly are off for every server by default. The owner switches them on in the Files tab; administrators always can. The file list shows what is really in the folder, minus proxy files.
+- **Proxy data stays hidden.** Users cannot see, download, back up or change forwarding secrets, `velocity.toml`, Geyser and Floodgate keys and similar files, and the manager-installed proxy mods cannot be removed. All file routes go through one set of rules (`lib/server/accessPolicy.ts`).
+- **Backups.** The download of a server is a zip that leaves out the proxy data listed above.
+- **Portainer and network settings** can only be changed by administrators.
+- **Impersonation.** Administrators can open the manager as a user, either to look (preview) or to act as that user, and a banner shows it at all times.
+
+## Platform settings and background jobs
+
+Admin → Settings holds the memory limits, how many failed starts stop a server, and whether container images update by themselves (containers are only recreated inside an update window, by default 3:00 to 5:00 server time). These jobs run inside the app:
+
+- every minute: servers that keep failing to start are stopped after the set number of failures (default 5) and show why on their dashboard;
+- every hour: images are updated inside the update window;
+- every 10 minutes: existing servers and proxies that are not in the dashboard are found. With one administrator they are added to that account. With several, the next administrator who signs in is asked which account should get them, and leaving it empty means their own account;
+- every six hours: plugin and mod updates.
+
+The delete progress bar never goes over 100%.
 
 ## Existing servers and Velocity
 
