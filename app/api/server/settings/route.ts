@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/dbConnect';
-import Server from '@/lib/objects/Server';
 import { findServerForUser } from '@/lib/server/access';
 import { syncServerNetwork } from '@/lib/server/network/service';
 import { IUser } from '@/lib/objects/User';

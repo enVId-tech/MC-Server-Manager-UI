@@ -1,0 +1,500 @@
+@use '../../../_variables.scss' as *;
+
+.page {
+  min-height: 100vh;
+  background-color: $dark-bg;
+  color: $text-primary;
+}
+
+.shell {
+  max-width: 1500px;
+  margin: 0 auto;
+  // Clear the fixed navbar
+  padding: 6.5rem 1.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+
+  @media (max-width: $tablet) {
+    padding: 6rem 0.75rem 1.5rem;
+  }
+}
+
+// Header ---------------------------------------------------------------------
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: $text-secondary;
+  font-size: 0.85rem;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+
+  &:hover {
+    color: $text-primary;
+  }
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.35rem 0 0;
+  font-size: 1.6rem;
+
+  small {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: $text-secondary;
+  }
+}
+
+.power {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+// Buttons, badges --------------------------------------------------------------
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.95rem;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  background-color: rgba($border-color, 0.25);
+  color: $text-primary;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    border-color: $accent-blue;
+    background-color: rgba($accent-blue, 0.12);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  &.primary {
+    border-color: $accent-blue;
+    background-color: $accent-blue;
+    color: $white;
+
+    &:hover:not(:disabled) {
+      background-color: #2b6cb0;
+    }
+  }
+
+  &.danger {
+    border-color: rgba($accent-red, 0.6);
+    color: $error-red;
+
+    &:hover:not(:disabled) {
+      border-color: $accent-red;
+      background-color: rgba($accent-red, 0.15);
+    }
+  }
+
+  &.small {
+    padding: 0.3rem 0.65rem;
+    font-size: 0.78rem;
+  }
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.65rem;
+  border-radius: 999px;
+  background-color: rgba($border-color, 0.35);
+  color: $text-secondary;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &.ok {
+    background-color: rgba($success-green, 0.16);
+    color: $success-green;
+  }
+
+  &.warn {
+    background-color: rgba($warning-yellow, 0.16);
+    color: $warning-yellow;
+  }
+
+  &.bad {
+    background-color: rgba($error-red, 0.16);
+    color: $error-red;
+  }
+
+  &.info {
+    background-color: rgba($accent-blue, 0.18);
+    color: #63b3ed;
+  }
+}
+
+// Tabs -------------------------------------------------------------------------
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  border-bottom: 1px solid $border-color;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.7rem 1rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: $text-secondary;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover {
+    color: $text-primary;
+  }
+
+  &.active {
+    color: $text-primary;
+    border-bottom-color: $accent-blue;
+  }
+}
+
+.tabDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background-color: $warning-yellow;
+}
+
+// Cards and layout ---------------------------------------------------------------
+.card {
+  padding: 1.25rem;
+  border: 1px solid $border-color;
+  border-radius: 12px;
+  background-color: rgba($dark-card, 0.85);
+
+  h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.05rem;
+  }
+
+  p {
+    margin: 0 0 0.75rem;
+    color: $text-secondary;
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+
+  &.cols2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  &.stats {
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  }
+
+  @media (max-width: $tablet) {
+    &.cols2 {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+.stat {
+  padding: 1rem;
+  border: 1px solid $border-color;
+  border-radius: 10px;
+  background-color: rgba($dark-bg, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+
+  .label {
+    color: $text-secondary;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .value {
+    font-size: 1.35rem;
+    font-weight: 700;
+  }
+
+  .note {
+    color: $text-secondary;
+    font-size: 0.78rem;
+  }
+}
+
+.meter {
+  height: 6px;
+  border-radius: 999px;
+  background-color: rgba($border-color, 0.5);
+  overflow: hidden;
+
+  > span {
+    display: block;
+    height: 100%;
+    background-color: $accent-blue;
+  }
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid $border-color;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+
+  &.warning {
+    border-color: rgba($warning-yellow, 0.55);
+    background-color: rgba($warning-yellow, 0.1);
+  }
+
+  &.error {
+    border-color: rgba($accent-red, 0.6);
+    background-color: rgba($accent-red, 0.12);
+    color: $error-red;
+  }
+
+  &.info {
+    border-color: rgba($accent-blue, 0.5);
+    background-color: rgba($accent-blue, 0.1);
+  }
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.muted {
+  color: $text-secondary;
+}
+
+.addressRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  background-color: rgba($dark-bg, 0.5);
+  margin-bottom: 0.5rem;
+
+  .addressLabel {
+    display: block;
+    color: $text-secondary;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: $text-secondary;
+}
+
+.input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  background-color: rgba($dark-bg, 0.7);
+  color: $text-primary;
+  font-size: 0.88rem;
+  min-width: 0;
+
+  &:focus-visible {
+    outline: none;
+    border-color: $accent-blue;
+    box-shadow: 0 0 0 3px rgba($accent-blue, 0.2);
+  }
+}
+
+// Console ---------------------------------------------------------------------------
+.console {
+  display: flex;
+  flex-direction: column;
+  height: 62vh;
+  min-height: 360px;
+  border: 1px solid $border-color;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: #0b0f14;
+
+  .output {
+    flex: 1;
+    overflow: auto;
+    padding: 0.9rem 1rem;
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      color: #d7dee7;
+    }
+  }
+
+  form {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.6rem;
+    border-top: 1px solid $border-color;
+  }
+
+  .input {
+    flex: 1;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+}
+
+// Files -----------------------------------------------------------------------------
+.files {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  gap: 1rem;
+  min-height: 60vh;
+
+  @media (max-width: $desktop) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fileList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-height: 64vh;
+  overflow: auto;
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.82rem;
+
+  button {
+    background: none;
+    border: none;
+    padding: 0.1rem 0.25rem;
+    color: #63b3ed;
+    cursor: pointer;
+    border-radius: 4px;
+
+    &:hover {
+      background-color: rgba($accent-blue, 0.15);
+    }
+  }
+}
+
+.fileRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.88rem;
+
+  &:hover {
+    background-color: rgba($accent-blue, 0.1);
+  }
+
+  &.selected {
+    background-color: rgba($accent-blue, 0.2);
+  }
+
+  .name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}
+
+.editor {
+  width: 100%;
+  min-height: 52vh;
+  padding: 0.8rem;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  background-color: rgba($dark-bg, 0.8);
+  color: $text-primary;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: $text-secondary;
+}
+
+.loading {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: $text-secondary;
+}
