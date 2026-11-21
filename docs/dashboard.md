@@ -16,6 +16,15 @@ Each card shows the live state of the container, not just whether it exists.
 | **Paused** | The container is paused. |
 | **Unhealthy** | The container runs but its health check fails. |
 
+## Players and resources
+
+The numbers are read from the running server, not stored.
+
+- **Players** come from the server itself: the manager pings it (`mc-monitor`, which the itzg images have, and which writes nothing to the log). If that does not work it asks over RCON with `list`, and only when both fail does it count the joins and leaves in the log of the current run. A server that is not running has no players.
+- **CPU** is shown in percent of one core, as `docker stats` shows it, so a server using two cores fully shows 200%. It needs two samples, which the manager takes.
+- **Memory** is what the server's processes use. The file cache that Docker counts in its usage is left out, so the number matches what `docker stats` shows. The limit is the one set on the container; without one, the memory configured for the server is used instead of the memory of the whole machine.
+- Numbers are cached for a few seconds, so many open tabs do not ask Docker over and over.
+
 ## Power buttons
 
 - **Start** and **Stop** are the normal way to run a server. Stop lets the server save the world first.
