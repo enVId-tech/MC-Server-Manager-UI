@@ -118,6 +118,8 @@ assert.equal(parseVelocityToml(removed).forcedHosts['lobby.example.com']?.[0], '
 // no fallback: try is emptied
 assert.deepEqual(parseVelocityToml(disableVelocityFallback(VELOCITY)).tryOrder, []);
 assert.equal(disableVelocityFallback(disableVelocityFallback(VELOCITY)), disableVelocityFallback(VELOCITY));
+assert.deepEqual(parseVelocityToml(disableVelocityFallback(VELOCITY, 'lobby')).tryOrder, ['lobby']);
+assert.deepEqual(parseVelocityToml(disableVelocityFallback(VELOCITY, 'missing')).tryOrder, []);
 
 // forwarding mode
 assert.equal(parseVelocityToml(setVelocityForwarding(VELOCITY, 'modern')).forwarding, 'modern');
@@ -180,5 +182,35 @@ assert.equal(parseGeyserConfig('motd1: hi\n').bedrockPort, 19132);
 const edu = parseEducationJoinOutput('[INFO]: Join codes:\n[INFO]: 1. Join code: ABC DEF GHI (https://education.minecraft.net/joinworld/abc123)\n[INFO]: something else');
 assert.deepEqual(edu.links, ['https://education.minecraft.net/joinworld/abc123']);
 assert.equal(edu.lines.length, 2);
+
+// ---- warnings
+import { mergeWarnings, visibleWarnings, warningMessage } from '../lib/server/network/warnings';
+assert.match(warningMessage('no-proxy', 25570), /port 25570 is forwarded or exposed to the internet/);
+const first = mergeWarnings(undefined, [{ code: 'no-proxy', port: 25570 }]);
+assert.equal(visibleWarnings(first).length, 1);
+const cleared = first.map(warning => ({ ...warning, dismissed: true }));
+assert.equal(visibleWarnings(mergeWarnings(cleared, [{ code: 'no-proxy', port: 25570 }])).length, 0, 'a cleared warning stays cleared while it applies');
+assert.equal(visibleWarnings(mergeWarnings(cleared, [{ code: 'no-secret', port: 25570 }])).length, 1, 'a different problem shows up');
+assert.equal(mergeWarnings(cleared, []).length, 0, 'a warning that no longer applies is dropped');
+assert.equal(visibleWarnings(mergeWarnings(mergeWarnings(cleared, []), [{ code: 'no-proxy', port: 25570 }])).length, 1, 'and returns if the problem returns');
+
+// ---- templates for proxies the manager creates
+import { bungeeYamlTemplate, proxyCompose, velocityTomlTemplate } from '../lib/server/network/proxyTemplates';
+import YAML from 'yaml';
+const created = parseVelocityToml(velocityTomlTemplate({ motd: 'My "network"', maxPlayers: 100, forwarding: 'modern' }));
+assert.equal(created.forwarding, 'modern');
+assert.equal(created.motd, 'My "network"');
+assert.deepEqual(created.tryOrder, [], 'a new proxy has nowhere to fall back to');
+assert.equal(created.secretFile, 'forwarding.secret');
+assert.equal(getTomlValue(velocityTomlTemplate({ motd: 'x', maxPlayers: 1, forwarding: 'legacy' }), 'advanced', 'failover-on-unexpected-server-disconnect'), false);
+const createdBungee = parseBungeeYaml(bungeeYamlTemplate({ motd: 'hi', maxPlayers: 20, forwarding: 'bungeeguard' }), true);
+assert.equal(createdBungee.forwarding, 'bungeeguard');
+assert.deepEqual(createdBungee.priorities, ['unavailable']);
+const compose = YAML.parse(proxyCompose({ kind: 'waterfall', name: 'w', containerName: 'waterfall-1', image: 'itzg/mc-proxy:latest', hostPort: 25565, hostFolder: '/mnt/p/w', networkName: 'proxy-net', memory: '512M', udpPorts: [19132] }));
+assert.deepEqual(compose.services['waterfall-1'].ports, ['25565:25577', '19132:19132/udp']);
+assert.ok(compose.services['waterfall-1'].environment.includes('TYPE=WATERFALL'));
+const velocityCompose = YAML.parse(proxyCompose({ kind: 'velocity', name: 'v', containerName: 'velocity-1', image: 'envidtech/velocity:latest', hostPort: 25565, hostFolder: '/mnt/p/v', networkName: 'proxy-net', memory: '512M' }));
+assert.deepEqual(velocityCompose.services['velocity-1'].volumes, ['/mnt/p/v:/velocity']);
+assert.equal(velocityCompose.networks['proxy-net'].external, true);
 
 console.log('network tests passed');

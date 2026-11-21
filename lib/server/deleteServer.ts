@@ -174,43 +174,16 @@ export async function deleteServer(serverId: string, server: Record<string, unkn
             containerCleanupFailed = true;
         }
 
-        // 2. Clean up Velocity configuration
+        // 2. Take the server out of every proxy it is in
         try {
-            details.push('Cleaning up Velocity configuration...');
-            
-            // Check if Velocity integration is enabled
-            // We now assume it is enabled if the service is available, or we could check definedProxies
-            if (true) {
-                const velocityService = await import('@/lib/server/velocity');
-                
-                // Try to remove the server from Velocity configuration
-                const serverName = server.serverName as string || getContainerName(server);
-                const removalResult = await velocityService.default.removeServerFromVelocityConfig(
-                    serverName,
-                    server.uniqueId as string
-                );
-                
-                if (removalResult.success) {
-                    details.push('Successfully removed server from Velocity configuration');
-                    if (removalResult.details) {
-                        details.push(...removalResult.details);
-                    }
-                    // Make the running proxy forget the server without disconnecting anybody
-                    const reload = await velocityService.default.reloadProxies(portainerEnvironmentId);
-                    details.push(...reload.details);
-                } else {
-                    details.push(`Warning: Velocity configuration cleanup failed - ${removalResult.error || 'Unknown error'}`);
-                    if (removalResult.details) {
-                        details.push(...removalResult.details);
-                    }
-                    hasErrors = true;
-                }
-            } else {
-                details.push('Velocity integration not configured - skipping Velocity cleanup');
+            details.push('Removing the server from its proxies...');
+            const { unlinkServerFromNetwork } = await import('@/lib/server/network/service');
+            const record = await Server.findOne({ uniqueId: server.uniqueId });
+            if (record) {
+                details.push(...await unlinkServerFromNetwork(record, { environmentId: portainerEnvironmentId }));
             }
-            
-        } catch (velocityCleanupError) {
-            details.push(`Warning: Velocity cleanup failed - ${velocityCleanupError instanceof Error ? velocityCleanupError.message : 'Unknown error'}`);
+        } catch (proxyCleanupError) {
+            details.push(`Warning: Proxy cleanup failed - ${proxyCleanupError instanceof Error ? proxyCleanupError.message : 'Unknown error'}`);
             hasErrors = true;
         }
 

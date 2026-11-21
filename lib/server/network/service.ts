@@ -37,6 +37,8 @@ export interface NetworkProxy extends RoutableProxy {
     bedrockPort?: number;
     motd: string;
     maxPlayers: number;
+    /** Servers in the proxy's config: entry name to address */
+    entries: Record<string, string>;
     readable: boolean;
     error?: string;
     defaultEntry?: string;
@@ -116,6 +118,7 @@ async function describeProxy(record: IServer, linked: number, runningNames: Set<
         bedrockPort: inspection.bedrockPort,
         motd: inspection.motd,
         maxPlayers: inspection.maxPlayers,
+        entries: inspection.servers,
         readable: inspection.readable,
         error: inspection.error,
         defaultEntry: settings.defaultEntry,
@@ -230,6 +233,13 @@ export interface SyncResult {
     changedProxies: string[];
 }
 
+/** Entries of a proxy that lead to this container, whatever they are called. Older versions named them differently */
+function entriesFor(proxy: Pick<NetworkProxy, 'entries'>, containerName: string): string[] {
+    return Object.entries(proxy.entries)
+        .filter(([, address]) => address.split(':')[0] === containerName)
+        .map(([name]) => name);
+}
+
 async function removeEntry(proxy: NetworkProxy, entryName: string): Promise<void> {
     const ref = { uniqueId: proxy.id, serverName: proxy.name, folderPath: proxy.folder, port: proxy.port, proxy: { type: proxy.kind, configPath: proxy.configPath } } as ProxyRef;
     await editProxyConfig(ref, content => proxy.kind === 'velocity'
@@ -308,9 +318,13 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
     for (const proxy of chosen) {
         const ref = { uniqueId: proxy.id, serverName: proxy.name, folderPath: proxy.folder, port: proxy.port, proxy: { type: proxy.kind, configPath: proxy.configPath } } as ProxyRef;
         try {
+            const stale = entriesFor(proxy, getContainerName(server)).filter(name => name !== entryName);
             await editProxyConfig(ref, content => {
                 const entry = { name: entryName, address, hostnames };
-                let next = proxy.kind === 'velocity' ? addServerToVelocityToml(content, entry) : addServerToBungeeYaml(content, entry);
+                // Entries of this server under an older name are replaced by the current one
+                let cleaned = content;
+                for (const old of stale) cleaned = proxy.kind === 'velocity' ? removeServerFromVelocityToml(cleaned, old) : removeServerFromBungeeYaml(cleaned, old);
+                let next = proxy.kind === 'velocity' ? addServerToVelocityToml(cleaned, entry) : addServerToBungeeYaml(cleaned, entry);
                 if (proxy.kind === 'velocity' && settings.noFallback) next = disableVelocityFallback(next, proxy.defaultEntry);
                 return next;
             });
@@ -398,11 +412,11 @@ export async function unlinkServerFromNetwork(server: IServer, options: { reload
     const links = (server.network?.links ?? []) as NetworkLink[];
     const proxies = await listProxies();
 
-    for (const link of links) {
-        const proxy = proxies.find(candidate => candidate.id === link.proxyId);
-        if (!proxy) continue;
+    for (const proxy of proxies) {
+        const names = new Set([...links.filter(link => link.proxyId === proxy.id).map(link => link.entryName), ...entriesFor(proxy, getContainerName(server))]);
+        if (names.size === 0) continue;
         try {
-            await removeEntry(proxy, link.entryName);
+            for (const name of names) await removeEntry(proxy, name);
             details.push(`Removed from ${proxy.name}`);
             if (options.reload !== false) details.push(await reloadProxy(proxy, options.environmentId));
         } catch (error) {
