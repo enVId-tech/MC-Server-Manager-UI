@@ -6,6 +6,7 @@ import Server from "@/lib/objects/Server";
 import portainer from "@/lib/server/portainer";
 import verificationService from "@/lib/server/verify";
 import { getContainerName } from '@/lib/server/containerNames';
+import { clearStartGuard } from '@/lib/server/startGuard';
 
 export async function POST(request: NextRequest) {
     await dbConnect();
@@ -73,6 +74,9 @@ export async function POST(request: NextRequest) {
         if (!container) {
             return NextResponse.json({ message: `Container '${containerIdentifier}' not found for this server.` }, { status: 404 });
         }
+
+        // A server that was stopped for failing to start may restart on its own again from here on
+        if (server.startGuard) await clearStartGuard(server.uniqueId, container.Id, portainerEnvironmentId);
 
         // Start the container with the proper environment ID
         await portainer.startContainer(container.Id, portainerEnvironmentId);

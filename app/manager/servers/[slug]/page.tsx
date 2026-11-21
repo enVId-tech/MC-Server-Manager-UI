@@ -197,6 +197,15 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
                     </div>
                 </header>
 
+                {info.startGuard && (
+                    <div className={`${styles.notice} ${styles.error}`}>
+                        <span>
+                            This server was stopped after {info.startGuard.failures} failed starts in a row, so it does not keep restarting. Check the console and the settings, then start it again.
+                            {info.startGuard.lastLog && <pre className={styles.mono} style={{ whiteSpace: 'pre-wrap', margin: '0.5rem 0 0' }}>{info.startGuard.lastLog}</pre>}
+                        </span>
+                    </div>
+                )}
+
                 {isProxy && (
                     <div className={`${styles.notice} ${styles.info}`}>
                         This is a proxy. Its forwarding, plugins, image and the servers behind it are managed in the admin panel; the files tab opens its configuration.

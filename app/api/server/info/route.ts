@@ -27,6 +27,12 @@ export async function GET(request: NextRequest) {
         version: isProxy ? undefined : config.version,
         port: server.port,
         imported: Boolean(server.imported),
+        startGuard: server.startGuard ? {
+            stoppedAt: server.startGuard.stoppedAt,
+            failures: server.startGuard.failures,
+            // The last log lines can mention the host, so only administrators get them
+            ...(user.isAdmin ? { exitCode: server.startGuard.exitCode, lastLog: server.startGuard.lastLog } : {}),
+        } : undefined,
         proxy: isProxy ? {
             type: server.proxy?.type,
             forwarding: server.proxy?.forwarding,

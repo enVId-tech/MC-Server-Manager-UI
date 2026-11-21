@@ -10,6 +10,7 @@ export interface ServerInfo {
     version?: string;
     port: number;
     imported: boolean;
+    startGuard?: { stoppedAt: string; failures: number; exitCode?: number; lastLog?: string };
     proxy?: { type?: string; forwarding?: string; enabled: boolean };
 }
 

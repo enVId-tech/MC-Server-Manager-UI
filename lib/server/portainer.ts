@@ -33,6 +33,8 @@ export interface PortainerContainer {
     Id: string;
     Names: string[];
     Image: string;
+    /** Id of the image the container was created from */
+    ImageID?: string;
     State: string;
     Status: string;
     Created?: number;
@@ -2233,6 +2235,47 @@ export class PortainerApiClient {
             console.error(`❌ Failed to pull image ${imageName}:`, error);
             throw error;
         }
+    }
+
+    /**
+     * Id of a local image (for example `itzg/minecraft-server:java21`), or null when it is not on the host.
+     */
+    async getImageId(imageName: string, environmentId: number | null = this.defaultEnvironmentId): Promise<string | null> {
+        if (environmentId === null) return null;
+        try {
+            const response = await this.axiosInstance.get<{ Id?: string }>(`/api/endpoints/${environmentId}/docker/images/${imageName}/json`);
+            return response.data.Id ?? null;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * What a container did since it was created: how often Docker restarted it, its state and how it last exited.
+     */
+    async getRestartState(containerId: string, environmentId: number | null = this.defaultEnvironmentId): Promise<{
+        restartCount: number; status: string; restarting: boolean; exitCode: number; running: boolean;
+    }> {
+        if (environmentId === null) throw new Error('Environment ID is required to inspect a container.');
+        const response = await this.axiosInstance.get<{
+            RestartCount?: number;
+            State?: { Status?: string; Restarting?: boolean; ExitCode?: number; Running?: boolean };
+        }>(`/api/endpoints/${environmentId}/docker/containers/${containerId}/json`);
+        return {
+            restartCount: response.data.RestartCount ?? 0,
+            status: response.data.State?.Status ?? 'unknown',
+            restarting: response.data.State?.Restarting === true,
+            exitCode: response.data.State?.ExitCode ?? 0,
+            running: response.data.State?.Running === true,
+        };
+    }
+
+    /**
+     * Changes what Docker does when the container exits: `no`, `unless-stopped`, `always` or `on-failure`.
+     */
+    async setRestartPolicy(containerId: string, policy: 'no' | 'unless-stopped' | 'always' | 'on-failure', environmentId: number | null = this.defaultEnvironmentId): Promise<void> {
+        if (environmentId === null) throw new Error('Environment ID is required to change a restart policy.');
+        await this.axiosInstance.post(`/api/endpoints/${environmentId}/docker/containers/${containerId}/update`, { RestartPolicy: { Name: policy } });
     }
 
     /**

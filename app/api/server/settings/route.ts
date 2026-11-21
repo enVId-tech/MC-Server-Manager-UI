@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/dbConnect';
+import Server from '@/lib/objects/Server';
 import { findServerForUser } from '@/lib/server/access';
 import { syncServerNetwork } from '@/lib/server/network/service';
 import { IUser } from '@/lib/objects/User';
@@ -181,6 +182,7 @@ export async function PATCH(request: NextRequest) {
 
                     await portainer.updateStack(stack.Id, instance.generateDockerComposeYaml(), environmentId, false);
                     applied = true;
+                    await Server.updateOne({ _id: server._id }, { $unset: { startGuard: '' } });
                 }
 
                 // Keep the proxy settings of the server in place after the change

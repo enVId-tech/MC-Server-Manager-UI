@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
         const stack = await portainer.getStackByName(`minecraft-${fresh.uniqueId}`);
         if (!stack) return NextResponse.json({ message: `The container stack of ${getContainerName(fresh)} was not found. Redeploy the server first.` }, { status: 404 });
         await portainer.updateStack(stack.Id, createMinecraftServerFromRecord(fresh, environmentId, fresh.email).generateDockerComposeYaml(), environmentId, true);
+        await Server.updateOne({ _id: server._id }, { $unset: { startGuard: '' } });
 
         return NextResponse.json({
             success: true,

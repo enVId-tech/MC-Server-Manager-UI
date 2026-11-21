@@ -30,6 +30,8 @@ export interface IServer extends pkg.Document {
     kind?: 'server' | 'proxy';
     /** Only set when kind is 'proxy' */
     proxy?: ProxySettings;
+    /** Set when the server was stopped for good after failing to start too many times in a row */
+    startGuard?: { stoppedAt: Date; failures: number; exitCode?: number; lastLog?: string };
     /** How a game server is connected to the proxy network */
     network?: ServerNetwork;
     createdAt: Date;
@@ -167,6 +169,7 @@ const ServerSchema: pkg.Schema = new pkg.Schema({
     kind: { type: String, enum: ['server', 'proxy'], required: false, default: 'server', index: true },
     proxy: { type: pkg.Schema.Types.Mixed, required: false },
     network: { type: pkg.Schema.Types.Mixed, required: false },
+    startGuard: { type: pkg.Schema.Types.Mixed, required: false },
     createdAt: {
         type: Date,
         default: Date.now,
