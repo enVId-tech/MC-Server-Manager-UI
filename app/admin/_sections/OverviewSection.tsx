@@ -15,9 +15,9 @@ interface ServerStats {
     stats?: { totalServers: number; onlineServers: number; offlineServers: number };
 }
 
-interface VelocityStatus {
-    active: { configPath: string; source: string; containerName?: string } | null;
-    config: { servers: Record<string, { address: string }> } | null;
+interface NetworkStatus {
+    proxies: Array<{ id: string; name: string; kind: string; running: boolean; linkedServers: number; configPath: string }>;
+    unlinked: unknown[];
 }
 
 interface PortReport {
@@ -27,7 +27,7 @@ interface PortReport {
 export default function OverviewSection({ onNavigate }: { onNavigate: (section: string) => void }) {
     const system = useAdminData<SystemStatus>('/api/admin/system');
     const servers = useAdminData<ServerStats>('/api/admin/servers?limit=100');
-    const velocity = useAdminData<VelocityStatus>('/api/admin/velocity');
+    const velocity = useAdminData<NetworkStatus>('/api/admin/network');
     const ports = useAdminData<PortReport>('/api/admin/ports/manage');
 
     const loading = system.loading || servers.loading || velocity.loading || ports.loading;
@@ -35,13 +35,15 @@ export default function OverviewSection({ onNavigate }: { onNavigate: (section: 
 
     const stats = servers.data?.stats;
     const portReport = ports.data?.report;
-    const proxiedServers = velocity.data?.config ? Object.keys(velocity.data.config.servers).length : 0;
+    const proxyList = velocity.data?.proxies ?? [];
+    const proxiedServers = proxyList.reduce((total, proxy) => total + proxy.linkedServers, 0);
     const portUse = portReport && portReport.totalPorts > 0 ? Math.round((portReport.usedPorts / portReport.totalPorts) * 100) : 0;
 
     const problems: string[] = [];
     if (system.data && !system.data.database.connected) problems.push('The database is not connected.');
     if (system.data && !system.data.portainer.connected) problems.push(`Portainer is not reachable${system.data.portainer.error ? `: ${system.data.portainer.error}` : '.'}`);
-    if (velocity.data && !velocity.data.active) problems.push('No Velocity instance was found. Servers cannot be added to a proxy until one exists.');
+    if (velocity.data && proxyList.length === 0) problems.push('There is no proxy yet. Create one in the Proxies tab so servers can join a network.');
+    if (velocity.data && proxyList.length > 0 && velocity.data.unlinked.length > 0) problems.push(`${velocity.data.unlinked.length} server${velocity.data.unlinked.length === 1 ? ' is' : 's are'} not behind any proxy.`);
     if (system.data && system.data.counts.pendingUsers > 0) problems.push(`${system.data.counts.pendingUsers} account${system.data.counts.pendingUsers === 1 ? ' is' : 's are'} waiting for approval.`);
 
     return (
@@ -76,10 +78,10 @@ export default function OverviewSection({ onNavigate }: { onNavigate: (section: 
                     <span className={styles.statValue}>{system.data?.counts.users ?? '—'}</span>
                     <span className={styles.statNote}>{system.data?.counts.pendingUsers ? `${system.data.counts.pendingUsers} pending` : 'none pending'}</span>
                 </div>
-                <div className={`${styles.stat} ${velocity.data?.active ? styles.good : styles.bad}`}>
-                    <span className={styles.statLabel}>Velocity</span>
-                    <span className={styles.statValue}>{velocity.data ? (velocity.data.active ? 'Found' : 'Missing') : '—'}</span>
-                    <span className={styles.statNote}>{velocity.data?.active ? `${proxiedServers} server${proxiedServers === 1 ? '' : 's'} registered` : 'no velocity.toml'}</span>
+                <div className={`${styles.stat} ${proxyList.length > 0 ? styles.good : styles.bad}`}>
+                    <span className={styles.statLabel}>Proxies</span>
+                    <span className={styles.statValue}>{velocity.data ? proxyList.length : '—'}</span>
+                    <span className={styles.statNote}>{proxyList.length > 0 ? `${proxiedServers} server${proxiedServers === 1 ? '' : 's'} behind them` : 'none yet'}</span>
                 </div>
                 <div className={`${styles.stat} ${portUse > 85 ? styles.bad : portUse > 65 ? styles.warn : ''}`}>
                     <span className={styles.statLabel}>Ports in use</span>
@@ -109,8 +111,8 @@ export default function OverviewSection({ onNavigate }: { onNavigate: (section: 
                             <span className={`${styles.badge} ${styles.info}`}>{system.data?.storage.backend === 'webdav' ? 'WebDAV' : 'Local folder'}</span>
                         </li>
                         <li>
-                            <span>Velocity config</span>
-                            <span className={styles.mono}>{velocity.data?.active?.configPath ?? 'not found'}</span>
+                            <span>Proxies</span>
+                            <span className={styles.mono}>{proxyList.length > 0 ? proxyList.map(proxy => proxy.name).join(', ') : 'none'}</span>
                         </li>
                     </ul>
                 </section>
@@ -125,8 +127,8 @@ export default function OverviewSection({ onNavigate }: { onNavigate: (section: 
                             <button className={`${styles.btn} ${styles.small}`} onClick={() => onNavigate('servers')}>Import</button>
                         </li>
                         <li>
-                            <span>Check the Velocity proxy and reload it</span>
-                            <button className={`${styles.btn} ${styles.small}`} onClick={() => onNavigate('velocity')}>Open</button>
+                            <span>Manage Velocity, BungeeCord and Waterfall proxies</span>
+                            <button className={`${styles.btn} ${styles.small}`} onClick={() => onNavigate('proxies')}>Open</button>
                         </li>
                         <li>
                             <span>Approve new accounts</span>

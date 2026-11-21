@@ -61,7 +61,7 @@ export async function PATCH(request: NextRequest) {
         const patch: UpdateProxyInput = {
             name: body.name, enabled: body.enabled, priority: body.priority, forwarding: body.forwarding, motd: body.motd,
             maxPlayers: body.maxPlayers !== undefined ? Number(body.maxPlayers) : undefined, publicHost: body.publicHost,
-            defaultEntry: body.defaultEntry, memory: body.memory, image: body.image, installPlugins: plugins(body.installPlugins),
+            defaultEntry: body.defaultEntry, memory: body.memory, image: body.image, installPlugins: plugins(body.installPlugins), pullImage: body.pullImage === true,
         };
         return NextResponse.json({ success: true, ...(await updateProxy(String(body.id), patch)) });
     } catch (error) {

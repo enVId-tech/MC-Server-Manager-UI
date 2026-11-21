@@ -13,19 +13,19 @@ import {
 import UserManager from '../_components/UserManager/UserManager';
 import OverviewSection from './_sections/OverviewSection';
 import ServersSection from './_sections/ServersSection';
-import VelocitySection from './_sections/VelocitySection';
+import ProxiesSection from './_sections/ProxiesSection';
 import PortsSection from './_sections/PortsSection';
 import DockerSection from './_sections/DockerSection';
 import SettingsSection from './_sections/SettingsSection';
 import { useAdminData } from './_sections/shared';
 import styles from './admin.module.scss';
 
-type Section = 'overview' | 'servers' | 'velocity' | 'ports' | 'users' | 'docker' | 'settings';
+type Section = 'overview' | 'servers' | 'proxies' | 'ports' | 'users' | 'docker' | 'settings';
 
 const SECTIONS: Array<{ id: Section; label: string; icon: React.ReactNode }> = [
   { id: 'overview', label: 'Overview', icon: <FaChartPie /> },
   { id: 'servers', label: 'Servers', icon: <FaServer /> },
-  { id: 'velocity', label: 'Velocity', icon: <FaPlug /> },
+  { id: 'proxies', label: 'Proxies', icon: <FaPlug /> },
   { id: 'ports', label: 'Ports', icon: <FaNetworkWired /> },
   { id: 'users', label: 'Users', icon: <FaUsers /> },
   { id: 'docker', label: 'Docker updates', icon: <FaDocker /> },
@@ -79,7 +79,7 @@ export default function AdminDashboard() {
       <main className={styles.main}>
         {section === 'overview' && <OverviewSection onNavigate={navigate} />}
         {section === 'servers' && <ServersSection />}
-        {section === 'velocity' && <VelocitySection />}
+        {section === 'proxies' && <ProxiesSection />}
         {section === 'ports' && <PortsSection />}
         {section === 'users' && (
           <>

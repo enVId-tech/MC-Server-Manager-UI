@@ -167,6 +167,8 @@ export interface UpdateProxyInput {
     memory?: string;
     image?: string;
     installPlugins?: ProxyPluginName[];
+    /** Pull the image again and recreate the container, even when memory and image are unchanged */
+    pullImage?: boolean;
 }
 
 function proxyRefOf(record: IServer): ProxyRef {
@@ -237,10 +239,10 @@ export async function updateProxy(id: string, patch: UpdateProxyInput): Promise<
     }
 
     // Memory and image live in the stack
-    if ((patch.memory !== undefined || patch.image !== undefined) && settings.stackName) {
+    if ((patch.memory !== undefined || patch.image !== undefined || patch.pullImage) && settings.stackName) {
         const memory = patch.memory && /^\d+[MG]$/i.test(patch.memory) ? patch.memory.toUpperCase() : settings.memory;
         const image = patch.image?.trim() || settings.image || defaultProxyImage(settings.type);
-        if (memory !== settings.memory || image !== settings.image) {
+        if (patch.pullImage || memory !== settings.memory || image !== settings.image) {
             const environmentId = await getEnvironmentId();
             const stack = await portainer.getStackByName(settings.stackName);
             if (!stack) throw new Error(`The stack ${settings.stackName} was not found in Portainer.`);
@@ -254,7 +256,7 @@ export async function updateProxy(id: string, patch: UpdateProxyInput): Promise<
             settings.image = image;
             details.push('Updated the stack and pulled the image');
         }
-    } else if (patch.memory !== undefined || patch.image !== undefined) {
+    } else if (patch.memory !== undefined || patch.image !== undefined || patch.pullImage) {
         details.push('This proxy was not created here, so its memory and image are changed where its container is defined');
     }
 
