@@ -7,7 +7,6 @@ import { findServerForUser } from '@/lib/server/access';
 import { getJoinAddresses, getProxy, readEducationJoin, syncServerNetwork } from '@/lib/server/network/service';
 import { visibleWarnings } from '@/lib/server/network/warnings';
 import { buildServerHostname } from '@/lib/config/domain';
-import { isUnassignedSubdomain } from '@/lib/server/subdomain';
 import MinecraftServerManager from '@/lib/server/serverManager';
 
 /**
@@ -57,7 +56,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/server/network   { uniqueId, action: 'dismiss', code }   clears a warning
  *                            { uniqueId, action: 'sync', restart? }  checks the server against the proxies again
- *                            { uniqueId, action: 'subdomain', subdomain }  sets the address (owners only while it has none)
+ *                            { uniqueId, action: 'subdomain', subdomain }  sets or changes the address (the owner and administrators)
  */
 export async function POST(request: NextRequest) {
     await dbConnect();
@@ -94,16 +93,15 @@ export async function POST(request: NextRequest) {
         if (!/^[a-z0-9]([a-z0-9-]{0,40}[a-z0-9])?$/.test(label)) {
             return NextResponse.json({ message: 'Use lowercase letters, digits and dashes only, for example survival.' }, { status: 400 });
         }
-        if (!user.isAdmin && !isUnassignedSubdomain(server.subdomainName)) {
-            return NextResponse.json({ message: 'Only an administrator can change the address of a server that has one.' }, { status: 403 });
-        }
         const hostname = buildServerHostname(label);
         if (hostname !== server.subdomainName) {
-            const check = await MinecraftServerManager.validateSubdomain(label, user.email);
+            const check = await MinecraftServerManager.validateSubdomain(label, user.email, server);
             if (!check.isValid) return NextResponse.json({ message: check.error ?? 'This address cannot be used.' }, { status: 400 });
         }
 
-        await Server.updateOne({ _id: server._id }, { $set: { subdomainName: hostname, subdomainSource: 'chosen', 'serverConfig.subdomain': label }, $unset: { extraHostnames: '' } });
+        // The other forced hosts of an imported server stay; only its main address changes (the old one leaves the proxies)
+        const extras = (server.extraHostnames ?? []).filter(name => name.trim().toLowerCase() !== hostname);
+        await Server.updateOne({ _id: server._id }, { $set: { subdomainName: hostname, subdomainSource: 'chosen', 'serverConfig.subdomain': label, extraHostnames: extras } });
         const updated = await Server.findById(server._id);
         let details: string[] = [];
         if (updated) {

@@ -12,7 +12,9 @@ const FORWARDING: Record<string, string> = { modern: 'Modern', bungeeguard: 'Bun
 export default function NetworkTab({ info, network, onChanged }: { info: ServerInfo; network: NetworkStatus | null; onChanged: () => void }) {
     const { showNotification } = useNotifications();
     const [busy, setBusy] = useState(false);
-    const [addressDraft, setAddressDraft] = useState('');
+    const currentLabel = info.subdomain ? info.subdomain.split('.')[0] : '';
+    const suffix = info.subdomain && info.subdomain.includes('.') ? info.subdomain.slice(info.subdomain.indexOf('.')) : '';
+    const [addressDraft, setAddressDraft] = useState(currentLabel);
     const hasEdu = Boolean(network?.joinAddresses.some(address => address.edugeyser));
 
     const dismiss = async (code: string) => {
@@ -37,7 +39,7 @@ export default function NetworkTab({ info, network, onChanged }: { info: ServerI
         const { ok, body } = await postJson<{ subdomain?: string; details?: string[] }>('/api/server/network', { uniqueId: info.uniqueId, action: 'subdomain', subdomain: addressDraft });
         setBusy(false);
         showNotification({ type: ok ? 'success' : 'error', title: 'Address', message: ok ? [`The address is now ${body.subdomain}`, ...(body.details ?? [])].join('\n') : body.message ?? 'The address could not be saved.' });
-        if (ok) { setAddressDraft(''); onChanged(); }
+        if (ok) { setAddressDraft((body.subdomain ?? addressDraft).split('.')[0]); onChanged(); }
     };
 
     if (!network) return <div className={styles.loading}>Loading…</div>;
@@ -77,15 +79,17 @@ export default function NetworkTab({ info, network, onChanged }: { info: ServerI
 
                 <section className={styles.card}>
                     <h2>Addresses</h2>
-                    {!info.subdomain && (
-                        <div className={`${styles.notice} ${styles.warning}`} style={{ display: 'block', marginBottom: '0.75rem' }}>
-                            <p style={{ marginTop: 0 }}>This server has no address yet. No proxy has a forced host for it. Pick the name players will join with.</p>
-                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                <input className={styles.input} value={addressDraft} placeholder="survival" aria-label="Address" onChange={event => setAddressDraft(event.target.value.toLowerCase())} />
-                                <button className={`${styles.btn} ${styles.primary}`} disabled={busy || !addressDraft} onClick={() => void saveAddress()}>{busy ? 'Saving…' : 'Set address'}</button>
+                    <div className={info.subdomain ? undefined : `${styles.notice} ${styles.warning}`} style={{ display: 'block', marginBottom: '0.75rem' }}>
+                        {!info.subdomain && <p style={{ marginTop: 0 }}>This server has no address yet. No proxy has a forced host for it. Pick the name players will join with.</p>}
+                        <label className={styles.field}>{info.subdomain ? 'Address (the name players join with)' : 'Address'}
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                <input className={styles.input} style={{ maxWidth: '14rem' }} value={addressDraft} placeholder="survival" aria-label="Address" onChange={event => setAddressDraft(event.target.value.toLowerCase())} />
+                                {suffix && <span className={styles.mono}>{suffix}</span>}
+                                <button className={`${styles.btn} ${styles.primary}`} disabled={busy || !addressDraft || addressDraft === currentLabel} onClick={() => void saveAddress()}>{busy ? 'Saving…' : info.subdomain ? 'Change address' : 'Set address'}</button>
                             </div>
-                        </div>
-                    )}
+                        </label>
+                        {info.subdomain && <p className={styles.muted} style={{ marginBottom: 0 }}>The new name works as soon as the proxy has reloaded, and the old one stops working. It cannot be a name another server uses or a forced host that already leads somewhere else on a proxy.</p>}
+                    </div>
                     {network.joinAddresses.length === 0 && network.port !== undefined && (
                         <div className={styles.addressRow}>
                             <div><span className={styles.addressLabel}>Direct port (Java)</span><span className={styles.mono}>{network.port}</span></div>
