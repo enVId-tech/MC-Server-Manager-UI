@@ -43,6 +43,12 @@ export default function Dashboard() {
     const [deletionSuccess, setDeletionSuccess] = useState(false);
     const [deletionProgress, setDeletionProgress] = useState(0);
     const [loadingServers, setLoadingServers] = useState(true);
+    const [section, setSection] = useState<'servers' | 'network'>('servers');
+    const [query, setQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
+    const [sortBy, setSortBy] = useState<'name' | 'status' | 'players'>('name');
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [proxies, setProxies] = useState<Array<{ id: string; name: string; kind: string; port: number; baseSubdomain?: string; running: boolean; linkedServers: number; issues: string[] }>>([]);
     const [busyServerIds, setBusyServerIds] = useState<Set<string>>(new Set());
     const router = useRouter();
 
@@ -88,10 +94,13 @@ export default function Dashboard() {
                 },
             });
 
-            res.then(response => {
+            res.then(async response => {
                 if (!response.ok) {
                     router.push('/auth/login'); // Redirect to login if already logged in
+                    return;
                 }
+                const body = await response.json().catch(() => ({}));
+                setIsAdmin(body.isAdmin === true);
             }).catch(error => {
                 console.error('Error checking authentication:', error);
             });
@@ -328,6 +337,17 @@ export default function Dashboard() {
     const getServerSlug = (server: MCServer) =>
         server.subdomainName && server.subdomainName !== 'N/A' ? server.subdomainName : server.id;
 
+    const loadProxies = async () => {
+        try {
+            const response = await fetch('/api/admin/network');
+            if (!response.ok) return;
+            const body = await response.json();
+            setProxies(body.proxies ?? []);
+        } catch {
+            // The list stays as it was
+        }
+    };
+
     const copyServerAddress = async (address: string) => {
         try {
             await navigator.clipboard.writeText(address);
@@ -338,6 +358,14 @@ export default function Dashboard() {
     };
 
     const onlineCount = servers.filter(server => server.status === 'online').length;
+    const playersNow = servers.reduce((sum, server) => sum + (Number(server.players) || 0), 0);
+    const playerCapacity = servers.reduce((sum, server) => sum + (Number(server.maxPlayers) || 0), 0);
+    const visibleServers = servers
+        .filter(server => (statusFilter === 'all' || server.status === statusFilter)
+            && (query.trim() === '' || `${server.name} ${server.subdomainName} ${server.type}`.toLowerCase().includes(query.trim().toLowerCase())))
+        .sort((a, b) => sortBy === 'players' ? (Number(b.players) || 0) - (Number(a.players) || 0)
+            : sortBy === 'status' ? a.status.localeCompare(b.status) || a.name.localeCompare(b.name)
+                : a.name.localeCompare(b.name));
 
     return (
         <main className={styles.dashboard} style={{ backgroundImage: `url(${dashboardBg.src})` }}>
@@ -359,6 +387,52 @@ export default function Dashboard() {
                     </button>
                 </div>
 
+                <div className={styles.statRow}>
+                    <div className={styles.stat}><span>Servers</span><strong>{servers.length}</strong></div>
+                    <div className={styles.stat}><span>Online</span><strong>{onlineCount}</strong></div>
+                    <div className={styles.stat}><span>Players now</span><strong>{playersNow}<small>/{playerCapacity}</small></strong></div>
+                </div>
+
+                <nav className={styles.sectionNav} aria-label="Sections">
+                    <button type="button" className={`${styles.sectionTab} ${section === 'servers' ? styles.sectionActive : ''}`} onClick={() => setSection('servers')}>Servers</button>
+                    {isAdmin && <button type="button" className={`${styles.sectionTab} ${section === 'network' ? styles.sectionActive : ''}`} onClick={() => { setSection('network'); void loadProxies(); }}>Network</button>}
+                    {isAdmin && <Link href="/admin" className={styles.sectionTab}>Admin panel</Link>}
+                </nav>
+
+                {section === 'network' && isAdmin && (
+                    <div className={styles.serverGrid}>
+                        {proxies.length === 0 && <div className={styles.emptyState}><p className={styles.emptyTitle}>No proxies yet</p><p>Create one from the create page (Proxy tab). Servers connect to it automatically.</p></div>}
+                        {proxies.map(proxy => (
+                            <div key={proxy.id} className={styles.serverCard}>
+                                <span className={`${styles.serverStatus} ${proxy.running ? styles.online : styles.offline}`}><span className={styles.statusDot} aria-hidden="true" />{proxy.running ? 'running' : 'stopped'}</span>
+                                <h3 className={styles.serverName}>{proxy.name}</h3>
+                                <dl className={styles.serverDetails}>
+                                    <div><dt>Type</dt><dd>{proxy.kind}</dd></div>
+                                    <div><dt>Port</dt><dd>{proxy.port}</dd></div>
+                                    <div><dt>Servers</dt><dd>{proxy.linkedServers}</dd></div>
+                                </dl>
+                                {proxy.baseSubdomain && <p className={styles.summary}>Base subdomain: {proxy.baseSubdomain}</p>}
+                                {proxy.issues.length > 0 && <p className={styles.errorText}>{proxy.issues[0]}</p>}
+                                <div className={styles.actions}>
+                                    <Link href="/admin#proxies" className={`${styles.button} ${styles.secondary}`}>Manage</Link>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {section === 'servers' && (<>
+                {servers.length > 0 && (
+                    <div className={styles.toolbar}>
+                        <input className={styles.search} type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search servers" aria-label="Search servers" />
+                        <select className={styles.filter} value={statusFilter} onChange={event => setStatusFilter(event.target.value as 'all' | 'online' | 'offline')} aria-label="Filter by status">
+                            <option value="all">All</option><option value="online">Online</option><option value="offline">Offline</option>
+                        </select>
+                        <select className={styles.filter} value={sortBy} onChange={event => setSortBy(event.target.value as 'name' | 'status' | 'players')} aria-label="Sort servers">
+                            <option value="name">Name</option><option value="status">Status</option><option value="players">Players</option>
+                        </select>
+                    </div>
+                )}
                 <h2 className={styles.sectionTitle}>Your Servers</h2>
                 {loadingServers ? (
                     <div className={styles.serverGrid} aria-busy="true" aria-label="Loading servers">
@@ -386,7 +460,8 @@ export default function Dashboard() {
                     </div>
                 ) : (
                     <div className={styles.serverGrid}>
-                        {servers.map(server => (
+                        {visibleServers.length === 0 && <div className={styles.emptyState}><p className={styles.emptyTitle}>No servers match</p></div>}
+                        {visibleServers.map(server => (
                             <div
                                 key={server.id}
                                 className={styles.serverCard}
@@ -487,6 +562,7 @@ export default function Dashboard() {
                         ))}
                     </div>
                 )}
+                </>)}
             </div>
 
             {/* Delete Confirmation Modal */}
