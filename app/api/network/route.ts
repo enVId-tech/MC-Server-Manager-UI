@@ -21,18 +21,22 @@ export async function GET(request: NextRequest) {
     const allowance = versionAllowance(enabled, version ?? 'LATEST');
     const decision = version ? chooseProxies(enabled, version, settings.strategy) : null;
 
+    const isAdmin = Boolean(user.isAdmin);
     return NextResponse.json({
-        isAdmin: Boolean(user.isAdmin),
+        isAdmin,
         hasProxy: enabled.length > 0,
         minVersion: allowance.minVersion,
         // Administrators may create servers that no proxy takes, they get the warning
-        allowed: allowance.allowed || Boolean(user.isAdmin),
+        allowed: allowance.allowed || isAdmin,
         // What is true for regular users, so administrators can see the warning
         wouldBeAllowed: allowance.allowed,
         reason: allowance.reason,
-        forwarding: decision?.forwarding ?? null,
-        proxyCount: decision?.proxies.length ?? 0,
-        viaPlugins: decision ? decision.proxies.some(proxy => proxy.plugins.viaversion || proxy.plugins.viabackwards || proxy.plugins.viarewind) : false,
         bedrock: decision ? decision.proxies.some(proxy => proxy.plugins.geyser) : false,
+        // How the network is wired is for administrators
+        ...(isAdmin ? {
+            forwarding: decision?.forwarding ?? null,
+            proxyCount: decision?.proxies.length ?? 0,
+            viaPlugins: decision ? decision.proxies.some(proxy => proxy.plugins.viaversion || proxy.plugins.viabackwards || proxy.plugins.viarewind) : false,
+        } : {}),
     });
 }

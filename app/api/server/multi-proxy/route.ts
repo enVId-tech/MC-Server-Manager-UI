@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db/dbConnect";
+import { requireAdmin } from "@/lib/server/auth";
 import Server from "@/lib/objects/Server";
 import verificationService from "@/lib/server/verify";
 import proxyManager, { ProxyType, ServerProxyConfig, ProxyInstanceConfig } from "@/lib/server/proxy-manager";
@@ -14,6 +15,8 @@ import { getContainerName } from '@/lib/server/containerNames';
 export async function GET(request: NextRequest) {
     try {
         await dbConnect();
+        const auth = await requireAdmin(request);
+        if (auth.response) return auth.response;
         
         const { searchParams } = new URL(request.url);
         const action = searchParams.get('action');
@@ -43,6 +46,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         await dbConnect();
+        const auth = await requireAdmin(request);
+        if (auth.response) return auth.response;
         
         const { searchParams } = new URL(request.url);
         const action = searchParams.get('action');

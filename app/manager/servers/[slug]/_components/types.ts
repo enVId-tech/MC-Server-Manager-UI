@@ -46,10 +46,10 @@ export interface NetworkWarning {
 
 export interface NetworkStatus {
     connected: boolean;
-    forwarding: string;
-    links: Array<{ proxyName: string; forwarding: string }>;
+    forwarding?: string;
+    links?: Array<{ proxyName: string; forwarding: string }>;
     joinAddresses: JoinAddress[];
-    port: number;
+    port?: number;
     warnings: NetworkWarning[];
     locked: boolean;
     syncedAt: string | null;

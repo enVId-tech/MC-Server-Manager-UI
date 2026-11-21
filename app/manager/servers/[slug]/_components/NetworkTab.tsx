@@ -70,16 +70,20 @@ export default function NetworkTab({ info, network, onChanged }: { info: ServerI
                     <h2>Proxy network</h2>
                     {network.connected ? (
                         <>
-                            <p>
-                                This server is behind {network.links.map(link => link.proxyName).join(', ')} using {FORWARDING[network.forwarding] ?? network.forwarding} forwarding. When it stops, players are disconnected instead of being sent to another server.
-                            </p>
-                            {network.locked && <p>The proxy settings of this server (online mode and the other options the proxy depends on) are managed and cannot be changed.</p>}
+                            {info.isAdmin && network.links && network.forwarding ? (
+                                <p>
+                                    This server is behind {network.links.map(link => link.proxyName).join(', ')} using {FORWARDING[network.forwarding] ?? network.forwarding} forwarding. When it stops, players are disconnected instead of being sent to another server.
+                                </p>
+                            ) : (
+                                <p>This server is connected to the network. When it stops, players are disconnected instead of being sent to another server.</p>
+                            )}
+                            {network.locked && <p>The network settings of this server are managed by the administrators and cannot be changed.</p>}
                         </>
                     ) : (
                         <p>This server is not behind a proxy. It is checked again whenever it is deployed or an administrator changes the network, or you can check it now.</p>
                     )}
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <button className={styles.btn} disabled={busy} onClick={() => void recheck(false)}>{busy ? 'Checking…' : 'Check again'}</button>
+                        {info.isAdmin && <button className={styles.btn} disabled={busy} onClick={() => void recheck(false)}>{busy ? 'Checking…' : 'Check again'}</button>}
                         {info.isAdmin && <button className={styles.btn} disabled={busy} onClick={() => void recheck(true)}>Check and restart</button>}
                     </div>
                     {network.syncedAt && <p className={styles.muted} style={{ marginTop: '0.75rem' }}>Last checked {new Date(network.syncedAt).toLocaleString()}</p>}
@@ -87,7 +91,7 @@ export default function NetworkTab({ info, network, onChanged }: { info: ServerI
 
                 <section className={styles.card}>
                     <h2>Addresses</h2>
-                    {network.joinAddresses.length === 0 && (
+                    {network.joinAddresses.length === 0 && network.port !== undefined && (
                         <div className={styles.addressRow}>
                             <div><span className={styles.addressLabel}>Direct port (Java)</span><span className={styles.mono}>{network.port}</span></div>
                             <CopyButton value={String(network.port)} />
@@ -96,12 +100,12 @@ export default function NetworkTab({ info, network, onChanged }: { info: ServerI
                     {network.joinAddresses.map(address => (
                         <div key={address.proxyId}>
                             <div className={styles.addressRow}>
-                                <div><span className={styles.addressLabel}>Java via {address.proxyName}</span><span className={styles.mono}>{address.java}</span></div>
+                                <div><span className={styles.addressLabel}>Java{address.proxyName ? ` via ${address.proxyName}` : ''}</span><span className={styles.mono}>{address.java}</span></div>
                                 <CopyButton value={address.java} />
                             </div>
                             {address.bedrock && (
                                 <div className={styles.addressRow}>
-                                    <div><span className={styles.addressLabel}>Bedrock via {address.proxyName}</span><span className={styles.mono}>{address.bedrock.host} : {address.bedrock.port}</span></div>
+                                    <div><span className={styles.addressLabel}>Bedrock{address.proxyName ? ` via ${address.proxyName}` : ''}</span><span className={styles.mono}>{address.bedrock.host} : {address.bedrock.port}</span></div>
                                     <CopyButton value={`${address.bedrock.host}:${address.bedrock.port}`} />
                                 </div>
                             )}

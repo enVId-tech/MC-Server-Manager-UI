@@ -111,12 +111,12 @@ export default function OverviewTab({ info, stats, network, onOpenNetwork }: Pro
                     <h2>Details</h2>
                     <div className={styles.addressRow}><span className={styles.muted}>Type</span><span>{info.serverType ?? 'unknown'}</span></div>
                     {info.version && <div className={styles.addressRow}><span className={styles.muted}>Version</span><span>{info.version}</span></div>}
-                    <div className={styles.addressRow}><span className={styles.muted}>Port</span><span className={styles.mono}>{info.port}</span></div>
+                    {info.isAdmin && <div className={styles.addressRow}><span className={styles.muted}>Port</span><span className={styles.mono}>{info.port}</span></div>}
                     {info.isAdmin && <div className={styles.addressRow}><span className={styles.muted}>Owner</span><span>{info.owner}</span></div>}
                     {network && (
                         <div className={styles.addressRow}>
                             <span className={styles.muted}>Network</span>
-                            <span>{network.connected ? network.links.map(link => link.proxyName).join(', ') : 'not connected'}</span>
+                            <span>{network.connected ? (info.isAdmin ? (network.links ?? []).map(link => link.proxyName).join(', ') : 'connected') : 'not connected'}</span>
                         </div>
                     )}
                 </section>

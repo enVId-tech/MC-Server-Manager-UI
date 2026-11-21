@@ -34,10 +34,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
         success: true,
         connected: links.length > 0,
-        forwarding: server.network?.forwarding ?? 'none',
-        links: links.map(link => ({ proxyName: link.proxyName, forwarding: link.forwarding })),
-        joinAddresses: await getJoinAddresses(server),
-        port: server.port,
+        // Which proxies and how they forward is for administrators
+        ...(user.isAdmin ? {
+            forwarding: server.network?.forwarding ?? 'none',
+            links: links.map(link => ({ proxyName: link.proxyName, forwarding: link.forwarding })),
+        } : {}),
+        // Players need the addresses; the names of the proxies behind them are for administrators
+        joinAddresses: (await getJoinAddresses(server)).map((address, index) => (
+            user.isAdmin ? address : { ...address, proxyId: String(index), proxyName: '' }
+        )),
+        ...(user.isAdmin ? { port: server.port } : {}),
         warnings: visibleWarnings(server.network?.warnings as NetworkWarning[] | undefined).map(warning => ({ code: warning.code, message: warning.message, port: warning.port })),
         // The proxy settings are changed by administrators only
         locked: links.length > 0 && !user.isAdmin,
@@ -67,6 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (body.action === 'sync') {
+        if (!user.isAdmin) return NextResponse.json({ message: 'Administrative privileges required.' }, { status: 403 });
         const result = await syncServerNetwork(server, { restart: Boolean(body.restart) });
         return NextResponse.json({
             success: true,

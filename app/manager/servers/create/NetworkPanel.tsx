@@ -10,9 +10,9 @@ export interface NetworkPlan {
     allowed: boolean;
     wouldBeAllowed: boolean;
     reason?: string;
-    forwarding: 'modern' | 'bungeeguard' | 'legacy' | 'none' | null;
-    proxyCount: number;
-    viaPlugins: boolean;
+    forwarding?: 'modern' | 'bungeeguard' | 'legacy' | 'none' | null;
+    proxyCount?: number;
+    viaPlugins?: boolean;
     bedrock: boolean;
 }
 
@@ -60,23 +60,26 @@ export default function NetworkPanel({ version, onPlan }: Props) {
                     {plan.isAdmin ? ' Create one in the admin panel under Proxies.' : ' Ask an administrator to add one.'}
                 </p>
             )}
-            {plan.hasProxy && plan.forwarding && (
+            {plan.hasProxy && !plan.isAdmin && plan.allowed && (
+                <p>This server joins the network automatically. Players connect through the address shown on the server dashboard.</p>
+            )}
+            {plan.hasProxy && plan.isAdmin && plan.forwarding && (
                 <p>
                     Joins {plan.proxyCount === 1 ? 'the proxy' : `${plan.proxyCount} proxies`} with {FORWARDING[plan.forwarding] ?? plan.forwarding}. Players connect through the proxy address of this server, online mode is handled by the proxy and cannot be changed.
                 </p>
             )}
-            {plan.hasProxy && !plan.forwarding && (
+            {plan.hasProxy && (plan.isAdmin ? !plan.forwarding : !plan.allowed) && (
                 <p className={styles.networkWarning}>
                     {plan.reason ?? 'No proxy supports this version.'} {plan.isAdmin ? `You can still create it as an administrator. ${exposure}` : ''}
                 </p>
             )}
             {plan.minVersion && plan.hasProxy && (
-                <p className={styles.networkHint}>Only Minecraft {plan.minVersion} and newer can be chosen. The proxies use modern forwarding.</p>
+                <p className={styles.networkHint}>Only Minecraft {plan.minVersion} and newer can be chosen.</p>
             )}
-            {plan.forwarding && plan.viaPlugins && (
+            {plan.isAdmin && plan.forwarding && plan.viaPlugins && (
                 <p className={styles.networkHint}>The proxy runs ViaVersion, ViaBackwards or ViaRewind. A copy is installed on this server too, so you can use it if you like.</p>
             )}
-            {plan.forwarding && plan.bedrock && (
+            {plan.bedrock && plan.allowed && (
                 <p className={styles.networkHint}>Bedrock players can join through Geyser. The addresses appear on the server dashboard.</p>
             )}
         </div>

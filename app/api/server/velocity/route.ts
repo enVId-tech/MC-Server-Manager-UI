@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db/dbConnect";
+import { requireAdmin } from "@/lib/server/auth";
 import Server from "@/lib/objects/Server";
 import verificationService from "@/lib/server/verify";
 import velocityService from "@/lib/server/velocity";
@@ -13,7 +14,9 @@ import { getContainerName } from '@/lib/server/containerNames';
 
 export async function POST(request: NextRequest) {
     await dbConnect();
-    
+    const auth = await requireAdmin(request);
+    if (auth.response) return auth.response;
+
     try {
         const { serverId, action } = await BodyParser.parseAuto(request);
 
