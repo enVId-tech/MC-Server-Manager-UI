@@ -39,7 +39,6 @@ interface PlatformSettings {
     autoUpdateImages: number; updateWindowStart: number; updateWindowEnd: number;
     folderNaming: 'uuid' | 'name';
     blockServerSwitching: boolean;
-    backupEnabled: boolean; backupIntervalHours: number; backupKeep: number;
 }
 
 const PLATFORM_FIELDS: Array<[keyof PlatformSettings, string, string]> = [
@@ -52,8 +51,6 @@ const PLATFORM_FIELDS: Array<[keyof PlatformSettings, string, string]> = [
     ['perModMb', 'Per mod (MB)', 'Added for every mod.'],
     ['perPlayerMb', 'Per player above 10 (MB)', 'Added for every player slot above ten.'],
     ['maxStartFailures', 'Failed starts before stopping', 'A server that fails to start this many times in a row is stopped for good.'],
-    ['backupIntervalHours', 'Hours between backups', 'How often every server is backed up when it has no rule of its own. A server can get its own in its Backups tab.'],
-    ['backupKeep', 'Automatic backups kept', 'The newest this many automatic backups of a server are kept; older ones are deleted. Backups made by hand are never deleted automatically.'],
     ['updateWindowStart', 'Update window starts (hour)', 'Containers are recreated for an image update only between these hours of the server clock.'],
     ['updateWindowEnd', 'Update window ends (hour)', 'Use the same hour twice to allow updates at any time.'],
 ];
@@ -92,10 +89,6 @@ function PlatformCard() {
                     <label className={styles.field}>
                         <span><input type="checkbox" checked={draft.autoUpdateImages === '1'} onChange={event => setDraft({ ...draft, autoUpdateImages: event.target.checked ? '1' : '0' })} /> Update container images automatically</span>
                         <span className={styles.hint}>Newer images are pulled every hour and running containers are recreated on them inside the update window.</span>
-                    </label>
-                    <label className={styles.field}>
-                        <span><input type="checkbox" checked={draft.backupEnabled === 'true'} onChange={event => setDraft({ ...draft, backupEnabled: String(event.target.checked) })} /> Back up servers automatically</span>
-                        <span className={styles.hint}>Applies to every server without its own rule. Backups leave out every proxy secret and key, like the download does, and users can download them but not change or delete them.</span>
                     </label>
                     <label className={styles.field}>
                         <span><input type="checkbox" checked={draft.blockServerSwitching === 'true'} onChange={event => setDraft({ ...draft, blockServerSwitching: String(event.target.checked) })} /> Block server-switching commands for users</span>

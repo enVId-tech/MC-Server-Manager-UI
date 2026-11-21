@@ -1,6 +1,6 @@
 # The admin panel
 
-Administrators see **Admin** in the navigation bar. It has seven sections.
+Administrators see **Admin** in the navigation bar. It has eight sections.
 
 | Section | What you do there |
 | --- | --- |
@@ -9,8 +9,9 @@ Administrators see **Admin** in the navigation bar. It has seven sections.
 | **Proxies** | Create, scan for, configure and balance proxies. Click a proxy to open it. See [Proxies and the network](/docs/proxies). |
 | **Ports** | Check a port, reserve one for a user, release one and see where ports are used. |
 | **Users** | Promote, demote, activate, deactivate, set quotas for and delete users; impersonate. See [Users and impersonation](/docs/users). |
+| **Backups** | The default backup rule, a rule per server, and every server's backups to download or delete. See [Automatic backups](/docs/backups). |
 | **Docker updates** | Available image updates, the last update, and update settings. See [Docker, Portainer and updates](/docs/docker-and-updates). |
-| **Settings** | Memory rules, limits, folder naming, command rules and the default backup schedule. See [Platform settings](/docs/platform-settings) and [Automatic backups](/docs/backups). |
+| **Settings** | Memory rules, limits, folder naming and command rules. See [Platform settings](/docs/platform-settings). |
 
 ## Ports
 

@@ -1,9 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNotifications } from '@/lib/contexts/NotificationContext';
 import styles from '../dashboard.module.scss';
-import { postJson } from './types';
 
 interface BackupItem {
     id: string;
@@ -13,22 +11,11 @@ interface BackupItem {
     createdAt: string;
 }
 
-interface Policy {
-    enabled: boolean;
-    intervalHours: number;
-    keep: number;
-    source: 'default' | 'custom' | 'off';
-}
-
 interface BackupsResponse {
-    isAdmin: boolean;
     running: boolean;
-    policy: Policy;
+    policy: { enabled: boolean; intervalHours: number; keep: number; source: 'default' | 'custom' | 'off' };
     nextBackupAt: string | null;
     lastBackupAt: string | null;
-    lastBackupError: string | null;
-    rawPolicy?: { mode: 'default' | 'custom' | 'off'; intervalHours?: number; keep?: number };
-    defaults?: { enabled: boolean; intervalHours: number; keep: number };
     backups: BackupItem[];
 }
 
@@ -46,15 +33,13 @@ function formatEvery(hours: number): string {
     return hours === 1 ? 'every hour' : `every ${hours} hours`;
 }
 
-/** Backups of a server: download for everyone who owns it, rules and manual backups for administrators */
+/**
+ * The backups of a server, to download. The schedule is shown but not editable here: administrators set it in the
+ * admin panel (Admin → Backups), for everyone.
+ */
 export default function BackupsTab({ uniqueId }: { uniqueId: string }) {
-    const { showNotification, showConfirmDialog } = useNotifications();
     const [data, setData] = useState<BackupsResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [busy, setBusy] = useState<string | null>(null);
-    const [mode, setMode] = useState<'default' | 'custom' | 'off'>('default');
-    const [interval, setIntervalHours] = useState('24');
-    const [keep, setKeep] = useState('7');
 
     const load = useCallback(async () => {
         try {
@@ -63,11 +48,6 @@ export default function BackupsTab({ uniqueId }: { uniqueId: string }) {
             if (!response.ok) { setError(body.message ?? 'The backups could not be read.'); return; }
             setData(body);
             setError(null);
-            if (body.rawPolicy) {
-                setMode(body.rawPolicy.mode);
-                setIntervalHours(String(body.rawPolicy.intervalHours ?? body.defaults?.intervalHours ?? 24));
-                setKeep(String(body.rawPolicy.keep ?? body.defaults?.keep ?? 7));
-            }
         } catch {
             setError('The backups could not be read.');
         }
@@ -76,42 +56,9 @@ export default function BackupsTab({ uniqueId }: { uniqueId: string }) {
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- loads when the tab opens
         void load();
-        // A backup that runs takes a while; the list is refreshed while one is under way
-        const timer = setInterval(() => void load(), 15000);
+        const timer = setInterval(() => void load(), 30000);
         return () => clearInterval(timer);
     }, [load]);
-
-    const savePolicy = async () => {
-        setBusy('policy');
-        const { ok, body } = await postJson('/api/server/backups', { uniqueId, action: 'policy', mode, intervalHours: Number(interval), keep: Number(keep) });
-        setBusy(null);
-        showNotification({ type: ok ? 'success' : 'error', title: 'Backups', message: ok ? 'The backup rule is saved.' : body.message ?? 'The rule could not be saved.' });
-        await load();
-    };
-
-    const backupNow = async () => {
-        setBusy('create');
-        showNotification({ type: 'info', title: 'Backups', message: 'Backing up. Large servers can take a few minutes.' });
-        const { ok, body } = await postJson('/api/server/backups', { uniqueId, action: 'create' });
-        setBusy(null);
-        showNotification({ type: ok ? 'success' : 'error', title: 'Backups', message: ok ? 'The backup is ready.' : body.message ?? 'The backup failed.' });
-        await load();
-    };
-
-    const remove = (item: BackupItem) => {
-        showConfirmDialog({
-            title: 'Delete backup',
-            message: `Delete the backup from ${new Date(item.createdAt).toLocaleString()}? This cannot be undone.`,
-            confirmText: 'Delete',
-            cancelText: 'Cancel',
-            variant: 'danger',
-            onConfirm: async () => {
-                const { ok, body } = await postJson('/api/server/backups?uniqueId=' + encodeURIComponent(uniqueId) + '&id=' + item.id, {}, 'DELETE');
-                showNotification({ type: ok ? 'success' : 'error', title: 'Backups', message: ok ? 'Deleted.' : body.message ?? 'The backup could not be deleted.' });
-                await load();
-            },
-        });
-    };
 
     if (error) return <div className={`${styles.notice} ${styles.error}`}>{error}</div>;
     if (!data) return <p className={styles.muted}>Reading the backups…</p>;
@@ -122,42 +69,13 @@ export default function BackupsTab({ uniqueId }: { uniqueId: string }) {
             <section className={styles.card}>
                 <h2>Automatic backups</h2>
                 {policy.enabled ? (
-                    <p>This server is backed up <strong>{formatEvery(policy.intervalHours)}</strong>, and the newest <strong>{policy.keep}</strong> automatic backups are kept.{policy.source === 'custom' ? ' This server has its own rule.' : ''}</p>
+                    <p>This server is backed up <strong>{formatEvery(policy.intervalHours)}</strong>, and the newest <strong>{policy.keep}</strong> automatic backups are kept.</p>
                 ) : (
                     <p>Automatic backups are off for this server.</p>
                 )}
                 {policy.enabled && data.nextBackupAt && <p className={styles.muted}>Next backup: {new Date(data.nextBackupAt).toLocaleString()}{data.running ? ' (running now)' : ''}</p>}
                 <p className={styles.muted}>Last backup: {data.lastBackupAt ? new Date(data.lastBackupAt).toLocaleString() : 'none yet'}</p>
-                <p className={styles.muted}>Backups leave out everything that belongs to the proxy network, such as forwarding secrets and keys, like the download of the server does. Only administrators change these rules.</p>
-                {data.lastBackupError && <div className={`${styles.notice} ${styles.error}`}>The last automatic backup failed: {data.lastBackupError}</div>}
-
-                {data.isAdmin && (
-                    <>
-                        <h3 style={{ marginTop: '1rem' }}>Rule for this server</h3>
-                        <label className={styles.field}>Rule
-                            <select className={styles.input} value={mode} onChange={event => setMode(event.target.value as typeof mode)}>
-                                <option value="default">Follow the default{data.defaults ? ` (${data.defaults.enabled ? `${formatEvery(data.defaults.intervalHours)}, keep ${data.defaults.keep}` : 'off'})` : ''}</option>
-                                <option value="custom">Its own interval and number of copies</option>
-                                <option value="off">No automatic backups</option>
-                            </select>
-                        </label>
-                        {mode === 'custom' && (
-                            <>
-                                <label className={styles.field}>Hours between backups
-                                    <input className={styles.input} type="number" min={1} max={720} value={interval} onChange={event => setIntervalHours(event.target.value)} />
-                                </label>
-                                <label className={styles.field}>Automatic backups to keep
-                                    <input className={styles.input} type="number" min={1} max={100} value={keep} onChange={event => setKeep(event.target.value)} />
-                                </label>
-                            </>
-                        )}
-                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-                            <button className={`${styles.btn} ${styles.primary}`} disabled={busy !== null} onClick={() => void savePolicy()}>{busy === 'policy' ? 'Saving…' : 'Save rule'}</button>
-                            <button className={styles.btn} disabled={busy !== null || data.running} onClick={() => void backupNow()}>{busy === 'create' || data.running ? 'Backing up…' : 'Back up now'}</button>
-                        </div>
-                        <p className={styles.muted}>The default for all servers is set under Admin → Settings.</p>
-                    </>
-                )}
+                <p className={styles.muted}>Backups leave out everything that belongs to the proxy network, such as forwarding secrets and keys, like the download of the server does. Administrators set the schedule.</p>
             </section>
 
             <section className={styles.card}>
@@ -169,10 +87,7 @@ export default function BackupsTab({ uniqueId }: { uniqueId: string }) {
                             <span className={styles.addressLabel}>{item.kind === 'auto' ? 'Automatic' : 'Made by an administrator'}</span>
                             <span>{new Date(item.createdAt).toLocaleString()} · {formatSize(item.sizeBytes)}</span>
                         </div>
-                        <div style={{ display: 'flex', gap: '0.4rem' }}>
-                            <a className={`${styles.btn} ${styles.small}`} href={`/api/server/backups/download?uniqueId=${encodeURIComponent(uniqueId)}&id=${item.id}`} download>Download</a>
-                            {data.isAdmin && <button className={`${styles.btn} ${styles.small}`} onClick={() => remove(item)}>Delete</button>}
-                        </div>
+                        <a className={`${styles.btn} ${styles.small}`} href={`/api/server/backups/download?uniqueId=${encodeURIComponent(uniqueId)}&id=${item.id}`} download>Download</a>
                     </div>
                 ))}
             </section>

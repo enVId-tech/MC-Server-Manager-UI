@@ -1,6 +1,6 @@
 # Automatic backups
 
-Every server is backed up automatically. Users can download any backup of their servers; only administrators decide how often backups run, how many are kept, and make or delete them.
+Every server is backed up automatically. Users can download any backup of their servers; only administrators, in the admin panel, decide how often backups run and how many are kept, and make or delete them.
 
 ## What users see
 
@@ -10,7 +10,7 @@ Open a server and choose the **Backups** tab.
 - The list of backups with their date, size and whether they were made automatically or by an administrator.
 - A **Download** button on every backup. The download is a zip of the server folder.
 
-Users cannot change the rule, make a backup by hand or delete one. The **Backup** button on the server page still downloads the server as it is right now.
+The tab has no settings. Users cannot change the schedule, make a backup by hand or delete one, and neither is there a way to do it from a server's own page, even for administrators: everything that changes backups lives in the admin panel. The **Backup** button on the server page still downloads the server as it is right now.
 
 ## What a backup leaves out
 
@@ -27,9 +27,11 @@ On top of that, the manager looks for the **actual secrets** of this installatio
 
 ## Rules (administrators)
 
+Backup rules are changed in **Admin → Backups**, and only there.
+
 ### The default for all servers
 
-**Admin → Settings** has three settings that apply to every server without a rule of its own:
+The **Default rule** card applies to every server without a rule of its own:
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -39,7 +41,7 @@ On top of that, the manager looks for the **actual secrets** of this installatio
 
 ### A rule for one server
 
-In a server's **Backups** tab, administrators choose one of:
+The **Servers** table lists every server with the rule it follows, its last backup and how many backups it has. **Manage** opens one server, where you choose:
 
 - **Follow the default**,
 - **Its own interval and number of copies**, for example every 6 hours keeping 12 for a busy server, or weekly keeping 4 for a quiet one,
@@ -47,9 +49,9 @@ In a server's **Backups** tab, administrators choose one of:
 
 A server's rule only applies to that server and does not change the default.
 
-### Back up now and delete
+### Back up now, download and delete
 
-Administrators can make a backup at once (**Back up now**) and delete any backup. Backups made by hand are never deleted automatically, so they stay until an administrator removes them. When a server's rule keeps fewer copies than it has, the oldest automatic ones are removed.
+In the same panel administrators can make a backup at once (**Back up now**), download any backup and delete any backup. Backups made by hand are never deleted automatically, so they stay until an administrator removes them. When a server's rule keeps fewer copies than it has, the oldest automatic ones are removed.
 
 ## How it runs
 
@@ -77,4 +79,4 @@ Restoring is manual: download the backup and unzip it. A world can be put back w
 
 ## Turning it off
 
-Switch **Back up servers automatically** off in **Admin → Settings** to stop every server that follows the default, or give single servers the rule **No automatic backups**. Set `BACKGROUND_JOBS=false` to turn off all background jobs, including this one.
+Switch **Back up servers automatically** off in **Admin → Backups** to stop every server that follows the default, or give single servers the rule **No automatic backups**. Set `BACKGROUND_JOBS=false` to turn off all background jobs, including this one.

@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   FaChartPie,
+  FaDatabase,
   FaCog,
   FaDocker,
   FaNetworkWired,
@@ -17,10 +18,11 @@ import ProxiesSection from './_sections/ProxiesSection';
 import PortsSection from './_sections/PortsSection';
 import DockerSection from './_sections/DockerSection';
 import SettingsSection from './_sections/SettingsSection';
+import BackupsSection from './_sections/BackupsSection';
 import { useAdminData } from './_sections/shared';
 import styles from './admin.module.scss';
 
-type Section = 'overview' | 'servers' | 'proxies' | 'ports' | 'users' | 'docker' | 'settings';
+type Section = 'overview' | 'servers' | 'proxies' | 'ports' | 'users' | 'backups' | 'docker' | 'settings';
 
 const SECTIONS: Array<{ id: Section; label: string; icon: React.ReactNode }> = [
   { id: 'overview', label: 'Overview', icon: <FaChartPie /> },
@@ -28,6 +30,7 @@ const SECTIONS: Array<{ id: Section; label: string; icon: React.ReactNode }> = [
   { id: 'proxies', label: 'Proxies', icon: <FaPlug /> },
   { id: 'ports', label: 'Ports', icon: <FaNetworkWired /> },
   { id: 'users', label: 'Users', icon: <FaUsers /> },
+  { id: 'backups', label: 'Backups', icon: <FaDatabase /> },
   { id: 'docker', label: 'Docker updates', icon: <FaDocker /> },
   { id: 'settings', label: 'Settings', icon: <FaCog /> },
 ];
@@ -92,6 +95,7 @@ export default function AdminDashboard() {
             <UserManager />
           </>
         )}
+        {section === 'backups' && <BackupsSection />}
         {section === 'docker' && <DockerSection />}
         {section === 'settings' && <SettingsSection />}
       </main>

@@ -28,7 +28,7 @@ When on, users cannot run `server`, `send`, `sendall`, `transfer`, `hub` or `lob
 
 ## Automatic backups
 
-**Back up servers automatically**, **Hours between backups** and **Automatic backups kept** are the default for every server. A server can get its own rule in its Backups tab. See [Automatic backups](/docs/backups).
+The backup schedule has its own section, **Admin → Backups**, with the default rule and a rule per server. See [Automatic backups](/docs/backups).
 
 ## Failed starts
 

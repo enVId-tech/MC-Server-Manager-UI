@@ -225,7 +225,7 @@ The **Plugins & mods** tab (and the same step in the create page) shows plugins,
 - **Files.** Uploading files and editing them directly are off for every server by default. The owner switches them on in the Files tab; administrators always can. The file list shows what is really in the folder, minus proxy files.
 - **Proxy data stays hidden.** Users cannot see, download, back up or change forwarding secrets, `velocity.toml`, Geyser and Floodgate keys and similar files, and the manager-installed proxy mods cannot be removed. All file routes go through one set of rules (`lib/server/accessPolicy.ts`).
 - **Backups.** The download of a server is a zip that leaves out the proxy data listed above and blanks the real forwarding secrets and RCON password wherever they appear in text files.
-- **Automatic backups.** Every server is backed up on a schedule (default every 24 hours, the newest 7 kept), set in Admin → Settings and overridable per server by administrators. Users download backups from the Backups tab. See `docs/backups.md`.
+- **Automatic backups.** Every server is backed up on a schedule (default every 24 hours, the newest 7 kept), set in Admin → Backups, where administrators can also give a server its own rule. Users can only download backups, from the Backups tab. See `docs/backups.md`.
 - **Portainer and network settings** can only be changed by administrators.
 - **Impersonation.** An administrator can preview the site as an ordinary user, or open it as a particular account (as that user, or as that user with admin rights), from Admin → Users. A banner shows it at all times and ends it.
 
