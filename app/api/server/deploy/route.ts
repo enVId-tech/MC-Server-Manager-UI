@@ -15,6 +15,7 @@ import { FileInfo } from "@/lib/objects/ServerConfig";
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getServerFolderPath } from '@/lib/server/serverPaths';
+import { safeJarName, userUploadPath } from '@/lib/server/uploadsDir';
 import { getSubdomainLabel } from '@/lib/config/domain';
 
 // Interface for server config as stored in database (with FileInfo instead of AnalyzedFile)
@@ -748,9 +749,10 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
 
                     try {
                         // Read the plugin file from disk
-                        const pluginPath = plugin.filePath;
+                        const pluginPath = userUploadPath(user.email, plugin.filename ?? plugin.filePath);
+                        if (!pluginPath) throw new Error('Invalid upload reference');
                         const pluginBuffer = await fs.readFile(pluginPath);
-                        pluginFiles[`plugins/${plugin.originalName}`] = pluginBuffer;
+                        pluginFiles[`plugins/${safeJarName(plugin.originalName)}`] = pluginBuffer;
 
                         console.log(`Plugin loaded: ${plugin.originalName} (${pluginBuffer.length} bytes)`);
                     } catch (fileError) {
@@ -787,9 +789,10 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
 
                     try {
                         // Read the mod file from disk
-                        const modPath = mod.filePath;
+                        const modPath = userUploadPath(user.email, mod.filename ?? mod.filePath);
+                        if (!modPath) throw new Error('Invalid upload reference');
                         const modBuffer = await fs.readFile(modPath);
-                        modFiles[`mods/${mod.originalName}`] = modBuffer;
+                        modFiles[`mods/${safeJarName(mod.originalName)}`] = modBuffer;
 
                         console.log(`Mod loaded: ${mod.originalName} (${modBuffer.length} bytes)`);
                     } catch (fileError) {
@@ -822,7 +825,8 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
 
                 try {
                     // Read the world file from disk
-                    const worldPath = serverConfig.worldFiles.filePath;
+                    const worldPath = userUploadPath(user.email, serverConfig.worldFiles.filename ?? serverConfig.worldFiles.filePath);
+                    if (!worldPath) throw new Error('Invalid upload reference');
                     const worldBuffer = await fs.readFile(worldPath);
 
                     console.log(`World file loaded: ${serverConfig.worldFiles.originalName} (${worldBuffer.length} bytes)`);
