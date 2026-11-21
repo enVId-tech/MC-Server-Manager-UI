@@ -9,6 +9,9 @@ import { postJson, type NetworkStatus, type ServerInfo } from './types';
 interface EduInfo {
     links: string[];
     lines: string[];
+    connectionIds?: Array<{ label: string; value: string }>;
+    serverList?: { name: string; host: string; port: string };
+    notice?: string;
     proxyName?: string;
     error?: string;
 }
@@ -137,7 +140,16 @@ export default function NetworkTab({ info, network, onChanged }: { info: ServerI
                     <h2>Education Edition</h2>
                     <p>The proxy runs EduGeyser. Education Edition players join with a code or link that the proxy prints.</p>
                     {edu?.error && <div className={`${styles.notice} ${styles.error}`}>{edu.error}</div>}
-                    {edu && edu.links.length === 0 && edu.lines.length === 0 && !edu.error && <p className={styles.muted}>No join code was found yet. The proxy has to be running.</p>}
+                    {edu?.connectionIds?.map(item => (
+                        <div key={item.label} className={styles.addressRow}>
+                            <div><span className={styles.addressLabel}>{item.label}</span><span className={styles.mono}>{item.value}</span></div>
+                            <CopyButton value={item.value} />
+                        </div>
+                    ))}
+                    {edu?.serverList && (edu.serverList.host || edu.serverList.name) && (
+                        <p className={styles.muted}>Server list entry: {edu.serverList.name || 'unnamed'}{edu.serverList.host ? ` at ${edu.serverList.host}${edu.serverList.port ? `:${edu.serverList.port}` : ''}` : ' (address detected by EduGeyser)'}</p>
+                    )}
+                    {edu?.notice && <div className={`${styles.notice} ${styles.warning}`}>{edu.notice}</div>}
                     {edu?.links.map(link => (
                         <div key={link} className={styles.addressRow}><span className={styles.mono} style={{ wordBreak: 'break-all' }}>{link}</span><CopyButton value={link} /></div>
                     ))}

@@ -18,9 +18,9 @@ import { applyBackendForwarding, installBungeeGuard, installViaPlugins } from '.
 import { applyModdedSetup, installProxyAddon, setTomlKey, type ManagedFile } from './modded';
 import {
     addServerToBungeeYaml, addServerToVelocityToml, disableVelocityFallback, parseEducationJoinOutput,
-    removeServerFromBungeeYaml, removeServerFromVelocityToml, type EducationJoinInfo, type PluginFlags,
+    removeServerFromBungeeYaml, removeServerFromVelocityToml, type EducationFiles, type EducationJoinInfo, type PluginFlags,
 } from './parse';
-import { editProxyConfig, inspectProxy, type ProxyInspection, type ProxyRef } from './proxyFiles';
+import { editProxyConfig, inspectProxy, readEducationFiles, type ProxyInspection, type ProxyRef } from './proxyFiles';
 import { chooseProxies, isPluginServer, type BalancingStrategy, type ForwardingMode, type ProxyKind, type RoutableProxy } from './versions';
 import { mergeWarnings } from './warnings';
 import { baseDomainOf, hostnameFor, identityIssues } from './identity';
@@ -44,6 +44,12 @@ export interface NetworkProxy extends RoutableProxy {
     issues: string[];
     plugins: PluginFlags;
     bedrockPort?: number;
+    /** Geyser reuses the Java port for Bedrock */
+    bedrockClonesPort?: boolean;
+    /** The port Geyser advertises, when it differs from the one it listens on */
+    bedrockBroadcastPort?: number;
+    /** The address Geyser is set to, when it is one players could use */
+    bedrockAddress?: string;
     motd: string;
     maxPlayers: number;
     /** Servers in the proxy's config: entry name to address */
@@ -128,6 +134,9 @@ async function describeProxy(record: IServer, linked: number, runningNames: Set<
         issues: [],
         plugins: inspection.plugins,
         bedrockPort: inspection.bedrockPort,
+        bedrockClonesPort: inspection.bedrockClonesPort,
+        bedrockBroadcastPort: inspection.bedrockBroadcastPort,
+        bedrockAddress: inspection.bedrockAddress,
         motd: inspection.motd,
         maxPlayers: inspection.maxPlayers,
         entries: inspection.servers,
@@ -580,7 +589,10 @@ export async function getJoinAddresses(server: Pick<IServer, 'subdomainName' | '
             kind: proxy.kind,
             forwarding: proxy.forwarding,
             java: javaAddress(hostname ?? proxy.publicHost, proxy.port),
-            bedrock: proxy.plugins.geyser && proxy.bedrockPort ? { host: proxy.publicHost, port: proxy.bedrockPort } : undefined,
+            // Bedrock players use the same host name as Java players unless the Geyser config sets another address or port
+            bedrock: proxy.plugins.geyser && proxy.bedrockPort
+                ? { host: proxy.bedrockAddress ?? hostname ?? proxy.publicHost, port: proxy.bedrockBroadcastPort ?? (proxy.bedrockClonesPort ? proxy.port : proxy.bedrockPort) }
+                : undefined,
             edugeyser: proxy.plugins.edugeyser,
         }];
     });
@@ -589,27 +601,40 @@ export async function getJoinAddresses(server: Pick<IServer, 'subdomainName' | '
 const educationCache = new Map<string, { at: number; info: EducationJoinInfo }>();
 
 /**
- * Asks EduGeyser for its join codes. The codes are not stored in a readable file, only `/edu joincode` prints
- * them, so the command is sent to the proxy console and the answer is read from its log.
+ * What players need to join through EduGeyser. The connection IDs are in its files and always available. The join
+ * codes are only printed by `/edu joincode`, so that command is sent to the proxy console and the answer is read
+ * from its log. That needs a console input (stdin_open: true); without one the log is still searched for codes
+ * printed earlier and the files give the rest.
  */
 export async function readEducationJoin(proxy: NetworkProxy, force = false): Promise<EducationJoinInfo & { error?: string }> {
     const cached = educationCache.get(proxy.id);
     if (!force && cached && Date.now() - cached.at < 60_000) return cached.info;
     if (!proxy.plugins.edugeyser) return { links: [], lines: [], error: 'This proxy does not run EduGeyser' };
 
+    const files = await readEducationFiles(proxy.folder).catch(() => ({ connectionIds: [] } as EducationFiles));
+    const base: EducationJoinInfo = { links: [], lines: [], connectionIds: files.connectionIds, serverList: files.serverList };
+    const hasFiles = files.connectionIds.length > 0 || Boolean(files.serverList);
+    const fail = (message: string) => (hasFiles ? { ...base, notice: message } : { ...base, error: message });
+
     try {
         const envId = await getEnvironmentId();
         const container = await portainer.getContainerByIdentifier(proxy.containerName, envId);
-        if (!container || container.State !== 'running') return { links: [], lines: [], error: 'The proxy is not running' };
+        if (!container || container.State !== 'running') return fail('The proxy is not running, so the join codes cannot be read.');
 
         const sent = await velocityService.sendConsoleCommand(container.Id, 'edu joincode', envId);
-        if (!sent.sent) return { links: [], lines: [], error: sent.error };
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const logs = await portainer.getContainerLogs(container.Id, envId, 80);
-        const info = parseEducationJoinOutput(logs);
+        if (sent.sent) await new Promise(resolve => setTimeout(resolve, 2500));
+        const logs = await portainer.getContainerLogs(container.Id, envId, sent.sent ? 120 : 600);
+        const parsed = parseEducationJoinOutput(logs);
+        const info: EducationJoinInfo & { error?: string } = { ...base, links: parsed.links, lines: parsed.lines };
+        if (!sent.sent) {
+            info.notice = 'The join codes need the proxy console. Run edu joincode in it, or re-create the container with stdin_open: true and tty: true so this page can do it.';
+            if (parsed.links.length === 0 && parsed.lines.length === 0 && !hasFiles) info.error = sent.error;
+        } else if (parsed.links.length === 0 && parsed.lines.length === 0) {
+            info.notice = 'The command was sent but no join code appeared in the log. Check that the console command is edu joincode on this EduGeyser version.';
+        }
         educationCache.set(proxy.id, { at: Date.now(), info });
         return info;
     } catch (error) {
-        return { links: [], lines: [], error: error instanceof Error ? error.message : 'unknown error' };
+        return fail(error instanceof Error ? error.message : 'unknown error');
     }
 }

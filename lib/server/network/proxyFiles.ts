@@ -7,8 +7,8 @@
 import serverStorage from '@/lib/server/storage';
 import type { ProxySettings } from '@/lib/objects/Server';
 import {
-    detectPlugins, parseBungeeGuardToken, parseBungeeYaml, parseGeyserConfig, parseVelocityToml,
-    type PluginFlags,
+    detectPlugins, parseBungeeGuardToken, parseBungeeYaml, parseEducationFiles, parseGeyserConfig, parseVelocityToml, publicBedrockAddress,
+    type EducationFiles, type GeyserSettings, type PluginFlags,
 } from './parse';
 import type { ForwardingMode } from './versions';
 
@@ -28,6 +28,12 @@ export interface ProxyInspection {
     secret?: string;
     plugins: PluginFlags;
     bedrockPort?: number;
+    /** Geyser reuses the Java port for Bedrock */
+    bedrockClonesPort?: boolean;
+    /** The port Geyser advertises, when it differs from the one it listens on */
+    bedrockBroadcastPort?: number;
+    /** The address Geyser is set to, when it is one players could use */
+    bedrockAddress?: string;
     motd: string;
     maxPlayers: number;
     bind: string;
@@ -74,31 +80,50 @@ export async function listPluginFiles(folder: string): Promise<string[]> {
     }
 }
 
+const GEYSER_FOLDERS = ['geyser', 'Geyser-Velocity', 'Geyser-BungeeCord', 'EduGeyser-Velocity', 'EduGeyser-BungeeCord', 'edugeyser'];
+
 /** Geyser keeps its config in a folder named after the platform; check the usual ones */
-async function readGeyserPort(folder: string): Promise<number | undefined> {
-    for (const name of ['geyser', 'Geyser-Velocity', 'Geyser-BungeeCord', 'EduGeyser-Velocity', 'edugeyser']) {
-        const content = await readText(`${folder}/plugins/${name}/config.yml`);
-        if (content) {
-            try {
-                return parseGeyserConfig(content).bedrockPort;
-            } catch {
-                return undefined;
-            }
-        }
+async function findGeyserFolder(folder: string): Promise<string | undefined> {
+    for (const name of GEYSER_FOLDERS) {
+        if (await readText(`${folder}/plugins/${name}/config.yml`)) return `${folder}/plugins/${name}`;
     }
     return undefined;
+}
+
+async function readGeyserSettings(folder: string): Promise<GeyserSettings | undefined> {
+    const geyser = await findGeyserFolder(folder);
+    const content = geyser ? await readText(`${geyser}/config.yml`) : null;
+    if (!content) return undefined;
+    try {
+        return parseGeyserConfig(content);
+    } catch {
+        return undefined;
+    }
+}
+
+/** What EduGeyser keeps in its files. The join codes themselves are not among them, only the connection IDs */
+export async function readEducationFiles(proxyFolder: string): Promise<EducationFiles> {
+    const geyser = await findGeyserFolder(proxyFolder);
+    if (!geyser) return { connectionIds: [] };
+    return parseEducationFiles({
+        joinCode: (await readText(`${geyser}/extensions/edu/joincode_config.yml`)) ?? undefined,
+        nethernet: (await readText(`${geyser}/nethernet/connection-id.yml`)) ?? undefined,
+        serverList: (await readText(`${geyser}/extensions/edu/serverlist_config.yml`)) ?? undefined,
+    });
 }
 
 export async function inspectProxy(ref: ProxyRef): Promise<ProxyInspection> {
     const folder = dirnameOf(ref.proxy.configPath);
     const pluginFiles = await listPluginFiles(folder);
     const plugins = pluginFiles.length > 0 ? detectPlugins(pluginFiles) : NO_PLUGINS;
-    const bedrockPort = plugins.geyser ? ((await readGeyserPort(folder)) ?? ref.proxy.bedrockPort ?? 19132) : undefined;
+    const geyserSettings = plugins.geyser ? await readGeyserSettings(folder) : undefined;
+    const bedrockPort = plugins.geyser ? (geyserSettings?.bedrockPort ?? ref.proxy.bedrockPort ?? 19132) : undefined;
+    const bedrock = { bedrockClonesPort: geyserSettings?.clonesRemotePort, bedrockBroadcastPort: geyserSettings?.broadcastPort, bedrockAddress: publicBedrockAddress(geyserSettings?.bedrockAddress) };
 
     const content = await readText(ref.proxy.configPath);
     if (content === null) {
         return {
-            readable: false, forwarding: ref.proxy.forwarding, plugins, bedrockPort, motd: '', maxPlayers: 0, bind: '',
+            readable: false, forwarding: ref.proxy.forwarding, plugins, bedrockPort, ...bedrock, motd: '', maxPlayers: 0, bind: '',
             servers: {}, error: `The configuration file ${ref.proxy.configPath} was not found`,
         };
     }
@@ -110,7 +135,7 @@ export async function inspectProxy(ref: ProxyRef): Promise<ProxyInspection> {
             const secretText = await readText(`${folder}/${summary.secretFile}`);
             if (secretText) secret = secretText.trim() || secret;
             return {
-                readable: true, forwarding: summary.forwarding, secret, plugins, bedrockPort, motd: summary.motd,
+                readable: true, forwarding: summary.forwarding, secret, plugins, bedrockPort, ...bedrock, motd: summary.motd,
                 maxPlayers: summary.maxPlayers, bind: summary.bind, servers: summary.servers,
             };
         }
@@ -126,12 +151,12 @@ export async function inspectProxy(ref: ProxyRef): Promise<ProxyInspection> {
             }
         }
         return {
-            readable: true, forwarding: summary.forwarding, secret: token, plugins, bedrockPort, motd: summary.motd,
+            readable: true, forwarding: summary.forwarding, secret: token, plugins, bedrockPort, ...bedrock, motd: summary.motd,
             maxPlayers: summary.maxPlayers, bind: summary.host, servers: summary.servers,
         };
     } catch (error) {
         return {
-            readable: false, forwarding: ref.proxy.forwarding, plugins, bedrockPort, motd: '', maxPlayers: 0, bind: '',
+            readable: false, forwarding: ref.proxy.forwarding, plugins, bedrockPort, ...bedrock, motd: '', maxPlayers: 0, bind: '',
             servers: {}, error: `The configuration could not be read: ${error instanceof Error ? error.message : 'unknown error'}`,
         };
     }

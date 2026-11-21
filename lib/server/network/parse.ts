@@ -233,6 +233,8 @@ export interface GeyserSettings {
     bedrockAddress: string;
     /** Geyser reuses the Java port as its Bedrock port */
     clonesRemotePort: boolean;
+    /** Port Geyser tells Bedrock clients to use, when it differs from the one it listens on (port forwarding) */
+    broadcastPort?: number;
 }
 
 export function parseGeyserConfig(content: string): GeyserSettings {
@@ -241,7 +243,45 @@ export function parseGeyserConfig(content: string): GeyserSettings {
         bedrockPort: typeof bedrock.port === 'number' ? bedrock.port : 19132,
         bedrockAddress: typeof bedrock.address === 'string' ? bedrock.address : '0.0.0.0',
         clonesRemotePort: bedrock['clone-remote-port'] === true,
+        broadcastPort: typeof bedrock['broadcast-port'] === 'number' && bedrock['broadcast-port'] > 0 ? bedrock['broadcast-port'] : undefined,
     };
+}
+
+/**
+ * The address Geyser is bound to, when it is something players could use. 0.0.0.0, loopback and private
+ * addresses only say where Geyser listens, not where players connect, so they are not an address to show.
+ */
+export function publicBedrockAddress(address: string | undefined): string | undefined {
+    const value = (address ?? '').trim().toLowerCase();
+    if (!value || value === '0.0.0.0' || value === '::' || value === '[::]' || value === 'localhost' || value === 'auto') return undefined;
+    if (/^127\./.test(value) || /^10\./.test(value) || /^192\.168\./.test(value) || /^172\.(1[6-9]|2\d|3[01])\./.test(value) || /^169\.254\./.test(value)) return undefined;
+    return value;
+}
+
+export interface EducationFiles {
+    /** Connection IDs that Education Edition players can type in directly */
+    connectionIds: Array<{ label: string; value: string }>;
+    serverList?: { name: string; host: string; port: string };
+}
+
+/** Reads what EduGeyser keeps in its files: the connection IDs and the server list entry */
+export function parseEducationFiles(files: { joinCode?: string; nethernet?: string; serverList?: string }): EducationFiles {
+    const read = (content: string | undefined): YamlRecord => {
+        try { return content ? record(YAML.parse(content)) : {}; } catch { return {}; }
+    };
+    const id = (value: unknown) => (typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '');
+
+    const connectionIds: EducationFiles['connectionIds'] = [];
+    const joinCode = id(read(files.joinCode)['connection-id']);
+    if (joinCode) connectionIds.push({ label: 'Connection ID (works across schools)', value: joinCode });
+    const nethernet = id(read(files.nethernet)['connection-id']);
+    if (nethernet) connectionIds.push({ label: 'Nethernet connection ID', value: nethernet });
+
+    const list = read(files.serverList);
+    const name = id(list['server-name']);
+    const host = id(list['server-ip']);
+    const port = id(list['server-port']);
+    return { connectionIds, serverList: name || host || port ? { name, host, port } : undefined };
 }
 
 /** BungeeGuard's proxy plugin keeps its token in token.yml (or config.yml on some builds) */
@@ -257,6 +297,11 @@ export interface EducationJoinInfo {
     links: string[];
     /** Output lines that mention a join code, for display as they are */
     lines: string[];
+    /** Connection IDs read from EduGeyser's files; they need no console */
+    connectionIds?: EducationFiles['connectionIds'];
+    serverList?: EducationFiles['serverList'];
+    /** Why the join codes could not be read, when the files still gave something */
+    notice?: string;
 }
 
 /** Reads the answer of `/edu joincode`: the share links and the lines that carry the codes */
