@@ -21,6 +21,11 @@ export interface IPlatformSettings extends pkg.Document {
     perPlayerMb: number;
     /** Containers stop being restarted after this many failed starts in a row */
     maxStartFailures: number;
+    /** 1 pulls newer images and recreates containers that run an older one, 0 leaves them alone */
+    autoUpdateImages: number;
+    /** Hours of the day (server time) in which containers may be recreated for an update */
+    updateWindowStart: number;
+    updateWindowEnd: number;
 }
 
 const PlatformSettingsSchema = new pkg.Schema({
@@ -34,6 +39,9 @@ const PlatformSettingsSchema = new pkg.Schema({
     perModMb: { type: Number, default: 40, min: 0 },
     perPlayerMb: { type: Number, default: 40, min: 0 },
     maxStartFailures: { type: Number, default: 5, min: 1, max: 50 },
+    autoUpdateImages: { type: Number, default: 1, min: 0, max: 1 },
+    updateWindowStart: { type: Number, default: 3, min: 0, max: 23 },
+    updateWindowEnd: { type: Number, default: 5, min: 0, max: 24 },
 }, { timestamps: true });
 
 const PlatformSettings = pkg.models.platformsettings || pkg.model<IPlatformSettings>('platformsettings', PlatformSettingsSchema);

@@ -11,6 +11,9 @@ export interface MemorySettings {
     perModMb: number;
     perPlayerMb: number;
     maxStartFailures: number;
+    autoUpdateImages: number;
+    updateWindowStart: number;
+    updateWindowEnd: number;
 }
 
 export const DEFAULT_PLATFORM_SETTINGS: MemorySettings = {
@@ -23,6 +26,9 @@ export const DEFAULT_PLATFORM_SETTINGS: MemorySettings = {
     perModMb: 40,
     perPlayerMb: 40,
     maxStartFailures: 5,
+    autoUpdateImages: 1,
+    updateWindowStart: 3,
+    updateWindowEnd: 5,
 };
 
 export async function getPlatformSettings(): Promise<MemorySettings> {

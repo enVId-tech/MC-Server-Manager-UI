@@ -36,6 +36,7 @@ function formatUptime(seconds: number): string {
 interface PlatformSettings {
     maxMemoryMb: number; minMemoryMb: number; baseMemoryMb: number; moddedExtraMb: number; modpackExtraMb: number;
     perPluginMb: number; perModMb: number; perPlayerMb: number; maxStartFailures: number;
+    autoUpdateImages: number; updateWindowStart: number; updateWindowEnd: number;
 }
 
 const PLATFORM_FIELDS: Array<[keyof PlatformSettings, string, string]> = [
@@ -48,6 +49,8 @@ const PLATFORM_FIELDS: Array<[keyof PlatformSettings, string, string]> = [
     ['perModMb', 'Per mod (MB)', 'Added for every mod.'],
     ['perPlayerMb', 'Per player above 10 (MB)', 'Added for every player slot above ten.'],
     ['maxStartFailures', 'Failed starts before stopping', 'A server that fails to start this many times in a row is stopped for good.'],
+    ['updateWindowStart', 'Update window starts (hour)', 'Containers are recreated for an image update only between these hours of the server clock.'],
+    ['updateWindowEnd', 'Update window ends (hour)', 'Use the same hour twice to allow updates at any time.'],
 ];
 
 /** Memory rules and limits that administrators set for every server */
@@ -74,13 +77,17 @@ function PlatformCard() {
         <section className={styles.card}>
             <div className={styles.cardHeader}>
                 <div>
-                    <h2>Memory and limits</h2>
+                    <h2>Memory, limits and updates</h2>
                     <p className={styles.hint}>Users cannot choose memory. It is worked out from the plugins, mods and player slots of each server, between your smallest and largest heap. Only administrators can set it by hand.</p>
                 </div>
                 <button className={`${styles.btn} ${styles.primary}`} disabled={saving || !platform.data} onClick={() => void save()}>{saving ? 'Saving…' : 'Save'}</button>
             </div>
             {platform.data && (
                 <div className={styles.formGrid}>
+                    <label className={styles.field}>
+                        <span><input type="checkbox" checked={draft.autoUpdateImages === '1'} onChange={event => setDraft({ ...draft, autoUpdateImages: event.target.checked ? '1' : '0' })} /> Update container images automatically</span>
+                        <span className={styles.hint}>Newer images are pulled every hour and running containers are recreated on them inside the update window.</span>
+                    </label>
                     {PLATFORM_FIELDS.map(([key, label, hint]) => (
                         <label key={key} className={styles.field}>{label}
                             <input className={styles.input} type="number" min={0} value={draft[key] ?? ''} onChange={event => setDraft({ ...draft, [key]: event.target.value })} />
