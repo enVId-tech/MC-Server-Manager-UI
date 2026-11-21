@@ -401,10 +401,71 @@
   }
 
   form {
+    position: relative;
     display: flex;
     gap: 0.5rem;
     padding: 0.6rem;
     border-top: 1px solid $border-color;
+  }
+
+  // The list of suggestions sits on top of the output, right above the line that is typed
+  .suggest {
+    position: absolute;
+    left: 0.6rem;
+    bottom: calc(100% - 0.2rem);
+    z-index: 5;
+    min-width: 260px;
+    max-width: calc(100% - 1.2rem);
+    border: 1px solid $border-color;
+    border-radius: 8px;
+    background-color: #121923;
+    box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.45);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.8rem;
+    overflow: hidden;
+
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0.25rem 0;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    li {
+      display: flex;
+      justify-content: space-between;
+      gap: 1.5rem;
+      padding: 0.25rem 0.75rem;
+      color: #d7dee7;
+      cursor: pointer;
+
+      &:hover {
+        background-color: rgba(99, 179, 237, 0.12);
+      }
+
+      &.active {
+        background-color: rgba(99, 179, 237, 0.28);
+        color: #fff;
+      }
+    }
+
+    .detail {
+      color: #8393a6;
+      font-size: 0.75rem;
+      padding: 0.25rem 0.75rem;
+    }
+
+    li .detail {
+      padding: 0;
+    }
+
+    .usage {
+      padding: 0.3rem 0.75rem;
+      border-top: 1px solid $border-color;
+      color: #8393a6;
+      font-size: 0.72rem;
+    }
   }
 
   .input {

@@ -238,7 +238,7 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
 
                 <main>
                     {tab === 'overview' && <OverviewTab info={info} stats={stats} network={network} onOpenNetwork={() => setTab('network')} />}
-                    {tab === 'console' && <ConsoleTab uniqueId={info.uniqueId} status={stats.status} />}
+                    {tab === 'console' && <ConsoleTab uniqueId={info.uniqueId} status={stats.status} kind={info.kind} serverType={info.serverType} version={info.version} />}
                     {tab === 'files' && <FilesTab slug={slug} uniqueId={info.uniqueId} version={info.version} />}
                     {tab === 'backups' && !isProxy && <BackupsTab uniqueId={info.uniqueId} />}
                     {tab === 'addons' && !isProxy && <div className={styles.card}><AddonManager uniqueId={info.uniqueId} /></div>}
