@@ -498,15 +498,26 @@ class VelocityService {
     }
 
     /**
-     * Wait for server to start and files to be created
+     * Wait for server to start and its configuration files to be created.
+     *
+     * Checking only `server.properties` returns too early on Paper/Spigot because mc-image-helper creates
+     * `server.properties` before the server jar finishes patching and writing `spigot.yml` / `paper-global.yml`.
+     * Each entry in `requiredFiles` may be `a|b` when either path satisfies the requirement.
      */
     async waitForServerFilesToBeCreated(
         containerId: string,
         environmentId: number,
-        maxWaitTime: number = 120000 // 2 minutes
+        maxWaitTime: number = 180000, // 3 minutes
+        requiredFiles: string[] = ['server.properties']
     ): Promise<{ success: boolean; error?: string }> {
         const startTime = Date.now();
-        console.log(`[Velocity] Waiting for server files to be created in container ${containerId} (env: ${environmentId})`);
+        const checkCmd = requiredFiles
+            .map(entry => {
+                const options = entry.split('|').map(path => `test -f '/data/${path.replace(/'/g, `'\\''`)}'`);
+                return options.length > 1 ? `( ${options.join(' || ')} )` : options[0];
+            })
+            .join(' && ');
+        console.log(`[Velocity] Waiting for server files (${requiredFiles.join(', ')}) in container ${containerId} (env: ${environmentId})`);
         
         // First, verify the container exists
         try {
@@ -528,10 +539,10 @@ class VelocityService {
         
         while (Date.now() - startTime < maxWaitTime) {
             try {
-                // Check if server.properties exists by executing a command in the container
+                // Check if all required config files exist inside /data
                 const result = await portainer.executeCommand(
                     containerId,
-                    'ls /data/server.properties',
+                    checkCmd,
                     environmentId
                 );
                 

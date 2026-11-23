@@ -912,7 +912,15 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                     await portainer.axiosInstance.post(`/api/endpoints/${portainerEnvironmentId}/docker/containers/${serverContainer.Id}/start`);
                 }
                 await updateStep(serverId, 'velocity', 'running', 30, 'Waiting for the server files...');
-                const ready = await velocityService.waitForServerFilesToBeCreated(serverContainer.Id, portainerEnvironmentId, 120000);
+                const serverTypeLower = String(serverConfig.serverType ?? '').toLowerCase();
+                const requiredFiles = ['server.properties'];
+                if (['spigot', 'bukkit', 'craftbukkit', 'paper', 'purpur', 'folia', 'pufferfish', 'leaf'].includes(serverTypeLower)) {
+                    requiredFiles.push('spigot.yml');
+                }
+                if (['paper', 'purpur', 'folia', 'pufferfish', 'leaf'].includes(serverTypeLower)) {
+                    requiredFiles.push('config/paper-global.yml|paper.yml');
+                }
+                const ready = await velocityService.waitForServerFilesToBeCreated(serverContainer.Id, portainerEnvironmentId, 180000, requiredFiles);
                 filesReady = ready.success;
                 if (!ready.success) console.warn(`[Deploy] Server files not ready: ${ready.error}`);
             }
