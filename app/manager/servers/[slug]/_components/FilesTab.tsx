@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { FaFile, FaFolder, FaTrash, FaUpload } from 'react-icons/fa';
+import { FaFile, FaFileCode, FaFolder, FaHome, FaSave, FaTrash, FaUpload } from 'react-icons/fa';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
 import ConfigEditor from '@/app/_components/ConfigEditor/ConfigEditor';
 import { detectConfigFormat } from '@/lib/data/configFiles';
@@ -180,7 +180,7 @@ export default function FilesTab({ slug, uniqueId, version }: { slug: string; un
         <div className={styles.files}>
             <section className={styles.card}>
                 <div className={styles.crumbs}>
-                    <button onClick={() => confirmLeave(() => setPath('/'))}>root</button>
+                    <button onClick={() => confirmLeave(() => setPath('/'))}><FaHome aria-hidden="true" /> root</button>
                     {crumbs.map((part, index) => (
                         <React.Fragment key={index}>
                             <span className={styles.muted}>/</span>
@@ -200,9 +200,9 @@ export default function FilesTab({ slug, uniqueId, version }: { slug: string; un
                     {!access.admin && <span className={styles.muted}>Both are off by default for safety.</span>}
                 </div>
                 <div className={styles.toolbar}>
-                    <input className={styles.input} placeholder="Filter" value={filter} onChange={event => setFilter(event.target.value)} style={{ flex: 1 }} aria-label="Filter files" />
-                    <button className={`${styles.btn} ${styles.small}`} disabled={!canEdit} title={canEdit ? undefined : 'Editing is switched off'} onClick={() => create('file')}><FaFile /> New</button>
-                    <button className={`${styles.btn} ${styles.small}`} disabled={!canEdit} title={canEdit ? undefined : 'Editing is switched off'} onClick={() => create('folder')}><FaFolder /> New</button>
+                    <input className={styles.input} placeholder="Filter files…" value={filter} onChange={event => setFilter(event.target.value)} style={{ flex: 1 }} aria-label="Filter files" />
+                    <button className={`${styles.btn} ${styles.small}`} disabled={!canEdit} title={canEdit ? undefined : 'Editing is switched off'} onClick={() => create('file')}><FaFile aria-hidden="true" /> New</button>
+                    <button className={`${styles.btn} ${styles.small}`} disabled={!canEdit} title={canEdit ? undefined : 'Editing is switched off'} onClick={() => create('folder')}><FaFolder aria-hidden="true" /> New</button>
                 </div>
                 {error && <div className={`${styles.notice} ${styles.error}`}>{error}</div>}
                 <div
@@ -211,7 +211,7 @@ export default function FilesTab({ slug, uniqueId, version }: { slug: string; un
                     onDragLeave={() => setDragging(false)}
                     onDrop={event => { event.preventDefault(); setDragging(false); if (canUpload) upload(Array.from(event.dataTransfer.files)); }}
                 >
-                    <FaUpload />
+                    <FaUpload aria-hidden="true" />
                     {canUpload ? (
                         <span>Drop files here to add them to <code>{path}</code>, or <label className={styles.linkLabel}>choose files<input type="file" multiple hidden onChange={event => { upload(Array.from(event.target.files ?? [])); event.target.value = ''; }} /></label></span>
                     ) : (
@@ -225,12 +225,12 @@ export default function FilesTab({ slug, uniqueId, version }: { slug: string; un
                     {!loading && shown.map(file => (
                         <div key={file.path} className={`${styles.fileRow} ${selected?.path === file.path ? styles.selected : ''}`} onClick={() => open(file)}>
                             <span className={styles.name}>
-                                {file.type === 'folder' ? <FaFolder color="#ecc94b" /> : <FaFile color="#a0aec0" />}
+                                {file.type === 'folder' ? <FaFolder color="#fbbf24" aria-hidden="true" /> : <FaFile color="#94a3b8" aria-hidden="true" />}
                                 <span>{file.name}</span>
                             </span>
                             <span className={styles.muted} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem' }}>
                                 {formatSize(file.size)}
-                                <button className={`${styles.btn} ${styles.small} ${styles.danger}`} disabled={!canEdit} aria-label={`Delete ${file.name}`} onClick={event => { event.stopPropagation(); remove(file); }}><FaTrash /></button>
+                                <button className={`${styles.btn} ${styles.small} ${styles.danger}`} disabled={!canEdit} aria-label={`Delete ${file.name}`} onClick={event => { event.stopPropagation(); remove(file); }}><FaTrash aria-hidden="true" /></button>
                             </span>
                         </div>
                     ))}
@@ -241,12 +241,17 @@ export default function FilesTab({ slug, uniqueId, version }: { slug: string; un
                 {selected ? (
                     <>
                         <div className={styles.toolbar}>
-                            <strong>{selected.name}{dirty ? ' •' : ''}</strong>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
+                                <strong className={styles.mono}>{selected.name}</strong>
+                                {dirty && <span className={`${styles.badge} ${styles.warn}`}>Unsaved</span>}
+                            </div>
                             <span style={{ display: 'flex', gap: '0.5rem' }}>
                                 {format && (
                                     <button className={`${styles.btn} ${styles.small}`} onClick={() => setForm(value => !value)}>{form ? 'Edit as text' : 'Edit as form'}</button>
                                 )}
-                                <button className={`${styles.btn} ${styles.small} ${styles.primary}`} disabled={!dirty || saving || !canEdit} onClick={() => void save()}>{saving ? 'Saving…' : 'Save'}</button>
+                                <button className={`${styles.btn} ${styles.small} ${styles.primary}`} disabled={!dirty || saving || !canEdit} onClick={() => void save()}>
+                                    <FaSave aria-hidden="true" /> {saving ? 'Saving…' : 'Save'}
+                                </button>
                             </span>
                         </div>
                         {format && form ? (
@@ -256,7 +261,10 @@ export default function FilesTab({ slug, uniqueId, version }: { slug: string; un
                         )}
                     </>
                 ) : (
-                    <div className={styles.empty}>Select a file to view or edit it.</div>
+                    <div className={styles.empty}>
+                        <span className={styles.cardIcon}><FaFileCode aria-hidden="true" /></span>
+                        <span>Select a file from the browser to view or edit it.</span>
+                    </div>
                 )}
             </section>
         </div>

@@ -2,7 +2,29 @@
 
 import React, { use, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaArrowLeft, FaPlay, FaRedo, FaStop, FaSkull, FaDownload, FaTrash } from 'react-icons/fa';
+import {
+    FaArchive,
+    FaArrowLeft,
+    FaChartPie,
+    FaCheck,
+    FaDownload,
+    FaFolderOpen,
+    FaGlobe,
+    FaMicrochip,
+    FaNetworkWired,
+    FaPen,
+    FaPlay,
+    FaPuzzlePiece,
+    FaRedo,
+    FaSkull,
+    FaSlidersH,
+    FaStop,
+    FaSyncAlt,
+    FaTerminal,
+    FaTimes,
+    FaTrash,
+    FaUsers,
+} from 'react-icons/fa';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
 import ServerSettings from '@/app/_components/ServerSettings/ServerSettings';
 import styles from './dashboard.module.scss';
@@ -31,6 +53,18 @@ const STATUS_BADGE: Record<ServerStatus, { label: string; tone: string }> = {
     loading: { label: 'Checking', tone: '' },
 };
 
+const TAB_ICONS: Record<TabId, React.ReactNode> = {
+    overview: <FaChartPie aria-hidden="true" />,
+    console: <FaTerminal aria-hidden="true" />,
+    files: <FaFolderOpen aria-hidden="true" />,
+    backups: <FaArchive aria-hidden="true" />,
+    addons: <FaPuzzlePiece aria-hidden="true" />,
+    world: <FaGlobe aria-hidden="true" />,
+    settings: <FaSlidersH aria-hidden="true" />,
+    network: <FaNetworkWired aria-hidden="true" />,
+    admin: <FaSyncAlt aria-hidden="true" />,
+};
+
 export default function ServerDashboard({ params }: { params: Promise<{ slug: string }> }) {
     const { slug } = use(params);
     const router = useRouter();
@@ -42,6 +76,9 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
     const [network, setNetwork] = useState<NetworkStatus | null>(null);
     const [tab, setTab] = useState<TabId>('overview');
     const [busy, setBusy] = useState<string | null>(null);
+    const [renaming, setRenaming] = useState(false);
+    const [nameDraft, setNameDraft] = useState('');
+    const [savingName, setSavingName] = useState(false);
 
     const isProxy = info?.kind === 'proxy';
 
@@ -137,6 +174,31 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
         }
     };
 
+    const saveRename = async (event: React.FormEvent) => {
+        event.preventDefault();
+        if (!info || savingName) return;
+        const trimmed = nameDraft.trim();
+        if (!trimmed) {
+            showNotification({ type: 'warning', title: 'Invalid name', message: 'Server name cannot be empty.' });
+            return;
+        }
+        if (trimmed === info.name) {
+            setRenaming(false);
+            return;
+        }
+        setSavingName(true);
+        const { ok, body } = await postJson<{ name?: string }>('/api/server/info', { uniqueId: info.uniqueId, name: trimmed }, 'PATCH');
+        setSavingName(false);
+        if (!ok) {
+            showNotification({ type: 'error', title: 'Rename failed', message: body.message ?? 'Could not rename the server.' });
+            return;
+        }
+        const nextName = body.name ?? trimmed;
+        setInfo(previous => previous ? { ...previous, name: nextName } : previous);
+        setRenaming(false);
+        showNotification({ type: 'success', title: 'Server renamed', message: `Display name updated to "${nextName}".` });
+    };
+
     const remove = () => {
         if (!info) return;
         showConfirmDialog({
@@ -177,38 +239,116 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
     if (loadError) {
         return (
             <div className={styles.page}><div className={styles.shell}>
-                <button className={styles.back} onClick={() => router.push('/manager/dashboard')}><FaArrowLeft /> Back to your servers</button>
+                <button className={styles.back} onClick={() => router.push('/manager/dashboard')}><FaArrowLeft aria-hidden="true" /> Back to your servers</button>
                 <div className={`${styles.notice} ${styles.error}`}>{loadError}</div>
             </div></div>
         );
     }
-    if (!info) return <div className={styles.page}><div className={styles.shell}><div className={styles.loading}>Loading…</div></div></div>;
+    if (!info) {
+        return (
+            <div className={styles.page}>
+                <div className={styles.shell}>
+                    <div className={styles.card}>
+                        <div className={styles.loading}>Loading server control panel…</div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     const badge = STATUS_BADGE[stats.status];
     const running = stats.status === 'online' || stats.status === 'starting' || stats.status === 'stopping' || stats.status === 'paused' || stats.status === 'unhealthy';
+    const ramPct = stats.maxRam > 0 ? Math.min(100, Math.round((stats.ramUsage / stats.maxRam) * 100)) : 0;
 
     return (
         <div className={styles.page}>
             <div className={styles.shell}>
                 <header className={styles.header}>
-                    <div>
+                    <div className={styles.headerMain}>
                         <button className={styles.back} onClick={() => router.push(info.isAdmin && isProxy ? '/admin#proxies' : '/manager/dashboard')}>
-                            <FaArrowLeft /> {isProxy ? 'Back to proxies' : 'Back to your servers'}
+                            <FaArrowLeft aria-hidden="true" /> {isProxy ? 'Back to proxies' : 'Back to your servers'}
                         </button>
-                        <h1 className={styles.title}>
-                            {info.name}
-                            <span className={`${styles.badge} ${badge.tone}`}>{badge.label}</span>
+                        <div className={styles.title}>
+                            {renaming ? (
+                                <form className={styles.renameForm} onSubmit={saveRename}>
+                                    <input
+                                        className={styles.renameInput}
+                                        value={nameDraft}
+                                        maxLength={50}
+                                        onChange={event => setNameDraft(event.target.value)}
+                                        onKeyDown={event => { if (event.key === 'Escape') setRenaming(false); }}
+                                        aria-label="Server name"
+                                        autoFocus
+                                        disabled={savingName}
+                                    />
+                                    <button type="submit" className={`${styles.btn} ${styles.small} ${styles.primary}`} disabled={savingName || !nameDraft.trim()} aria-label="Save server name">
+                                        <FaCheck aria-hidden="true" /> Save
+                                    </button>
+                                    <button type="button" className={`${styles.btn} ${styles.small}`} disabled={savingName} onClick={() => setRenaming(false)} aria-label="Cancel rename">
+                                        <FaTimes aria-hidden="true" />
+                                    </button>
+                                </form>
+                            ) : (
+                                <>
+                                    <h1 style={{ margin: 0, fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit' }}>{info.name}</h1>
+                                    <button
+                                        type="button"
+                                        className={styles.renameTrigger}
+                                        title="Rename server"
+                                        aria-label="Rename server"
+                                        onClick={() => { setNameDraft(info.name); setRenaming(true); }}
+                                    >
+                                        <FaPen aria-hidden="true" />
+                                    </button>
+                                </>
+                            )}
+                            <span className={`${styles.badge} ${badge.tone}`}>
+                                <span className={styles.statusDot} aria-hidden="true" />
+                                {badge.label}
+                            </span>
                             {isProxy && <span className={`${styles.badge} ${styles.info}`}>{info.proxy?.type} proxy</span>}
                             <small>{slug}</small>
-                        </h1>
+                        </div>
+                        <div className={styles.headerMetaRow}>
+                            {info.serverType && (
+                                <span className={styles.metaPill}>
+                                    Type: <strong>{info.serverType}{info.version ? ` ${info.version}` : ''}</strong>
+                                </span>
+                            )}
+                            <span className={styles.metaPill}>
+                                <FaUsers aria-hidden="true" /> <strong>{stats.playersOnline}/{stats.maxPlayers}</strong> players
+                            </span>
+                            <span className={styles.metaPill}>
+                                <FaMicrochip aria-hidden="true" /> CPU <strong>{stats.cpuUsage}%</strong> · RAM <strong>{ramPct}%</strong>
+                            </span>
+                        </div>
                     </div>
                     <div className={styles.power}>
-                        <button className={`${styles.btn} ${styles.primary}`} disabled={busy !== null || running} onClick={() => void power('start')}><FaPlay /> Start</button>
-                        <button className={styles.btn} disabled={busy !== null || !running} onClick={() => void power('restart')}><FaRedo /> Restart</button>
-                        <button className={styles.btn} disabled={busy !== null || !running} onClick={() => void power('stop')}><FaStop /> Stop</button>
-                        <button className={`${styles.btn} ${styles.danger}`} disabled={busy !== null || !running} onClick={() => void power('kill')}><FaSkull /> Kill</button>
-                        {!isProxy && <button className={styles.btn} onClick={() => void download()}><FaDownload /> Backup</button>}
-                        <button className={`${styles.btn} ${styles.danger}`} onClick={remove}><FaTrash /> Delete</button>
+                        <div className={styles.powerGroup}>
+                            <button className={`${styles.btn} ${styles.success}`} disabled={busy !== null || running} onClick={() => void power('start')}>
+                                <FaPlay aria-hidden="true" /> Start
+                            </button>
+                            <button className={styles.btn} disabled={busy !== null || !running} onClick={() => void power('restart')}>
+                                <FaRedo aria-hidden="true" /> Restart
+                            </button>
+                            <button className={styles.btn} disabled={busy !== null || !running} onClick={() => void power('stop')}>
+                                <FaStop aria-hidden="true" /> Stop
+                            </button>
+                            <button className={`${styles.btn} ${styles.danger}`} disabled={busy !== null || !running} onClick={() => void power('kill')}>
+                                <FaSkull aria-hidden="true" /> Kill
+                            </button>
+                        </div>
+                        <span className={styles.powerDivider} aria-hidden="true" />
+                        <div className={styles.powerGroup}>
+                            {!isProxy && (
+                                <button className={styles.btn} onClick={() => void download()}>
+                                    <FaDownload aria-hidden="true" /> Backup
+                                </button>
+                            )}
+                            <button className={`${styles.btn} ${styles.danger}`} onClick={remove}>
+                                <FaTrash aria-hidden="true" /> Delete
+                            </button>
+                        </div>
                     </div>
                 </header>
 
@@ -229,8 +369,15 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
 
                 <nav className={styles.tabs} role="tablist" aria-label="Server sections">
                     {tabs.map(item => (
-                        <button key={item.id} role="tab" aria-selected={tab === item.id} className={`${styles.tab} ${tab === item.id ? styles.active : ''}`} onClick={() => setTab(item.id)}>
-                            {item.label}
+                        <button
+                            key={item.id}
+                            role="tab"
+                            aria-selected={tab === item.id}
+                            className={`${styles.tab} ${tab === item.id ? styles.active : ''}`}
+                            onClick={() => setTab(item.id)}
+                        >
+                            {TAB_ICONS[item.id]}
+                            <span>{item.label}</span>
                             {item.dot && <span className={styles.tabDot} aria-label="has a warning" />}
                         </button>
                     ))}
@@ -242,7 +389,14 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
                     {tab === 'files' && <FilesTab slug={slug} uniqueId={info.uniqueId} version={info.version} />}
                     {tab === 'backups' && !isProxy && <BackupsTab uniqueId={info.uniqueId} />}
                     {tab === 'addons' && !isProxy && <div className={styles.card}><AddonManager uniqueId={info.uniqueId} /></div>}
-                    {tab === 'world' && !isProxy && <div className={styles.card}><h2>World</h2><WorldUpload uniqueId={info.uniqueId} version={info.version} running={running} /></div>}
+                    {tab === 'world' && !isProxy && (
+                        <div className={styles.card}>
+                            <div className={styles.cardHeader}>
+                                <h2><span className={styles.cardIcon}><FaGlobe aria-hidden="true" /></span> World</h2>
+                            </div>
+                            <WorldUpload uniqueId={info.uniqueId} version={info.version} running={running} />
+                        </div>
+                    )}
                     {tab === 'settings' && !isProxy && <ServerSettings serverSlug={slug} />}
                     {tab === 'network' && !isProxy && <NetworkTab info={info} network={network} onChanged={() => void loadNetwork()} />}
                     {tab === 'admin' && info.isAdmin && <AdminTab info={info} onChanged={() => void loadStats()} />}

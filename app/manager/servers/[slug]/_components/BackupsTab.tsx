@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { FaArchive, FaClock, FaDownload } from 'react-icons/fa';
 import styles from '../dashboard.module.scss';
 
 interface BackupItem {
@@ -61,33 +62,58 @@ export default function BackupsTab({ uniqueId }: { uniqueId: string }) {
     }, [load]);
 
     if (error) return <div className={`${styles.notice} ${styles.error}`}>{error}</div>;
-    if (!data) return <p className={styles.muted}>Reading the backups…</p>;
+    if (!data) return <div className={styles.card}><div className={styles.loading}>Reading the backups…</div></div>;
 
     const { policy } = data;
     return (
         <div className={`${styles.grid} ${styles.cols2}`}>
             <section className={styles.card}>
-                <h2>Automatic backups</h2>
-                {policy.enabled ? (
-                    <p>This server is backed up <strong>{formatEvery(policy.intervalHours)}</strong>, and the newest <strong>{policy.keep}</strong> automatic backups are kept.</p>
-                ) : (
-                    <p>Automatic backups are off for this server.</p>
-                )}
-                {policy.enabled && data.nextBackupAt && <p className={styles.muted}>Next backup: {new Date(data.nextBackupAt).toLocaleString()}{data.running ? ' (running now)' : ''}</p>}
-                <p className={styles.muted}>Last backup: {data.lastBackupAt ? new Date(data.lastBackupAt).toLocaleString() : 'none yet'}</p>
-                <p className={styles.muted}>Backups leave out everything that belongs to the proxy network, such as forwarding secrets and keys, like the download of the server does. Administrators set the schedule.</p>
+                <div className={styles.cardHeader}>
+                    <h2><span className={styles.cardIcon}><FaClock aria-hidden="true" /></span> Automatic backups</h2>
+                    <span className={`${styles.badge} ${policy.enabled ? styles.ok : styles.warn}`}>
+                        {policy.enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                </div>
+                <div className={styles.kvList} style={{ marginBottom: '0.9rem' }}>
+                    <div className={styles.kvRow}>
+                        <span className={styles.kvKey}>Schedule</span>
+                        <span className={styles.kvValue}>{policy.enabled ? formatEvery(policy.intervalHours) : 'Off'}</span>
+                    </div>
+                    {policy.enabled && (
+                        <div className={styles.kvRow}>
+                            <span className={styles.kvKey}>Retention</span>
+                            <span className={styles.kvValue}>Newest {policy.keep} automatic backups</span>
+                        </div>
+                    )}
+                    {policy.enabled && data.nextBackupAt && (
+                        <div className={styles.kvRow}>
+                            <span className={styles.kvKey}>Next backup</span>
+                            <span className={styles.kvValue}>{new Date(data.nextBackupAt).toLocaleString()}{data.running ? ' (running now)' : ''}</span>
+                        </div>
+                    )}
+                    <div className={styles.kvRow}>
+                        <span className={styles.kvKey}>Last backup</span>
+                        <span className={styles.kvValue}>{data.lastBackupAt ? new Date(data.lastBackupAt).toLocaleString() : 'None yet'}</span>
+                    </div>
+                </div>
+                <p>Backups leave out everything that belongs to the proxy network, such as forwarding secrets and keys, like the download of the server does. Administrators set the schedule.</p>
             </section>
 
             <section className={styles.card}>
-                <h2>Backups ({data.backups.length})</h2>
-                {data.backups.length === 0 && <p className={styles.muted}>No backups yet.</p>}
+                <div className={styles.cardHeader}>
+                    <h2><span className={styles.cardIcon}><FaArchive aria-hidden="true" /></span> Backups</h2>
+                    <span className={`${styles.badge} ${styles.info}`}>{data.backups.length} saved</span>
+                </div>
+                {data.backups.length === 0 && <div className={styles.empty}>No backups yet.</div>}
                 {data.backups.map(item => (
                     <div key={item.id} className={styles.addressRow}>
                         <div>
                             <span className={styles.addressLabel}>{item.kind === 'auto' ? 'Automatic' : 'Made by an administrator'}</span>
-                            <span>{new Date(item.createdAt).toLocaleString()} · {formatSize(item.sizeBytes)}</span>
+                            <span>{new Date(item.createdAt).toLocaleString()} · <span className={styles.mono}>{formatSize(item.sizeBytes)}</span></span>
                         </div>
-                        <a className={`${styles.btn} ${styles.small}`} href={`/api/server/backups/download?uniqueId=${encodeURIComponent(uniqueId)}&id=${item.id}`} download>Download</a>
+                        <a className={`${styles.btn} ${styles.small}`} href={`/api/server/backups/download?uniqueId=${encodeURIComponent(uniqueId)}&id=${item.id}`} download>
+                            <FaDownload aria-hidden="true" /> Download
+                        </a>
                     </div>
                 ))}
             </section>

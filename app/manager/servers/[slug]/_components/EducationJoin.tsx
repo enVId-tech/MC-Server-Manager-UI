@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { FaSyncAlt } from 'react-icons/fa';
 import styles from '../dashboard.module.scss';
 import { CopyButton } from './OverviewTab';
 import { eduIcon } from './eduIcons';
@@ -39,7 +40,7 @@ export default function EducationJoin({ uniqueId }: { uniqueId: string }) {
     }, [load]);
 
     return (
-        <div>
+        <div style={{ marginTop: '0.6rem' }}>
             <p className={styles.addressLabel}>Education Edition</p>
             {!edu && loading && <p className={styles.muted}>Reading the join codes…</p>}
             {edu?.error && <div className={`${styles.notice} ${styles.error}`}>{edu.error}</div>}
@@ -75,7 +76,9 @@ export default function EducationJoin({ uniqueId }: { uniqueId: string }) {
                 <p className={styles.muted}>Server list entry: {edu.serverList.name || 'unnamed'}{edu.serverList.host ? ` at ${edu.serverList.host}${edu.serverList.port ? `:${edu.serverList.port}` : ''}` : ' (address detected by EduGeyser)'}</p>
             )}
             {edu?.notice && <div className={`${styles.notice} ${styles.warning}`}>{edu.notice}</div>}
-            <button className={styles.btn} disabled={loading} onClick={() => void load(true)}>{loading ? 'Reading…' : 'Refresh codes'}</button>
+            <button className={`${styles.btn} ${styles.small}`} style={{ marginTop: '0.5rem' }} disabled={loading} onClick={() => void load(true)}>
+                <FaSyncAlt aria-hidden="true" /> {loading ? 'Reading…' : 'Refresh codes'}
+            </button>
         </div>
     );
 }

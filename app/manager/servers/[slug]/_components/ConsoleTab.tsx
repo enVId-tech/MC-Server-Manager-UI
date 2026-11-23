@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FaArrowDown, FaPaperPlane, FaSyncAlt } from 'react-icons/fa';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
 import styles from '../dashboard.module.scss';
 import { postJson, type ServerStatus } from './types';
@@ -210,6 +211,10 @@ export default function ConsoleTab({ uniqueId, status, kind = 'server', serverTy
     return (
         <div className={styles.console}>
             <div className={styles.consoleBar}>
+                <span className={`${styles.consoleStatus} ${online && refresh.enabled ? styles.live : ''}`}>
+                    <i aria-hidden="true" />
+                    {online ? (refresh.enabled ? `Live · ${refresh.seconds}s` : 'Manual') : 'Offline'}
+                </span>
                 <label>
                     <input type="checkbox" checked={refresh.enabled} onChange={event => changeRefresh({ ...refresh, enabled: event.target.checked })} /> Auto refresh
                 </label>
@@ -222,20 +227,32 @@ export default function ConsoleTab({ uniqueId, status, kind = 'server', serverTy
                 >
                     {INTERVALS.map(seconds => <option key={seconds} value={seconds}>every {seconds}s</option>)}
                 </select>
-                {!refresh.enabled && <button type="button" className={styles.btn} onClick={() => void load()}>Refresh now</button>}
-                {!following && <button type="button" className={styles.btn} onClick={() => { followingRef.current = true; setFollowing(true); scrollToEnd(); }}>Jump to latest</button>}
+                <div className={styles.consoleActions}>
+                    {!refresh.enabled && (
+                        <button type="button" className={`${styles.btn} ${styles.small}`} onClick={() => void load()}>
+                            <FaSyncAlt aria-hidden="true" /> Refresh now
+                        </button>
+                    )}
+                    {!following && (
+                        <button type="button" className={`${styles.btn} ${styles.small} ${styles.primary}`} onClick={() => { followingRef.current = true; setFollowing(true); scrollToEnd(); }}>
+                            <FaArrowDown aria-hidden="true" /> Jump to latest
+                        </button>
+                    )}
+                </div>
             </div>
             <div className={styles.output} ref={outputRef} onScroll={onScroll}>
                 <pre>{logs || 'No output yet.'}</pre>
                 {sent.length > 0 && (
-                    <pre aria-label="Commands you sent">
+                    <div className={styles.sentLog} aria-label="Commands you sent">
                         {sent.map((entry, index) => (
-                            <React.Fragment key={index}>
-                                {`> ${entry.command}\n`}
-                                {entry.failed ? `Failed: ${entry.output || 'the server did not answer'}\n` : `${entry.output || '(the server sent no reply; if the command prints to the log, look above)'}\n`}
-                            </React.Fragment>
+                            <div key={index}>
+                                <div className={styles.sentCmd}>{`> ${entry.command}`}</div>
+                                <div className={entry.failed ? styles.sentFail : styles.sentReply}>
+                                    {entry.failed ? `Failed: ${entry.output || 'the server did not answer'}` : (entry.output || '(the server sent no reply; if the command prints to the log, look above)')}
+                                </div>
+                            </div>
                         ))}
-                    </pre>
+                    </div>
                 )}
             </div>
             <form onSubmit={send}>
@@ -266,6 +283,7 @@ export default function ConsoleTab({ uniqueId, status, kind = 'server', serverTy
                         </div>
                     </div>
                 )}
+                <span className={styles.promptPrefix} aria-hidden="true">&gt;</span>
                 <input
                     ref={inputRef}
                     className={styles.input}
@@ -284,7 +302,9 @@ export default function ConsoleTab({ uniqueId, status, kind = 'server', serverTy
                     autoComplete="off"
                     spellCheck={false}
                 />
-                <button className={`${styles.btn} ${styles.primary}`} type="submit" disabled={!online || sending || !command.trim()}>Send</button>
+                <button className={`${styles.btn} ${styles.primary}`} type="submit" disabled={!online || sending || !command.trim()}>
+                    <FaPaperPlane aria-hidden="true" /> Send
+                </button>
             </form>
         </div>
     );
