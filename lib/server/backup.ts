@@ -1,4 +1,4 @@
-import { Readable } from 'stream';
+import { PassThrough, Readable } from 'stream';
 import yazl from 'yazl';
 import serverStorage from '@/lib/server/storage';
 import { isHiddenFromUsers, sanitizeForBackup } from '@/lib/server/accessPolicy';
@@ -32,37 +32,57 @@ export function redactKnownSecrets(content: Buffer, secrets: string[]): Buffer {
 }
 
 /** Folders that are skipped in a cleaned backup: logs show the addresses of the proxy */
-const SKIPPED_FOLDERS = new Set(['logs', 'cache']);
+const SKIPPED_FOLDERS = new Set(['logs', 'cache', '.backups']);
+const SKIPPED_FILES = new Set(['session.lock']);
 
-async function* walk(base: string, folder = ''): AsyncGenerator<{ rel: string; size: number }> {
-    const entries = await serverStorage.getDirectoryContents(folder ? `${base}/${folder}` : base);
+function shouldSkipFile(rel: string, name: string, raw: boolean): boolean {
+    const lower = name.toLowerCase();
+    // Never read Minecraft lock files or in-progress temp/backup files
+    if (SKIPPED_FILES.has(lower) || /\.(lck|partial)$/i.test(lower)) return true;
+    if (!raw && /\.(deleted|backup)\.\d+$/i.test(rel)) return true;
+    if (!raw && isHiddenFromUsers(`/${rel}`) && lower !== 'paper-global.yml' && lower !== 'paper.yml') return true;
+    return false;
+}
+
+async function* walk(base: string, raw: boolean, folder = ''): AsyncGenerator<{ rel: string; name: string; size: number }> {
+    let entries;
+    try {
+        entries = await serverStorage.getDirectoryContents(folder ? `${base}/${folder}` : base);
+    } catch (error) {
+        // Propagate root errors so missing server folders fail cleanly; skip transient/unreadable subfolders
+        if (!folder) throw error;
+        console.warn(`[backup] skipping unreadable folder ${folder}:`, error instanceof Error ? error.message : error);
+        return;
+    }
+
     for (const entry of entries) {
         const rel = folder ? `${folder}/${entry.basename}` : entry.basename;
-        if (entry.type === 'directory') yield* walk(base, rel);
-        else yield { rel, size: entry.size };
+        if (entry.type === 'directory') {
+            const lower = entry.basename.toLowerCase();
+            if (lower === '.backups' || (!raw && !folder && SKIPPED_FOLDERS.has(lower))) continue;
+            yield* walk(base, raw, rel);
+        } else {
+            if (shouldSkipFile(rel, entry.basename, raw)) continue;
+            yield { rel, name: entry.basename, size: entry.size };
+        }
     }
 }
 
-/** Reads a file only when the zip reaches it, so a large world never sits in memory all at once */
-function lazyFile(path: string, rel: string, raw: boolean, size: number, secrets: string[]): Readable {
-    let started = false;
-    return new Readable({
-        async read() {
-            if (started) return;
-            started = true;
-            try {
-                let data: Buffer = await serverStorage.getFileContents(path);
-                if (!raw) {
-                    const cleaned = sanitizeForBackup(`/${rel}`, data);
-                    if (cleaned) data = cleaned;
-                    if (secrets.length > 0 && size <= MAX_SCANNED_BYTES && TEXT_FILE.test(rel)) data = redactKnownSecrets(data, secrets);
-                }
-                this.push(data);
-                this.push(null);
-            } catch (error) {
-                this.destroy(error as Error);
-            }
-        },
+function waitForDrainOrClose(stream: PassThrough): Promise<void> {
+    if (stream.destroyed || !stream.writableNeedDrain) return Promise.resolve();
+    return new Promise((resolve) => {
+        const cleanup = () => {
+            stream.off('drain', onDone);
+            stream.off('close', onDone);
+            stream.off('error', onDone);
+        };
+        const onDone = () => {
+            cleanup();
+            resolve();
+        };
+        stream.once('drain', onDone);
+        stream.once('close', onDone);
+        stream.once('error', onDone);
     });
 }
 
@@ -73,26 +93,52 @@ function lazyFile(path: string, rel: string, raw: boolean, size: number, secrets
  */
 export function createBackupStream(base: string, options: BackupOptions = {}): Readable {
     const zip = new yazl.ZipFile();
+    const out = new PassThrough();
     const raw = options.raw === true;
     const secrets = options.secrets ?? [];
+    let closed = false;
+
+    out.once('close', () => { closed = true; });
+    (zip.outputStream as unknown as Readable).on('error', (error) => {
+        if (!out.destroyed) out.destroy(error);
+    });
+    (zip.outputStream as unknown as Readable).pipe(out);
 
     void (async () => {
         try {
-            for await (const file of walk(base)) {
-                const top = file.rel.split('/')[0].toLowerCase();
-                if (!raw) {
-                    if (SKIPPED_FOLDERS.has(top)) continue;
-                    if (/\.(deleted|backup)\.\d+$/.test(file.rel)) continue;
-                    const name = file.rel.split('/').pop()?.toLowerCase() ?? '';
-                    if (isHiddenFromUsers(`/${file.rel}`) && name !== 'paper-global.yml' && name !== 'paper.yml') continue;
+            for await (const file of walk(base, raw)) {
+                if (closed || out.destroyed) return;
+
+                let data: Buffer;
+                try {
+                    data = await serverStorage.getFileContents(`${base}/${file.rel}`);
+                } catch (error) {
+                    // Never abort the whole zip mid-stream (which leaves it without an EOCD) if one file is locked or vanished
+                    console.warn(`[backup] skipping unreadable file ${file.rel}:`, error instanceof Error ? error.message : error);
+                    continue;
                 }
-                zip.addReadStream(lazyFile(`${base}/${file.rel}`, file.rel, raw, file.size, secrets), file.rel, { compress: true });
+
+                if (!raw) {
+                    const cleaned = sanitizeForBackup(`/${file.rel}`, data);
+                    if (cleaned === null) continue;
+                    if (cleaned) data = cleaned;
+                    if (secrets.length > 0 && file.size <= MAX_SCANNED_BYTES && TEXT_FILE.test(file.rel)) {
+                        data = redactKnownSecrets(data, secrets);
+                    }
+                }
+
+                if (closed || out.destroyed) return;
+                zip.addBuffer(data, file.rel, { compress: true });
+                await waitForDrainOrClose(out);
             }
-            zip.end();
+
+            if (!closed && !out.destroyed) {
+                zip.end();
+            }
         } catch (error) {
-            (zip.outputStream as unknown as Readable).destroy(error as Error);
+            if (!out.destroyed) out.destroy(error as Error);
         }
     })();
 
-    return zip.outputStream as unknown as Readable;
+    return out;
 }

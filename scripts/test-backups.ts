@@ -35,6 +35,7 @@ async function main() {
     await write('plugins/SomePlugin.jar', Buffer.from(`binary ${SECRET}`));
     await write('logs/latest.log', 'player joined from proxy 10.0.0.1');
     await write('world/level.dat', 'world data');
+    await write('world/session.lock', 'lock');
 
     const chunks: Buffer[] = [];
     for await (const chunk of createBackupStream(`/minecraft-servers/alex/abc`, { secrets: [SECRET, RCON] })) chunks.push(Buffer.from(chunk as Buffer));
@@ -44,7 +45,7 @@ async function main() {
 
     assert.ok(names.includes('world/level.dat'), 'the world is in the backup');
     assert.ok(names.includes('server.properties'));
-    for (const hidden of ['forwarding.secret', 'plugins/Geyser-Spigot/config.yml', 'plugins/floodgate/key.pem', 'logs/latest.log']) {
+    for (const hidden of ['forwarding.secret', 'plugins/Geyser-Spigot/config.yml', 'plugins/floodgate/key.pem', 'logs/latest.log', 'world/session.lock']) {
         assert.ok(!names.includes(hidden), `${hidden} is left out`);
     }
     // No text file holds a secret

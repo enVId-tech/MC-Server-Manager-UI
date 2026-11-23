@@ -3,6 +3,7 @@ import { Readable } from 'stream';
 import { authorizeFile, isDenied } from '@/lib/server/fileAccess';
 import { createBackupStream } from '@/lib/server/backup';
 import { collectSecrets } from '@/lib/server/backups/service';
+import serverStorage from '@/lib/server/storage';
 
 /**
  * GET /api/server/export/<id>        a zip of the server folder with everything about the proxy network removed
@@ -17,8 +18,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         const raw = new URL(request.url).searchParams.get('raw') === '1';
         if (raw && !access.user.isAdmin) return NextResponse.json({ message: 'Administrative privileges required.' }, { status: 403 });
 
-        const name = access.server.serverName.replace(/[^\w.-]+/g, '_');
-        return new NextResponse(Readable.toWeb(createBackupStream(access.base, { raw, secrets: raw ? [] : await collectSecrets(access.server) })) as unknown as ReadableStream, {
+        if (!(await serverStorage.exists(access.base))) {
+            return NextResponse.json({ message: 'The server folder was not found.' }, { status: 404 });
+        }
+
+        const secrets = raw ? [] : await collectSecrets(access.server);
+        const name = access.server.serverName.replace(/[^\w.-]+/g, '_') || 'server';
+        const nodeStream = createBackupStream(access.base, { raw, secrets });
+        request.signal.addEventListener('abort', () => nodeStream.destroy(), { once: true });
+
+        return new NextResponse(Readable.toWeb(nodeStream) as unknown as ReadableStream, {
             headers: {
                 'Content-Type': 'application/zip',
                 'Content-Disposition': `attachment; filename="${name}-backup.zip"`,
