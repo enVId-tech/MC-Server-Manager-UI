@@ -14,7 +14,7 @@ export interface Transition {
 
 /** How long a marker counts: a stop that takes longer than this is shown as what the container reports */
 const STOPPING_MS = 3 * 60_000;
-const STARTING_MS = 2 * 60_000;
+const STARTING_MS = 5 * 60_000;
 
 interface ContainerLike {
     State?: string;
@@ -37,8 +37,8 @@ export function statusFromContainer(container: ContainerLike | null | undefined,
     const running = state === 'running' || (!state && text.startsWith('up'));
     if (running) {
         if (stopping) return 'stopping';
-        // unhealthy contains "healthy", so it is checked first
-        if (text.includes('unhealthy')) return 'unhealthy';
+        // Containers created without a long start_period can report unhealthy during first-time jar/world init
+        if (text.includes('unhealthy')) return starting ? 'starting' : 'unhealthy';
         if (text.includes('health: starting')) return 'starting';
         return 'online';
     }

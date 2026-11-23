@@ -581,15 +581,9 @@ export class MinecraftServer {
                         `${this.config.SERVER_PORT || 25565}:25565`,
                         ...(this.config.ENABLE_RCON ? [`${this.config.RCON_PORT || 25575}:25575`] : [])
                     ],
-                    // The left side of the volume is the host path, the right side is the container path
+                    // `/data` holds plugins, mods, world and backups; mounting them separately makes itzg copy them over themselves on start
                     volumes: [
                         `${serverBasePath}/${this.folderName}:/data`,
-                        // Only add plugins volume if server type supports it
-                        ...(serverTypeConfig.definition.supportsPlugins ? [`${serverBasePath}/${this.folderName}/plugins:/plugins`] : []),
-                        // Only add mods volume if server type supports it
-                        ...(serverTypeConfig.definition.supportsMods ? [`${serverBasePath}/${this.folderName}/mods:/mods`] : []),
-                        `${serverBasePath}/${this.folderName}/world:/world`,
-                        `${serverBasePath}/${this.folderName}/backups:/backups`,
                     ],
                     // DNS servers for the container. Needed when the host's resolver is not reachable from inside Docker
                     // (the image then cannot download the server: "Failed to resolve launchermeta.mojang.com").
@@ -614,6 +608,13 @@ export class MinecraftServer {
                         'minecraft.server.name': this.serverName,
                         'minecraft.server.version': this.config.VERSION || 'LATEST',
                         'minecraft.server.type': serverTypeConfig.type
+                    },
+                    healthcheck: {
+                        test: ['CMD', 'mc-health'],
+                        interval: '15s',
+                        timeout: '10s',
+                        retries: 5,
+                        start_period: '5m',
                     }
                 }
             },
@@ -622,13 +623,6 @@ export class MinecraftServer {
                     driver: 'bridge'
                 },
                 ...proxyNetworks
-            },
-            volumes: {
-                [`${this.uniqueId}-data`]: {},
-                [`${this.uniqueId}-plugins`]: {},
-                [`${this.uniqueId}-mods`]: {},
-                [`${this.uniqueId}-world`]: {},
-                [`${this.uniqueId}-backups`]: {}
             }
         };
 
@@ -671,11 +665,11 @@ export class MinecraftServer {
             MEMORY: memory,
             INIT_MEMORY: memory,
             MAX_MEMORY: memory,
-            JVM_OPTS: '-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200',
             USE_AIKAR_FLAGS: 'true',
             ENABLE_ROLLING_LOGS: 'true', // Enable log rotation to prevent disk fill
             USE_FLARE_FLAGS: 'true', // Use optimized JVM flags
             OVERRIDE_SERVER_PROPERTIES: 'true', // Apply the settings made in the manager to server.properties
+            SKIP_DOWNLOAD_DEFAULTS: 'true', // Paper/Spigot generate their own config defaults locally without remote GitHub fetches
             FORCE_REDOWNLOAD: 'false', // Don't force redownload
             ENABLE_AUTOPAUSE: 'false', // Autopause needs extra privileges, so it is opt in
             EXISTING_EULA_FILE: 'SKIP', // Skip EULA file creation if it exists

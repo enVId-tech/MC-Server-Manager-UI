@@ -659,7 +659,7 @@ export class PortainerApiClient {
 
         // Parse Docker Compose to extract container configuration
         const envVars: string[] = [];
-        const envMatch = composeContent.match(/environment:\s*([\s\S]*?)(?=\s*ports:|volumes:|restart:|networks:|$)/);
+        const envMatch = composeContent.match(/environment:\s*([\s\S]*?)(?=\s*ports:|volumes:|restart:|networks:|healthcheck:|dns:|cap_add:|$)/);
         if (envMatch) {
             const envSection = envMatch[1];
             const envLines = envSection.split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#') && !line.startsWith('-'));
@@ -696,7 +696,7 @@ export class PortainerApiClient {
 
         // Extract volume mounts
         const binds: string[] = [];
-        const volumesMatch = composeContent.match(/volumes:\s*([\s\S]*?)(?=\s*restart:|networks:|environment:|ports:|$)/);
+        const volumesMatch = composeContent.match(/volumes:\s*([\s\S]*?)(?=\s*restart:|networks:|environment:|ports:|healthcheck:|dns:|cap_add:|$)/);
         if (volumesMatch) {
             const volumesSection = volumesMatch[1];
             const volumeLines = volumesSection.split('\n').map(line => line.trim()).filter(line => line.startsWith('-'));
@@ -714,12 +714,22 @@ export class PortainerApiClient {
         console.log(`   Port bindings:`, Object.keys(portBindings));
         console.log(`   Volume binds:`, binds);
 
+        const imageMatch = composeContent.match(/^\s*image:\s*['"]?([^\s'"]+)['"]?/m);
+        const imageName = imageMatch?.[1] || 'itzg/minecraft-server:latest';
+
         // Create container payload
         const containerPayload = {
-            Image: 'itzg/minecraft-server:latest',
+            Image: imageName,
             name: serviceName,
             Env: envVars,
             ExposedPorts: exposedPorts,
+            Healthcheck: {
+                Test: ['CMD', 'mc-health'],
+                Interval: 15_000_000_000,
+                Timeout: 10_000_000_000,
+                Retries: 5,
+                StartPeriod: 300_000_000_000,
+            },
             HostConfig: {
                 PortBindings: portBindings,
                 Binds: binds,
