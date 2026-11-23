@@ -217,12 +217,13 @@ export default function Dashboard() {
         }
     };
 
-    const handleDownloadServer = async () => {
-        if (!serverToDelete) return;
+    const handleDownloadServer = async (): Promise<boolean> => {
+        if (!serverToDelete) return false;
 
         setIsDownloading(true);
 
         try {
+            // Prepare download
             const response = await fetch('/api/server/manage/download', {
                 method: 'POST',
                 headers: {
@@ -232,32 +233,49 @@ export default function Dashboard() {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.message || 'Failed to prepare download');
             }
 
             const data = await response.json();
             const downloadUrl = data.downloadInfo.downloadUrl;
 
+            // Fetch the zip to completion so deletion never wipes the server folder mid-stream
+            const archiveResponse = await fetch(downloadUrl);
+            if (!archiveResponse.ok) {
+                const errorData = await archiveResponse.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Failed to download server backup');
+            }
+
+            const blob = await archiveResponse.blob();
+            if (blob.size === 0) {
+                throw new Error('Downloaded backup archive was empty.');
+            }
+
+            const safeName = serverToDelete.name.replace(/[^\w.-]+/g, '_') || 'server';
+            const objectUrl = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = downloadUrl;
-            a.download = `${serverToDelete.name}-${serverToDelete.id}.tar`;
+            a.href = objectUrl;
+            a.download = `${safeName}-backup.zip`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 
             showNotification({
                 type: 'success',
-                title: 'Download Started',
-                message: 'Your server files are being downloaded.'
+                title: 'Download Complete',
+                message: 'Your server backup zip has been downloaded.'
             });
+            return true;
         } catch (error) {
             console.error('Error downloading server:', error);
             showNotification({
                 type: 'error',
                 title: 'Download Failed',
-                message: 'Failed to download server. Please try again.'
+                message: error instanceof Error ? error.message : 'Failed to download server. Please try again.'
             });
+            return false;
         } finally {
             setIsDownloading(false);
         }
@@ -265,8 +283,10 @@ export default function Dashboard() {
 
     const handleConfirmDelete = async () => {
         if (serverToDelete && deleteConfirmationInput === serverToDelete.subdomainName) {
+            // If user wants to download first, finish downloading before deleting the folder
             if (wantsDownload && !isDownloading) {
-                await handleDownloadServer();
+                const downloaded = await handleDownloadServer();
+                if (!downloaded) return;
             }
 
             setIsDeleting(true);
