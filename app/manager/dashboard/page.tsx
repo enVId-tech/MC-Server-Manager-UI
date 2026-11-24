@@ -138,15 +138,21 @@ export default function Dashboard() {
         const interval = setInterval(() => {
             checkAuth();
             fetchServerTypes();
-        }, 60 * 1000);
+        }, 15 * 1000);
+
+        const onVisible = () => {
+            if (document.visibilityState === 'visible') fetchServerTypes();
+        };
 
         checkAuth();
         fetchServerTypes();
 
         window.addEventListener('cookies', checkAuth);
+        document.addEventListener('visibilitychange', onVisible);
 
         return () => {
             window.removeEventListener('cookies', checkAuth);
+            document.removeEventListener('visibilitychange', onVisible);
             clearInterval(interval);
         };
     }, [router]);
@@ -441,8 +447,9 @@ export default function Dashboard() {
 
     const onlineCount = servers.filter(server => server.status === 'online').length;
     const offlineCount = servers.filter(server => server.status === 'offline' || server.status === 'crashed').length;
-    const playersNow = servers.reduce((sum, server) => sum + (Number(server.players) || 0), 0);
-    const playerCapacity = servers.reduce((sum, server) => sum + (Number(server.maxPlayers) || 0), 0);
+    const activeServers = servers.filter(server => server.status === 'online' || server.status === 'unhealthy');
+    const playersNow = activeServers.reduce((sum, server) => sum + (Number(server.players) || 0), 0);
+    const playerCapacity = activeServers.reduce((sum, server) => sum + (Number(server.maxPlayers) || 0), 0);
     const capacityPercent = playerCapacity > 0 ? Math.min(100, Math.round((playersNow / playerCapacity) * 100)) : 0;
 
     const visibleServers = servers

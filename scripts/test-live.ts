@@ -28,6 +28,7 @@ const log = [
     '[10:07:00] [Server thread/INFO]: <Notch> hello [Steve: not a join]',
 ].join('\n');
 assert.deepEqual(playersFromLog(log), ['Notch', '.FloodUser']);
+assert.deepEqual(playersFromLog('[00:12:00 INFO]: Alex joined the game\n[00:13:00 INFO]: Alex lost connection: Disconnected'), [], 'lost connection clears player even without left the game');
 assert.deepEqual(playersFromLog('[proxy] Alex (/1.2.3.4:5555) has connected\n[proxy] Alex (/1.2.3.4:5555) has disconnected\n[proxy] Bo (/1.2.3.5:1) has connected'), ['Bo']);
 
 // CPU needs two samples and is shown in percent of a core

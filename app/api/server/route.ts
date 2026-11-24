@@ -53,7 +53,10 @@ export async function GET(request: NextRequest) {
             const name = getContainerName(server);
             return containersByEnvironment.get(server.environmentId ?? defaultEnvironment)?.find(candidate => candidate.Names?.some(item => item.replace(/^\//, '') === name));
         };
-        const online = servers.filter(server => liveStatus(server) === 'online');
+        const online = servers.filter(server => {
+            const status = liveStatus(server);
+            return status === 'online' || status === 'unhealthy';
+        });
         const live = new Map<string, { online: number; max: number | null }>();
         const queue = [...online];
         const worker = async () => {
@@ -64,7 +67,7 @@ export async function GET(request: NextRequest) {
                     const environmentId = await portainer.getValidEnvironmentId(server.environmentId ?? defaultEnvironment);
                     const count = await Promise.race([
                         getPlayers(container.Id, environmentId),
-                        new Promise<null>(resolve => setTimeout(() => resolve(null), 4000)),
+                        new Promise<null>(resolve => setTimeout(() => resolve(null), 8000)),
                     ]);
                     if (count) live.set(server.uniqueId, { online: count.online, max: count.max });
                 } catch { /* shown as 0 */ }

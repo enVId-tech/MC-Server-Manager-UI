@@ -67,7 +67,7 @@ export function playersFromLog(log: string): string[] {
         if (/Starting minecraft server version|Starting Velocity|Listening on \/|\[Server thread\/INFO\]: Starting Minecraft server on/i.test(line)) online.clear();
         const joined = /(?:\]: |^|\s)([.*A-Za-z0-9_]{1,17}) joined the game/.exec(line) ?? /([.*A-Za-z0-9_]{1,17}) \(\/[^)]*\) has connected/.exec(line);
         if (joined) { online.add(joined[1]); continue; }
-        const left = /(?:\]: |^|\s)([.*A-Za-z0-9_]{1,17}) left the game/.exec(line) ?? /([.*A-Za-z0-9_]{1,17}) \(\/[^)]*\) has disconnected/.exec(line);
+        const left = /(?:\]: |^|\s)([.*A-Za-z0-9_]{1,17}) (?:left the game|lost connection:)/.exec(line) ?? /([.*A-Za-z0-9_]{1,17}) \(\/[^)]*\) has disconnected/.exec(line);
         if (left) online.delete(left[1]);
     }
     return [...online];
@@ -149,7 +149,8 @@ export function getPlayers(containerId: string, environmentId: number, options: 
         // 1. A status ping. Nothing is written to the log, so asking often does not fill it.
         if (!options.wantNames) {
             try {
-                const ping = await exec(containerId, environmentId, 'mc-monitor status --host 127.0.0.1 --port "${SERVER_PORT:-25565}" 2>&1');
+                const pingCmd = 'p="${SERVER_PORT:-}"; [ -z "$p" ] && [ -f /data/server.properties ] && p=$(sed -n \'s/^[[:space:]]*server-port[[:space:]]*=[[:space:]]*//p\' /data/server.properties | tr -d \'\\r\' | head -n1); mc-monitor status --host 127.0.0.1 --port "${p:-25565}" 2>&1';
+                const ping = await exec(containerId, environmentId, pingCmd);
                 const parsed = parsePing(ping.output);
                 if (parsed) return { online: parsed.online, max: parsed.max, names: null, source: 'ping' } satisfies PlayerCount;
             } catch { /* try the next way */ }

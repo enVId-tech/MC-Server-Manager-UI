@@ -109,6 +109,7 @@ export class PortainerApiClient {
     private authToken: string | null;
     private defaultEnvironmentId: number | null;
     private _environmentIdValidated: boolean = false;
+    private validEnvironmentIds: { ids: Set<number>; at: number } | null = null;
     public axiosInstance: AxiosInstance;
 
     /**
@@ -255,24 +256,31 @@ export class PortainerApiClient {
      */
     async getValidEnvironmentId(requestedId?: number | null): Promise<number> {
         const envId = requestedId ?? this.defaultEnvironmentId;
-        
-        // If we have no ID or we haven't validated yet, discover one
-        if (envId === null || !this._environmentIdValidated) {
-            const validId = await this.getFirstEnvironmentId();
-            if (validId === null) {
+        const cached = this.validEnvironmentIds;
+        if (!cached || Date.now() - cached.at > 60_000) {
+            const environments = await this.getEnvironments();
+            const ids = new Set(environments.map(env => env.Id));
+            this.validEnvironmentIds = { ids, at: Date.now() };
+            const firstId = environments[0]?.Id ?? null;
+            if (firstId === null) {
                 throw new Error('No valid Portainer environment found');
             }
-            
-            // Update the default if it was null or invalid
-            if (this.defaultEnvironmentId === null || this.defaultEnvironmentId !== validId) {
-                console.log(`Updating default environment ID from ${this.defaultEnvironmentId} to ${validId}`);
-                this.defaultEnvironmentId = validId;
+            if (this.defaultEnvironmentId === null || !ids.has(this.defaultEnvironmentId)) {
+                console.log(`Updating default environment ID from ${this.defaultEnvironmentId} to ${firstId}`);
+                this.defaultEnvironmentId = firstId;
             }
             this._environmentIdValidated = true;
-            return validId;
+            return envId !== null && ids.has(envId) ? envId : firstId;
         }
-        
-        return envId;
+
+        if (envId !== null && cached.ids.has(envId)) {
+            return envId;
+        }
+        const firstId = [...cached.ids][0];
+        if (firstId === undefined) {
+            throw new Error('No valid Portainer environment found');
+        }
+        return firstId;
     }
 
     /**
