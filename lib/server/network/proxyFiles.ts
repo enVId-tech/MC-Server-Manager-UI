@@ -165,12 +165,14 @@ export async function inspectProxy(ref: ProxyRef): Promise<ProxyInspection> {
     }
 }
 
-/** Reads, changes and writes the proxy configuration while no other change to it is running */
-export async function editProxyConfig(ref: ProxyRef, change: (content: string) => string): Promise<void> {
-    await withFileLock(ref.proxy.configPath, async () => {
+/** Reads, changes and writes the proxy configuration while no other change to it is running. True when the file changed */
+export async function editProxyConfig(ref: ProxyRef, change: (content: string) => string): Promise<boolean> {
+    return withFileLock(ref.proxy.configPath, async () => {
         const content = await readText(ref.proxy.configPath);
         if (content === null) throw new Error(`The configuration file ${ref.proxy.configPath} was not found`);
         const next = change(content);
-        if (next !== content) await serverStorage.uploadFile(ref.proxy.configPath, next, true);
+        if (next === content) return false;
+        await serverStorage.uploadFile(ref.proxy.configPath, next, true);
+        return true;
     });
 }

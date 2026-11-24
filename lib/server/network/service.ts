@@ -407,7 +407,7 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
         const taken: Array<{ host: string; leadsTo: string[] }> = [];
         try {
             const stale = entriesFor(proxy, getContainerName(server)).filter(name => name !== entryName);
-            await editProxyConfig(ref, content => {
+            const configChanged = await editProxyConfig(ref, content => {
                 const entry = { name: entryName, address, hostnames: hostnamesFor(server, proxy) };
                 taken.length = 0;
                 // Entries of this server under an older name are replaced by the current one
@@ -424,7 +424,7 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
                 details.push(`Left the forced host ${item.host} on ${proxy.name} alone: it leads to ${item.leadsTo.join(', ')}`);
                 takenNotes.push(`${item.host} on ${proxy.name}`);
             }
-            changed.add(proxy.id);
+            if (configChanged) changed.add(proxy.id);
             links.push({ proxyId: proxy.id, proxyName: proxy.name, entryName, networkName: proxy.networkName, forwarding: proxy.forwarding, linkedAt: previousLinks.find(link => link.proxyId === proxy.id)?.linkedAt ?? new Date() });
             details.push(`Added to ${proxy.name}`);
 
@@ -483,7 +483,8 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
                 }
                 if (modded.announceForge) {
                     const ref = { uniqueId: proxy.id, serverName: proxy.name, folderPath: proxy.folder, port: proxy.port, proxy: { type: proxy.kind, configPath: proxy.configPath } } as ProxyRef;
-                    await editProxyConfig(ref, content => setTomlKey(content, null, 'announce-forge', true)).then(() => changed.add(proxy.id)).catch(() => undefined);
+                    const updated = await editProxyConfig(ref, content => setTomlKey(content, null, 'announce-forge', true)).catch(() => false);
+                    if (updated) changed.add(proxy.id);
                 }
             }
         }
@@ -499,14 +500,21 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
         }
     }
 
-    // Plugins are only loaded when the proxy starts
+    // Plugins are only loaded when the proxy starts; skip the automatic restart when players are connected
     for (const id of proxiesToRestart) {
         const proxy = proxies.find(candidate => candidate.id === id);
         if (!proxy) continue;
         try {
             const envId = options.environmentId ?? await getEnvironmentId();
             const container = await portainer.getContainerByIdentifier(proxy.containerName, envId);
-            if (container?.State === 'running') await portainer.restartContainer(container.Id, envId, 30);
+            if (container?.State === 'running') {
+                const playersOnline = await velocityService.hasConnectedPlayers(container.Id, envId);
+                if (playersOnline === true || (velocityService.getReloadFallback() === 'none' && playersOnline !== false)) {
+                    details.push(`Skipped restarting ${proxy.name} while players may be connected; restart it manually when convenient to load newly installed plugins`);
+                    continue;
+                }
+                await portainer.restartContainer(container.Id, envId, 30);
+            }
             changed.delete(id);
         } catch (error) {
             details.push(`Could not restart ${proxy.name}: ${error instanceof Error ? error.message : 'unknown error'}`);

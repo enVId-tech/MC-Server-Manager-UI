@@ -194,7 +194,14 @@ export default function SettingsSection() {
                             <dt>Configuration file</dt>
                             <dd className={styles.mono}>{data.settings.velocityConfigPath ?? 'Found automatically'}</dd>
                             <dt>If a reload fails</dt>
-                            <dd>{data.settings.velocityReloadFallback === 'restart' ? 'Restart Velocity (players are disconnected)' : 'Leave it until the next restart'} <span className={styles.mutedText}>(VELOCITY_RELOAD_FALLBACK)</span></dd>
+                            <dd>
+                                {data.settings.velocityReloadFallback === 'restart'
+                                    ? 'Restart Velocity (players are disconnected)'
+                                    : data.settings.velocityReloadFallback === 'if-empty'
+                                        ? 'Restart only when no players are connected'
+                                        : 'Leave it until the next restart (never kick players)'}{' '}
+                                <span className={styles.mutedText}>(VELOCITY_RELOAD_FALLBACK)</span>
+                            </dd>
                         </dl>
                     </section>
 

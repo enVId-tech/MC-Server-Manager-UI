@@ -26,7 +26,7 @@ For a server's first start the config files do not exist yet, so the manager rem
 When a server is added or removed the manager updates `velocity.toml` and sends `velocity reload` to the proxy console. Velocity re-reads its server list without disconnecting anyone.
 
 > [!NOTE]
-> The proxy container needs `stdin_open: true` (proxies created by the manager have it) or the `mc-send-to-console` helper. If the command cannot be delivered the proxy is restarted, which does disconnect players. Set `VELOCITY_RELOAD_FALLBACK=none` to never do that.
+> The proxy container needs `stdin_open: true` (proxies created by the manager have it) or the `mc-send-to-console` helper. When console reload fails, Velocity is left running by default (`VELOCITY_RELOAD_FALLBACK=none`) so players are never kicked; set `VELOCITY_RELOAD_FALLBACK=if-empty` to restart only when no players are connected, or `restart` to always restart.
 
 ## No fallback
 

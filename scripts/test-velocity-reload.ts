@@ -1,6 +1,6 @@
 /**
  * Checks how the manager makes Velocity pick up velocity.toml changes: a console reload that keeps players
- * connected, a restart only as fallback, and the shell command that delivers it.
+ * connected (via exec helper or Docker attach), and safe fallback policies that avoid kicking players.
  *
  * Run with: npm run test:velocity-reload
  */
@@ -14,12 +14,14 @@ process.env.STORAGE_BACKEND = 'local';
 
 type Stubbed = {
     executeCommand: unknown;
+    sendContainerInput: unknown;
     getContainerLogs: unknown;
     restartContainer: unknown;
     getContainers: unknown;
 };
 const original = {
     executeCommand: portainer.executeCommand,
+    sendContainerInput: portainer.sendContainerInput,
     getContainerLogs: portainer.getContainerLogs,
     restartContainer: portainer.restartContainer,
     getContainers: portainer.getContainers,
@@ -39,17 +41,31 @@ async function check(name: string, run: () => Promise<void>) {
 
 async function main() {
     let commands: string[] = [];
+    let attaches: string[] = [];
     let restarts = 0;
     let logs = 'booting';
 
-    const setup = (exitCode: number, replyInLog: boolean) => {
+    const setup = (
+        exitCode: number,
+        replyInLog: boolean,
+        options: { attachWorks?: boolean; initialLogs?: string } = {}
+    ) => {
         commands = [];
+        attaches = [];
         restarts = 0;
-        logs = 'booting';
+        logs = options.initialLogs ?? 'booting';
         stub.executeCommand = async (_id: string, command: string) => {
             commands.push(command);
             if (exitCode === 0 && replyInLog) logs += '\nVelocity configuration successfully reloaded.';
             return { output: '', exitCode };
+        };
+        stub.sendContainerInput = async (_id: string, command: string) => {
+            attaches.push(command);
+            if (options.attachWorks) {
+                if (replyInLog) logs += '\n[INFO]: Reloaded configuration.';
+                return { sent: true };
+            }
+            return { sent: false, error: 'The proxy has no console input (stdin_open: true is off).' };
         };
         stub.getContainerLogs = async () => logs;
         stub.restartContainer = async () => { restarts++; };
@@ -65,6 +81,24 @@ async function main() {
         assert.ok(commands[0].includes("'velocity reload'"));
     });
 
+    await check('falls back to Docker attach when exec input fails (such as tty: true proxies)', async () => {
+        setup(3, true, { attachWorks: true });
+        const result = await velocity.reloadVelocity('abc', 1);
+        assert.equal(result.success, true);
+        assert.equal(result.method, 'reload');
+        assert.equal(result.confirmed, true);
+        assert.equal(restarts, 0);
+        assert.deepEqual(attaches, ['velocity reload']);
+    });
+
+    await check('an echoed command without confirmation is not treated as confirmed', async () => {
+        setup(3, false, { attachWorks: true, initialLogs: 'booting\n> velocity reload' });
+        const result = await velocity.reloadVelocity('abc', 1);
+        assert.equal(result.method, 'reload');
+        assert.equal(result.confirmed, false);
+        assert.equal(restarts, 0);
+    });
+
     await check('a delivered but unconfirmed reload does not restart the proxy', async () => {
         setup(0, false);
         const result = await velocity.reloadVelocity('abc', 1);
@@ -73,37 +107,52 @@ async function main() {
         assert.equal(restarts, 0);
     });
 
-    await check('a proxy without console input is restarted by default', async () => {
+    await check('a proxy without console input is not restarted by default so backend players stay connected', async () => {
         delete process.env.VELOCITY_RELOAD_FALLBACK;
-        setup(3, false);
-        const result = await velocity.reloadVelocity('abc', 1);
-        assert.equal(result.method, 'restart');
-        assert.equal(restarts, 1);
-    });
-
-    await check('the restart fallback can be switched off', async () => {
-        process.env.VELOCITY_RELOAD_FALLBACK = 'none';
         setup(3, false);
         const result = await velocity.reloadVelocity('abc', 1);
         assert.equal(result.success, false);
         assert.equal(result.method, 'none');
         assert.equal(restarts, 0);
+    });
+
+    await check('if-empty restarts only when no connected players appear in logs', async () => {
+        process.env.VELOCITY_RELOAD_FALLBACK = 'if-empty';
+        setup(3, false, { initialLogs: 'booting\nSteve (/1.2.3.4:1234) has connected' });
+        const blocked = await velocity.reloadVelocity('abc', 1);
+        assert.equal(blocked.method, 'none');
+        assert.equal(restarts, 0);
+
+        setup(3, false, { initialLogs: 'booting\nSteve (/1.2.3.4:1234) has connected\nSteve (/1.2.3.4:1234) has disconnected' });
+        const allowed = await velocity.reloadVelocity('abc', 1);
+        assert.equal(allowed.method, 'restart');
+        assert.equal(restarts, 1);
         delete process.env.VELOCITY_RELOAD_FALLBACK;
     });
 
-    await check('the generated shell script is valid and writes to the process input', async () => {
+    await check('explicit restart fallback restarts when requested', async () => {
+        process.env.VELOCITY_RELOAD_FALLBACK = 'restart';
+        setup(3, false);
+        const result = await velocity.reloadVelocity('abc', 1);
+        assert.equal(result.success, true);
+        assert.equal(result.method, 'restart');
+        assert.equal(restarts, 1);
+        delete process.env.VELOCITY_RELOAD_FALLBACK;
+    });
+
+    await check('the generated shell script is valid and guards against TTY writes', async () => {
         setup(0, true);
-        await velocity.sendConsoleCommand('abc', "velocity reload", 1);
+        await velocity.sendConsoleCommand('abc', 'velocity reload', 1);
         const script = commands[0];
         execFileSync('sh', ['-n', '-c', script]); // syntax check only
         assert.ok(script.includes('mc-send-to-console'));
         assert.ok(script.includes('/proc/1/fd/0'));
+        assert.ok(script.includes('[ ! -t 0 ]'));
     });
 
-    await check('the script really delivers the command to a writable input', async () => {
+    await check('the script really delivers the command to a non-TTY writable input', async () => {
         setup(0, true);
-        await velocity.sendConsoleCommand('abc', "velocity reload", 1);
-        // swap the input of the main process for a temporary file and run the script as it would run in the container
+        await velocity.sendConsoleCommand('abc', 'velocity reload', 1);
         const script = commands[0].replace(/\/proc\/1\/fd\/0/g, '/tmp/velocity-reload-input').replace(/command -v mc-send-to-console/, 'command -v mc-send-to-console-not-installed');
         execFileSync('sh', ['-c', 'touch /tmp/velocity-reload-input']);
         execFileSync('sh', ['-c', script]);

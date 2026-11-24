@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
                 serverDomain: getServerDomain(),
                 containerUser: `${process.env.CONTAINER_UID || '1000'}:${process.env.CONTAINER_GID || '1000'}`,
                 containerDns: process.env.CONTAINER_DNS || null,
-                velocityReloadFallback: process.env.VELOCITY_RELOAD_FALLBACK || 'restart',
+                velocityReloadFallback: process.env.VELOCITY_RELOAD_FALLBACK || 'none',
                 velocityConfigPath: process.env.VELOCITY_CONFIG_PATH || null,
                 deleteServerFolders: (process.env.DELETE_SERVER_FOLDERS ?? '').toLowerCase() === 'true',
             },

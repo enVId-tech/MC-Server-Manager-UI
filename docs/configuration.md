@@ -55,7 +55,7 @@ All configuration is through environment variables (`.env.local` when running fr
 | --- | --- |
 | `VELOCITY_IMAGE`, `BUNGEE_IMAGE` | Images for proxies created in the Proxies tab. |
 | `VELOCITY_CONFIG_PATH` | `velocity.toml` to use. Without it the existing Velocity is found automatically. |
-| `VELOCITY_RELOAD_FALLBACK` | `restart` (default) or `none`: what to do when `velocity reload` cannot be delivered. |
+| `VELOCITY_RELOAD_FALLBACK` | `none` (default), `if-empty`, or `restart`: what to do when `velocity reload` cannot be delivered. |
 | `IMPORT_SCAN_PATHS` | Comma separated folders that hold servers or a proxy, for example `/imports=/mnt/ssd/docker`. |
 | `PROXY_SCAN_PARENT` | `false` stops looking in the folder above the storage folder. |
 | `PROXIES_CONFIG_PATH` | Location of proxy definitions from older versions; they are imported into the Proxies tab. |

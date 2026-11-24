@@ -2,6 +2,8 @@ import serverStorage from '@/lib/server/storage';
 import portainer from '@/lib/server/portainer';
 import { buildServerHostname } from '@/lib/config/domain';
 import { resolveVelocityConfigPath } from '@/lib/server/velocityDiscovery';
+import { consoleInputScript } from '@/lib/server/consoleCommands';
+import { playersFromLog } from '@/lib/server/liveStats';
 
 function escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1108,33 +1110,61 @@ show-plugins = false
     }
 
     /**
+     * Policy when a proxy cannot be reloaded live via console input:
+     *   none     (default) leave the proxy running so connected players are never disconnected
+     *   if-empty restart only when no connected players are found in proxy logs
+     *   restart  always restart the container (disconnects all players on the proxy)
+     */
+    getReloadFallback(): 'none' | 'if-empty' | 'restart' {
+        const value = (process.env.VELOCITY_RELOAD_FALLBACK ?? 'none').trim().toLowerCase();
+        if (value === 'restart' || value === 'if-empty' || value === 'none') return value;
+        return 'none';
+    }
+
+    /** True when the container log currently shows at least one connected player, null if unreadable */
+    async hasConnectedPlayers(containerId: string, environmentId: number = 1): Promise<boolean | null> {
+        try {
+            const logs = await portainer.getContainerLogs(containerId, environmentId, 500);
+            return playersFromLog(logs).length > 0;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
      * Sends a command to the console of a Velocity container.
      *
-     * Velocity has no remote console of its own, so the command goes in through the process input: the helper of
-     * the itzg proxy images when the image has it, otherwise a write to the input of the main process, which works
-     * when the container was started with stdin open (stdin_open: true).
+     * Tries the in-container helper (`mc-send-to-console`) or a non-TTY process input first, then falls back to
+     * Docker container attach (`stdin=1&stream=1`), which delivers input even for `tty: true` images without
+     * `mc-send-to-console` such as `envidtech/velocity`.
      */
     async sendConsoleCommand(
         containerId: string,
         command: string,
         environmentId: number = 1
     ): Promise<{ sent: boolean; error?: string }> {
-        const quoted = `'${command.replace(/'/g, `'\\''`)}'`;
-        const script = [
-            `if command -v mc-send-to-console >/dev/null 2>&1; then mc-send-to-console ${quoted}`,
-            `elif [ -w /proc/1/fd/0 ]; then printf '%s\\n' ${quoted} > /proc/1/fd/0`,
-            `else echo "no console input available" >&2; exit 3; fi`,
-        ].join('; ');
+        const script = consoleInputScript(command);
+        let execError: string | undefined;
 
         try {
             const result = await portainer.executeCommand(containerId, script, environmentId);
-            if (result.exitCode !== 0) {
-                return { sent: false, error: `The proxy has no console input (exit code ${result.exitCode}). Start it with stdin_open: true.` };
+            if (result.exitCode === 0) {
+                return { sent: true };
             }
-            return { sent: true };
+            execError = `The proxy has no writable exec console input (exit code ${result.exitCode}).`;
         } catch (error) {
-            return { sent: false, error: error instanceof Error ? error.message : 'Unknown error' };
+            execError = error instanceof Error ? error.message : 'Unknown error';
         }
+
+        if (typeof portainer.sendContainerInput === 'function') {
+            const attached = await portainer.sendContainerInput(containerId, command, environmentId);
+            if (attached.sent) {
+                return { sent: true };
+            }
+            return { sent: false, error: attached.error ?? execError ?? 'The proxy has no console input. Start it with stdin_open: true.' };
+        }
+
+        return { sent: false, error: execError ?? 'The proxy has no console input. Start it with stdin_open: true.' };
     }
 
     /**
@@ -1145,8 +1175,8 @@ show-plugins = false
      * only reads at startup (the bind port, forwarding mode and secret) need a restart, but this manager never
      * changes those.
      *
-     * When the command cannot be delivered the result says so. A restart is only done when
-     * VELOCITY_RELOAD_FALLBACK is `restart` (the default), because it disconnects every player on the proxy.
+     * When the command cannot be delivered the proxy is left running by default (`VELOCITY_RELOAD_FALLBACK=none`)
+     * so players connected through it are never disconnected.
      */
     async reloadVelocity(
         containerId: string,
@@ -1156,7 +1186,8 @@ show-plugins = false
         const countReloads = async () => {
             try {
                 const logs = await portainer.getContainerLogs(containerId, environmentId, 200);
-                return (logs.match(/reload/gi) ?? []).length;
+                // Match Velocity's reload confirmation without matching an echoed `velocity reload` command line
+                return (logs.match(/\b(?:reloaded|reloading)\b/gi) ?? []).length;
             } catch {
                 return null;
             }
@@ -1178,9 +1209,18 @@ show-plugins = false
 
         details.push(`Could not send the reload command: ${sent.error}`);
 
-        if ((process.env.VELOCITY_RELOAD_FALLBACK ?? 'restart').toLowerCase() !== 'restart') {
-            details.push('Velocity was not restarted (VELOCITY_RELOAD_FALLBACK is not "restart"); the new configuration applies at its next restart');
+        const fallback = this.getReloadFallback();
+        if (fallback === 'none') {
+            details.push('Velocity was not restarted so connected players stay online; restart it manually or run the proxy with stdin_open: true for live reloads');
             return { success: false, method: 'none', confirmed: false, details };
+        }
+
+        if (fallback === 'if-empty') {
+            const playersOnline = await this.hasConnectedPlayers(containerId, environmentId);
+            if (playersOnline !== false) {
+                details.push('Velocity was not restarted because players may be connected; the new configuration applies at its next restart');
+                return { success: false, method: 'none', confirmed: false, details };
+            }
         }
 
         try {
