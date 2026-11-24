@@ -7,8 +7,9 @@ import {
   PORT_RANGES, 
   getImportantPortNumbers, 
   isImportantPort, 
-  getPortDescription,
-  getPortReservationReason
+  isRestrictedPort,
+  getRestrictedPortReason,
+  getPortDescription
 } from '@/lib/config/portConfig';
 
 export interface PortAllocationResult {
@@ -90,12 +91,12 @@ export class PortManager {
     try {
       await dbConnect();
 
-      // 1. Check if port is an important/system port
-      if (isImportantPort(port)) {
+      // 1. Check if port is an important/restricted system or proxy port
+      if (isRestrictedPort(port)) {
         return {
           port,
           available: false,
-          reason: `Port ${port} is reserved: ${getPortDescription(port)} - ${getPortReservationReason(port)}`,
+          reason: getRestrictedPortReason(port) ?? `Port ${port} is restricted`,
           conflictType: 'important'
         };
       }
@@ -111,10 +112,18 @@ export class PortManager {
         };
       }
 
-      // 3. Check if port is recorded in database (excluding current server if specified)
-      const dbQuery = excludeServerId 
-        ? { $or: [{ port }, { rconPort: port }], uniqueId: { $ne: excludeServerId } }
-        : { $or: [{ port }, { rconPort: port }] };
+      // 3. Check if port is recorded in database (game, RCON, or proxy public/Bedrock ports)
+      const portMatch = {
+        $or: [
+          { port },
+          { rconPort: port },
+          { 'proxy.publicPort': port },
+          { 'proxy.bedrockPort': port },
+        ],
+      };
+      const dbQuery = excludeServerId
+        ? { ...portMatch, uniqueId: { $ne: excludeServerId } }
+        : portMatch;
       
       const existingServer = await Server.findOne(dbQuery);
       if (existingServer) {
@@ -207,7 +216,8 @@ export class PortManager {
     preferredPort?: number
   ): Promise<PortAllocationResult> {
     const run = async (): Promise<PortAllocationResult> => {
-      const result = await this.findFreePorts(userEmail, needsRcon, environmentId, preferredPort);
+      const validEnvId = await portainer.getValidEnvironmentId(environmentId).catch(() => environmentId);
+      const result = await this.findFreePorts(userEmail, needsRcon, validEnvId, preferredPort);
       if (result.success) this.reservePending(result.port, result.rconPort);
       return result;
     };
@@ -216,6 +226,17 @@ export class PortManager {
     const queued = this.allocationQueue.then(run, run);
     this.allocationQueue = queued.catch(() => undefined);
     return queued;
+  }
+
+  /** Finds a free port without reserving it in `pendingPorts` (for read-only availability checks) */
+  static async peekAvailablePort(
+    userEmail: string,
+    needsRcon: boolean = false,
+    environmentId: number = 1,
+    preferredPort?: number
+  ): Promise<PortAllocationResult> {
+    const validEnvId = await portainer.getValidEnvironmentId(environmentId).catch(() => environmentId);
+    return this.findFreePorts(userEmail, needsRcon, validEnvId, preferredPort);
   }
 
   private static async findFreePorts(
@@ -449,10 +470,10 @@ export class PortManager {
         errors.push(`Invalid range: start port ${range.start} is greater than end port ${range.end}`);
       }
 
-      // Check if range conflicts with important ports
+      // Check if range conflicts with important or restricted ports
       for (let port = range.start; port <= range.end; port++) {
-        if (isImportantPort(port)) {
-          errors.push(`Range ${range.start}-${range.end} conflicts with important port ${port}: ${getPortDescription(port)}`);
+        if (isImportantPort(port) || (port >= PORT_RANGES.VELOCITY_PROXY.start && port <= PORT_RANGES.VELOCITY_PROXY.end)) {
+          errors.push(`Range ${range.start}-${range.end} conflicts with reserved port ${port}: ${getRestrictedPortReason(port) ?? getPortDescription(port)}`);
         }
       }
 

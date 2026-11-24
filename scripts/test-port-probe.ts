@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import { canBind, checkPortOnNetwork, getProbeHosts, isListening } from '../lib/server/portProbe';
+import { isRestrictedPort } from '../lib/config/portConfig';
 
 async function freePort(): Promise<number> {
     return new Promise(resolve => {
@@ -43,6 +44,13 @@ async function main() {
     delete process.env.PORT_CHECK_HOSTS;
     process.env.PORTAINER_URL = 'https://docker-host.lan:9443';
     assert.deepEqual(getProbeHosts(), ['127.0.0.1', 'docker-host.lan']);
+
+    assert.equal(isRestrictedPort(25565), true, 'default 25565 port is restricted for game servers');
+    assert.equal(isRestrictedPort(25564), true, 'proxy range port is restricted for game servers');
+    assert.equal(isRestrictedPort(25575), true, 'default RCON fallback port is restricted');
+    assert.equal(isRestrictedPort(19132), true, 'default Bedrock port is restricted');
+    assert.equal(isRestrictedPort(80), true, 'system ports are restricted');
+    assert.equal(isRestrictedPort(25566), false, 'first game port 25566 is allowed');
 
     console.log('All port probe checks passed.');
 }

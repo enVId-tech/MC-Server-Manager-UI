@@ -7,6 +7,7 @@ import dbConnect from '@/lib/db/dbConnect';
 import PortManager from '@/lib/server/portManager';
 import type { PortAllocationResult } from '@/lib/server/portManager';
 import { buildServerHostname } from '@/lib/config/domain';
+import { isRestrictedPort, getRestrictedPortReason } from '@/lib/config/portConfig';
 
 export type { PortAllocationResult };
 
@@ -308,10 +309,14 @@ export class MinecraftServerManager {
                 return { success: false, error: 'Only administrators can reserve ports for users' };
             }
 
-            // Validate port range
-            const invalidPorts = ports.filter(port => port < 25565 || port > 25595);
+            // Validate port range and block restricted ports (such as 25565)
+            const restrictedPorts = ports.filter(port => isRestrictedPort(port));
+            if (restrictedPorts.length > 0) {
+                return { success: false, error: getRestrictedPortReason(restrictedPorts[0]) ?? `Restricted ports cannot be reserved: ${restrictedPorts.join(', ')}` };
+            }
+            const invalidPorts = ports.filter(port => port < 25566 || port > 25595);
             if (invalidPorts.length > 0) {
-                return { success: false, error: `Invalid ports: ${invalidPorts.join(', ')}. Ports must be in range 25565-25595` };
+                return { success: false, error: `Invalid ports: ${invalidPorts.join(', ')}. Ports must be in range 25566-25595` };
             }
 
             // Check if ports are already in use

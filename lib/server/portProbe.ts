@@ -22,6 +22,14 @@ export function getProbeHosts(): string[] {
     } catch {
         // an invalid PORTAINER_URL only means one probe target less
     }
+    try {
+        const dockerHost = process.env.DOCKER_HOST?.trim();
+        if (dockerHost && /^(?:tcp|http):\/\//i.test(dockerHost)) {
+            hosts.add(new URL(dockerHost.replace(/^tcp:/i, 'http:')).hostname);
+        }
+    } catch {
+        // ignore invalid DOCKER_HOST
+    }
     return [...hosts];
 }
 

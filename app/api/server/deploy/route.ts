@@ -19,6 +19,7 @@ import { safeJarName, userUploadPath } from '@/lib/server/uploadsDir';
 import { extractWorldZip, installWorld } from '@/lib/server/world/install';
 import { installFromLink } from '@/lib/server/addons/manager';
 import { subdomainLabel } from '@/lib/server/subdomain';
+import { isRestrictedPort } from '@/lib/config/portConfig';
 
 // Interface for server config as stored in database (with FileInfo instead of AnalyzedFile)
 interface DatabaseServerConfig {
@@ -215,7 +216,8 @@ export async function POST(request: NextRequest) {
         console.log(`Server config exists: ${!!server.serverConfig}`);
 
         // Check what steps need to be performed based on server state
-        const hasPort = !!server.port;
+        const rawInitialPort = Number(server.port);
+        const hasPort = Number.isInteger(rawInitialPort) && rawInitialPort > 0 && !isRestrictedPort(rawInitialPort);
         const hasFolder = true; // Assume folder exists if server was created with new flow
 
         console.log(`Server has port: ${hasPort}, has folder: ${hasFolder}`);
@@ -389,11 +391,13 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
         }
 
         // Check if server already has allocated ports and folder from new creation flow
+        // Also re-allocate if a stale record ever holds a restricted port such as 25565
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const hasPort = !!(server as any).port;
+        const rawPort = Number((server as any).port);
+        const hasPort = Number.isInteger(rawPort) && rawPort > 0 && !isRestrictedPort(rawPort);
         const hasFolder = true; // New servers created with updated flow have folders
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let allocatedPort = (server as any).port;
+        let allocatedPort = hasPort ? (server as any).port : undefined;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let allocatedRconPort = (server as any).rconPort;
 

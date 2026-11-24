@@ -10,6 +10,7 @@ import { publicSubdomain } from '@/lib/server/subdomain';
 import { getContainerName } from '@/lib/server/containerNames';
 import { discoverVelocityInstances } from '@/lib/server/velocityDiscovery';
 import { getServerType, isVelocityCompatible } from '@/lib/data/itzg/serverTypes';
+import { isRestrictedPort } from '@/lib/config/portConfig';
 
 /** A server that exists on this machine but is not in the dashboard yet. */
 export interface ImportCandidate {
@@ -317,9 +318,12 @@ export async function importCandidates(keys: string[], owner: IUser, environment
             const folder = await readFolder(candidate.folderPath);
             const properties = folder?.properties ?? {};
 
-            // The record's port is unique. Use the published one when it is free, otherwise take the next free one.
+            // The record's port is unique and must not sit on a restricted or colliding port.
             let port = candidate.port;
-            if (!port || (await Server.exists({ port }))) {
+            const conflict = port
+                ? isRestrictedPort(port) || Boolean(await Server.exists({ $or: [{ port }, { rconPort: port }] }))
+                : true;
+            if (!port || conflict) {
                 const allocation = await PortManager.allocatePort(owner.email, false, environmentId);
                 if (!allocation.success || !allocation.port) {
                     throw new Error(allocation.error || 'No free port is left for this server.');

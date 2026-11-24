@@ -51,6 +51,7 @@ async function main() {
     assert.equal(env.INIT_MEMORY, '1G', 'settings of the dashboard are kept');
     assert.ok(service.image.endsWith(':java21'), `java 21 image for 1.21.4, got ${service.image}`);
     assert.ok(service.ports.includes('25571:25565'), `the allocated port is published, got ${service.ports}`);
+    assert.ok(service.ports.includes('35566:25575'), `the allocated RCON port is published, got ${service.ports}`);
     assert.equal(service.labels['minecraft.server.type'], 'PAPER');
 
     console.log('All server record checks passed.');

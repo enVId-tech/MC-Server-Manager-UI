@@ -335,6 +335,7 @@ import { subdomainLabel } from '@/lib/server/subdomain';
 import portainer from './portainer';
 import { PortainerContainer } from './portainer';
 import serverStorage from './storage';
+import { isRestrictedPort, getRestrictedPortReason } from '@/lib/config/portConfig';
 import { getServerAppBase, getServerHostBase } from './serverPaths';
 import {
     OPTIONS as ITZG_OPTIONS,
@@ -815,6 +816,11 @@ export class MinecraftServer {
     }> {
         try {
             console.log('🚀 Starting Portainer deployment process...');
+
+            const hostPort = Number(this.config.SERVER_PORT);
+            if (!Number.isInteger(hostPort) || isRestrictedPort(hostPort)) {
+                throw new Error(getRestrictedPortReason(hostPort) ?? `Invalid or restricted host port: ${this.config.SERVER_PORT ?? 'unset'}`);
+            }
 
             // Ensure server directory exists with proper permissions
             await this.ensureServerDirectory();
@@ -1996,7 +2002,7 @@ export function convertClientConfigToServerConfig(clientConfig: ClientServerConf
         SPAWN_PROTECTION: clientConfig.spawnProtection,
         SERVER_PORT: clientConfig.port,
         ENABLE_RCON: clientConfig.rconEnabled,
-        RCON_PORT: 25575,
+        RCON_PORT: Number(clientConfig.rconPort) || 25575,
         RCON_PASSWORD: clientConfig.rconPassword || 'changeme',
         ITZG_OVERRIDES: overrides,
         SERVER_PROPERTIES: clientConfig.serverProperties,

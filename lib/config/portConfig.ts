@@ -68,12 +68,43 @@ export function getPortDescription(port: number): string | undefined {
   return importantPort?.description;
 }
 
+export const RESTRICTED_SERVICE_PORTS: ImportantPort[] = [
+  { port: 19132, description: 'Bedrock / Geyser Port', reason: 'Reserved for Bedrock proxy connections' },
+  { port: 25575, description: 'Default Minecraft RCON Port', reason: 'Reserved for default RCON fallback' },
+];
+
 /**
  * Get reason why a port is reserved
  */
 export function getPortReservationReason(port: number): string | undefined {
-  const importantPort = IMPORTANT_PORTS.find(p => p.port === port);
+  const importantPort = IMPORTANT_PORTS.find(p => p.port === port) ?? RESTRICTED_SERVICE_PORTS.find(p => p.port === port);
   return importantPort?.reason;
+}
+
+/**
+ * True when a port must never be allocated to a backend game server (system ports, proxy range including 25565,
+ * important service ports, Bedrock/RCON defaults, or ephemeral dynamic ports).
+ */
+export function isRestrictedPort(port: number): boolean {
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) return true;
+  if (port >= PORT_RANGES.EPHEMERAL.start) return true;
+  if (port >= PORT_RANGES.VELOCITY_PROXY.start && port <= 25565) return true;
+  if (RESTRICTED_SERVICE_PORTS.some(p => p.port === port)) return true;
+  return isImportantPort(port);
+}
+
+/** Human-readable explanation when `isRestrictedPort(port)` is true */
+export function getRestrictedPortReason(port: number): string | undefined {
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return `Port ${port} is outside valid port bounds (1-65535)`;
+  if (port < 1024) return `Port ${port} is a system privileged port (1-1023)`;
+  if (port >= PORT_RANGES.EPHEMERAL.start) return `Port ${port} is inside the ephemeral port range (${PORT_RANGES.EPHEMERAL.start}-65535)`;
+  if (isImportantPort(port)) return `Port ${port} is reserved: ${getPortDescription(port)} - ${getPortReservationReason(port)}`;
+  if (port >= PORT_RANGES.VELOCITY_PROXY.start && port <= PORT_RANGES.VELOCITY_PROXY.end) {
+    return `Port ${port} is reserved for Velocity/proxy instances (${PORT_RANGES.VELOCITY_PROXY.start}-${PORT_RANGES.VELOCITY_PROXY.end})`;
+  }
+  const extra = RESTRICTED_SERVICE_PORTS.find(p => p.port === port);
+  if (extra) return `Port ${port} is reserved: ${extra.description} - ${extra.reason}`;
+  return undefined;
 }
 
 /**

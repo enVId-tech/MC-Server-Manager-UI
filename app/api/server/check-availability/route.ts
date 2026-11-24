@@ -17,12 +17,14 @@ export async function GET(request: NextRequest) {
 
         const url = new URL(request.url);
         const needsRcon = url.searchParams.get('rcon') === 'true';
+        const environmentId = await portainer.getValidEnvironmentId(portainer.DefaultEnvironmentId);
 
-        // Allocate port for the user
-        const portAllocation = await MinecraftServerManager.allocatePort(
+        // Preview an available port without reserving it before creation is submitted
+        const { PortManager } = await import('@/lib/server/portManager');
+        const portAllocation = await PortManager.peekAvailablePort(
             user.email,
             needsRcon,
-            portainer.DefaultEnvironmentId || 1
+            environmentId
         );
 
         if (!portAllocation.success) {

@@ -18,6 +18,7 @@ import { setTomlValue } from './toml';
 import { checkProxyIdentity, normalizeBaseSubdomain, type ProxyIdentity } from './identity';
 import { forwardingModesFor, isForwardingMode, type ForwardingMode, type ProxyKind } from './versions';
 import YAML from 'yaml';
+import { checkPortOnNetwork } from '@/lib/server/portProbe';
 
 export interface CreateProxyInput {
     name: string;
@@ -345,11 +346,16 @@ interface Candidate {
     evidence?: string[];
 }
 
-async function freeProxyPort(preferred: number | undefined): Promise<number> {
+async function freeProxyPort(preferred: number | undefined, environmentId?: number): Promise<number> {
     const taken = new Set((await Server.find({}, 'port').lean<Array<{ port: number }>>()).map(entry => entry.port));
-    if (preferred && preferred >= 1024 && !taken.has(preferred)) return preferred;
-    for (let port = 25500; port <= 25564; port++) if (!taken.has(port)) return port;
-    for (let port = 26000; port <= 26999; port++) if (!taken.has(port)) return port;
+    if (environmentId !== undefined) {
+        const usedByDocker = await portainer.getUsedPorts(environmentId).catch(() => []);
+        usedByDocker.forEach(port => taken.add(port));
+    }
+    const isFree = async (candidate: number) => !taken.has(candidate) && (await checkPortOnNetwork(candidate)).free;
+    if (preferred && preferred >= 1024 && (await isFree(preferred))) return preferred;
+    for (let port = 25500; port <= 25564; port++) if (await isFree(port)) return port;
+    for (let port = 26000; port <= 26999; port++) if (await isFree(port)) return port;
     throw new Error('No free port to give the proxy a record');
 }
 
@@ -401,7 +407,7 @@ export function adoptExistingProxies(owner?: string, extra: ProxyFinding[] = [])
                 const uniqueId = `px${idSuffix}`;
                 const bind = 'bind' in summary ? summary.bind : summary.host;
                 const bindPort = parseInt(bind.split(':').pop() ?? '', 10);
-                const port = await freeProxyPort(candidate.port ?? (candidate.kind === 'velocity' ? bindPort : undefined));
+                const port = await freeProxyPort(candidate.port ?? (candidate.kind === 'velocity' ? bindPort : undefined), environmentId);
                 const name = candidate.containerName ?? `${candidate.kind}-${idSuffix}`;
 
                 if (!ownerEmail) {

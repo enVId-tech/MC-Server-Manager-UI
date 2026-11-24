@@ -5,6 +5,7 @@ import verificationService from "@/lib/server/verify";
 import PortManager from "@/lib/server/portManager";
 import BodyParser from "@/lib/db/bodyParser";
 import type { PortReservationRange } from "@/lib/objects/User";
+import { isRestrictedPort, getRestrictedPortReason } from "@/lib/config/portConfig";
 
 // GET - Get port usage report and availability (admin only)
 export async function GET(request: NextRequest) {
@@ -96,12 +97,13 @@ export async function POST(request: NextRequest) {
             // Add individual ports
             if (ports && Array.isArray(ports)) {
                 const invalidPorts = ports.filter((port: unknown) =>
-                    typeof port !== 'number' || port < 1024 || port > 65535
+                    typeof port !== 'number' || isRestrictedPort(port)
                 );
 
                 if (invalidPorts.length > 0) {
+                    const firstInvalid = Number(invalidPorts[0]);
                     return NextResponse.json({
-                        error: `Invalid ports: ${invalidPorts.join(', ')}. Ports must be numbers between 1024-65535.`
+                        error: (Number.isInteger(firstInvalid) ? getRestrictedPortReason(firstInvalid) : undefined) ?? `Invalid or restricted ports: ${invalidPorts.join(', ')}.`
                     }, { status: 400 });
                 }
 
