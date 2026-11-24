@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import crypto from 'crypto';
 import http from 'http';
 import https from 'https';
 import { config } from 'dotenv';
@@ -68,6 +69,7 @@ export interface PortainerContainer {
         Memory?: number;
         CpuQuota?: number;
         CpuPeriod?: number;
+        PortBindings?: Record<string, Array<{ HostPort?: string }> | null>;
         RestartPolicy?: {
             Name: string;
             MaximumRetryCount?: number;
@@ -1370,10 +1372,12 @@ export class PortainerApiClient {
             const usedPorts: number[] = [];
 
             for (const container of containers) {
+                let foundContainerPort = false;
                 if (container.Ports) {
                     for (const port of container.Ports) {
                         if (port.PublicPort) {
                             usedPorts.push(port.PublicPort);
+                            foundContainerPort = true;
                         }
                     }
                 }
@@ -1385,9 +1389,31 @@ export class PortainerApiClient {
                             for (const mapping of portMappings) {
                                 if (mapping.HostPort) {
                                     usedPorts.push(parseInt(mapping.HostPort));
+                                    foundContainerPort = true;
                                 }
                             }
                         }
+                    }
+                }
+
+                const collectPortBindings = (bindings?: Record<string, Array<{ HostPort?: string }> | null>) => {
+                    if (!bindings) return;
+                    for (const mappings of Object.values(bindings)) {
+                        for (const mapping of mappings ?? []) {
+                            const hostPort = Number.parseInt(mapping.HostPort ?? '', 10);
+                            if (Number.isInteger(hostPort) && hostPort > 0) usedPorts.push(hostPort);
+                        }
+                    }
+                };
+
+                collectPortBindings(container.HostConfig?.PortBindings);
+                // Stopped/created containers omit Ports in the list response; inspect them so reserved bindings stay protected
+                if (!foundContainerPort && container.State !== 'running') {
+                    try {
+                        const details = await this.getContainerDetails(container.Id, environmentId);
+                        collectPortBindings(details.HostConfig?.PortBindings);
+                    } catch {
+                        // Ignore containers that vanish during inspection
                     }
                 }
             }
@@ -1626,25 +1652,51 @@ export class PortainerApiClient {
             });
             if (sentDirect) return { sent: true };
         } catch {
-            // Fall through to Portainer HTTP attach
+            // Fall through to Portainer WebSocket attach
         }
 
         try {
             if (!this.apiKey && !this.authToken && this.username && this.password) {
                 await this.authenticate();
             }
-            const parsed = new URL(`${this.portainerUrl}/api/endpoints/${environmentId}/docker/containers/${encodeURIComponent(containerId)}/attach?stdin=1&stream=1`);
+            const parsed = new URL(`${this.portainerUrl}/api/websocket/attach`);
+            parsed.searchParams.set('endpointId', String(environmentId));
+            parsed.searchParams.set('id', containerId);
+            if (!this.apiKey && this.authToken) {
+                parsed.searchParams.set('token', this.authToken);
+            }
             const isHttps = parsed.protocol === 'https:';
             const rejectUnauthorized = process.env.PORTAINER_REJECT_UNAUTHORIZED === 'false'
                 ? false
                 : (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) ? false : true;
-            const payload = command.endsWith('\n') ? command : `${command}\n`;
+            const payload = Buffer.from(command.endsWith('\n') ? command : `${command}\n`, 'utf-8');
             const headers: Record<string, string> = {
                 Connection: 'Upgrade',
-                Upgrade: 'tcp',
+                Upgrade: 'websocket',
+                'Sec-WebSocket-Key': crypto.randomBytes(16).toString('base64'),
+                'Sec-WebSocket-Version': '13',
             };
             if (this.apiKey) headers['X-API-Key'] = this.apiKey;
             else if (this.authToken) headers['Authorization'] = `Bearer ${this.authToken}`;
+
+            const buildWsTextFrame = (data: Buffer): Buffer => {
+                const mask = crypto.randomBytes(4);
+                const len = data.length;
+                const headerLen = len < 126 ? 2 : 4;
+                const frame = Buffer.alloc(headerLen + 4 + len);
+                frame[0] = 0x81; // FIN + text frame
+                if (len < 126) {
+                    frame[1] = 0x80 | len;
+                } else {
+                    frame[1] = 0x80 | 126;
+                    frame.writeUInt16BE(len, 2);
+                }
+                mask.copy(frame, headerLen);
+                for (let i = 0; i < len; i++) {
+                    frame[headerLen + 4 + i] = data[i] ^ mask[i % 4];
+                }
+                return frame;
+            };
 
             await new Promise<void>((resolve, reject) => {
                 let settled = false;
@@ -1659,27 +1711,31 @@ export class PortainerApiClient {
                     hostname: parsed.hostname,
                     port: parsed.port || (isHttps ? 443 : 80),
                     path: `${parsed.pathname}${parsed.search}`,
-                    method: 'POST',
+                    method: 'GET',
                     headers,
                     timeout: 4_000,
                     ...(isHttps ? { rejectUnauthorized } : {}),
                 });
                 req.on('upgrade', (_res, socket) => {
-                    socket.setTimeout(4_000, () => { socket.destroy(); done(new Error('Portainer attach timed out')); });
+                    socket.setTimeout(4_000, () => { socket.destroy(); done(new Error('Portainer WebSocket attach timed out')); });
                     socket.on('error', err => done(err));
-                    socket.write(payload, err => {
+                    socket.write(buildWsTextFrame(payload), err => {
                         if (err) {
                             socket.destroy();
                             return done(err);
                         }
-                        setTimeout(() => { socket.end(); done(); }, 50);
+                        setTimeout(() => {
+                            const closeFrame = Buffer.concat([Buffer.from([0x88, 0x80]), crypto.randomBytes(4)]);
+                            socket.end(closeFrame);
+                            done();
+                        }, 150);
                     });
                 });
                 req.on('response', response => {
                     response.resume();
-                    done(new Error(`Portainer attach returned status ${response.statusCode ?? 0}`));
+                    done(new Error(`Portainer WebSocket attach returned status ${response.statusCode ?? 0}`));
                 });
-                req.on('timeout', () => req.destroy(new Error('Portainer attach timed out')));
+                req.on('timeout', () => req.destroy(new Error('Portainer WebSocket attach timed out')));
                 req.on('error', err => done(err));
                 req.end();
             });
