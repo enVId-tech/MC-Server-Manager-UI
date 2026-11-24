@@ -498,7 +498,7 @@ export default function Dashboard() {
 
                     <div className={styles.stat}>
                         <div className={styles.statTop}>
-                            <span>Online Now</span>
+                            <span>Servers Online</span>
                             <span className={`${styles.statIcon} ${styles.onlineIcon}`}><FaSignal aria-hidden="true" /></span>
                         </div>
                         <div className={styles.statValueRow}>
