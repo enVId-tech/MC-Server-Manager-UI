@@ -92,6 +92,65 @@ export function dockerRequest(method: string, path: string, body?: string | Buff
 }
 
 /**
+ * Writes a line into a container's standard input through Docker's attach stream. Unlike writing to `/proc/1/fd/0`
+ * inside exec, this delivers input even when the container runs with `tty: true` or under an entrypoint wrapper.
+ */
+export function dockerAttachWrite(containerId: string, text: string, timeoutMs = 4_000): Promise<void> {
+    const where = target();
+    const payload = text.endsWith('\n') ? text : `${text}\n`;
+
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        const done = (error?: Error) => {
+            if (settled) return;
+            settled = true;
+            if (error) reject(error);
+            else resolve();
+        };
+
+        const req = http.request({
+            ...where,
+            method: 'POST',
+            path: `/containers/${encodeURIComponent(containerId)}/attach?stdin=1&stream=1`,
+            headers: {
+                Connection: 'Upgrade',
+                Upgrade: 'tcp',
+            },
+            timeout: timeoutMs,
+        });
+
+        req.on('upgrade', (_res, socket) => {
+            socket.setTimeout(timeoutMs, () => {
+                socket.destroy();
+                done(new Error('Timed out while writing to container stdin'));
+            });
+            socket.on('error', err => done(err));
+            socket.write(payload, err => {
+                if (err) {
+                    socket.destroy();
+                    return done(err);
+                }
+                setTimeout(() => {
+                    socket.end();
+                    done();
+                }, 50);
+            });
+        });
+
+        req.on('response', response => {
+            const chunks: Buffer[] = [];
+            response.on('data', chunk => chunks.push(chunk as Buffer));
+            response.on('end', () => done(new Error(`Container attach returned status ${response.statusCode ?? 0}: ${Buffer.concat(chunks).toString('utf-8').trim()}`)));
+            response.on('error', err => done(err));
+        });
+
+        req.on('timeout', () => req.destroy(new Error('Docker attach did not answer in time')));
+        req.on('error', err => done(err));
+        req.end();
+    });
+}
+
+/**
  * Docker sends the output of containers without a terminal as frames: one byte for the stream, three zero bytes,
  * four bytes for the length, then the text. Containers with a terminal send the plain text.
  */
@@ -131,6 +190,35 @@ async function sameEngine(environmentId: number, config: InternalAxiosRequestCon
     }
     engineChecks.set(environmentId, { same, at: Date.now() });
     return same;
+}
+
+/** Sends a console line directly to the Docker socket when it points at the same engine as this environment */
+export async function sendDirectContainerInput(
+    environmentId: number,
+    containerId: string,
+    command: string,
+    fetchRemoteEngineId: () => Promise<string | undefined>
+): Promise<boolean> {
+    if (!directDockerEnabled()) return false;
+    const known = engineChecks.get(environmentId);
+    let same = known && Date.now() - known.at < (known.same ? ENGINE_CHECK_MS : RETRY_AFTER_FAILURE_MS) ? known.same : undefined;
+
+    if (same === undefined) {
+        try {
+            const local = await dockerRequest('GET', '/info', undefined, undefined, 4_000);
+            const localId = local.status === 200 ? (JSON.parse(local.data.toString('utf-8')) as { ID?: string }).ID : undefined;
+            const remoteId = localId ? await fetchRemoteEngineId() : undefined;
+            same = Boolean(localId && remoteId && localId === remoteId);
+        } catch (error) {
+            if (UNREACHABLE.has((error as NodeJS.ErrnoException)?.code ?? '')) noteUnreachable(error);
+            same = false;
+        }
+        engineChecks.set(environmentId, { same, at: Date.now() });
+    }
+
+    if (!same) return false;
+    await dockerAttachWrite(containerId, command);
+    return true;
 }
 
 /**

@@ -77,6 +77,10 @@ export async function POST(request: NextRequest) {
             if (typed.exitCode === 0) {
                 return NextResponse.json({ output: 'RCON is not reachable, so the command was typed into the server console. Its answer is in the log above.', failed: false, via: 'console' });
             }
+            const attached = await portainer.sendContainerInput(container.Id, command, environmentId);
+            if (attached.sent) {
+                return NextResponse.json({ output: 'RCON is not reachable, so the command was typed into the server console. Its answer is in the log above.', failed: false, via: 'console' });
+            }
             return NextResponse.json({
                 output: 'RCON refused the connection and the console has no input. Turn RCON on (enable-rcon=true with an rcon.password in server.properties, or ENABLE_RCON=true) or start the container with stdin_open.',
                 failed: true,

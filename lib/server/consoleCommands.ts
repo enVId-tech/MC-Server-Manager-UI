@@ -35,13 +35,14 @@ export async function setBlockServerSwitching(value: boolean): Promise<void> {
 
 /**
  * Shell script that sends a command to the console of the server process without RCON: the helper of the itzg
- * images, otherwise a write to the input of the main process. The answer shows up in the server log.
+ * images, otherwise a write to the input of the main process when it is a pipe/file (writing to a PTY slave from
+ * inside exec echoes to stdout instead of feeding stdin; Docker attach handles PTY containers).
  */
 export function consoleInputScript(command: string): string {
     const quoted = shellQuote(command);
     return [
         `if command -v mc-send-to-console >/dev/null 2>&1; then mc-send-to-console ${quoted}`,
-        `elif [ -w /proc/1/fd/0 ]; then printf '%s\\n' ${quoted} > /proc/1/fd/0`,
+        `elif [ -w /proc/1/fd/0 ] && { [ ! -t 0 ] </proc/1/fd/0; } 2>/dev/null; then printf '%s\\n' ${quoted} > /proc/1/fd/0`,
         `else echo "no console input available" >&2; exit 3; fi`,
     ].join('; ');
 }

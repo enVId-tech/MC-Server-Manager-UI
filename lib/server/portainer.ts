@@ -1,7 +1,8 @@
 import axios, { AxiosInstance } from 'axios';
+import http from 'http';
 import https from 'https';
 import { config } from 'dotenv';
-import { withDirectDocker } from '@/lib/server/dockerDirect';
+import { sendDirectContainerInput, withDirectDocker } from '@/lib/server/dockerDirect';
 
 // Load environment variables if not already loaded (without verbose output)
 if (!process.env.PORTAINER_URL) {
@@ -85,6 +86,8 @@ export interface PortainerContainer {
         Env?: string[];
         Image?: string;
         User?: string;
+        OpenStdin?: boolean;
+        Tty?: boolean;
         Labels?: Record<string, string>;
     };
 }
@@ -1577,6 +1580,112 @@ export class PortainerApiClient {
 
             console.error(`❌ Failed to execute command in container ${containerId}:`, error);
             throw error;
+        }
+    }
+
+    /**
+     * Writes a command line into a running container's standard input via Docker attach (`stdin=1&stream=1`),
+     * which delivers input even when the container runs with `tty: true` or lacks `mc-send-to-console`.
+     */
+    async sendContainerInput(
+        containerId: string,
+        command: string,
+        environmentId: number | null = this.defaultEnvironmentId
+    ): Promise<{ sent: boolean; error?: string }> {
+        if (environmentId === null) {
+            return { sent: false, error: 'Environment ID is required to attach container stdin.' };
+        }
+
+        // Skip unreachable placeholder URL quickly (for example in offline unit tests)
+        if (/your-portainer-instance\.com/i.test(this.portainerUrl)) {
+            const directOnly = await sendDirectContainerInput(environmentId, containerId, command, async () => undefined).catch(() => false);
+            return directOnly
+                ? { sent: true }
+                : { sent: false, error: 'Portainer is not configured for container attach.' };
+        }
+
+        try {
+            const inspect = await this.axiosInstance.get<{ State?: { Running?: boolean }; Config?: { OpenStdin?: boolean } }>(
+                `/api/endpoints/${environmentId}/docker/containers/${containerId}/json`,
+                { timeout: 4_000 }
+            );
+            if (inspect.data?.State?.Running !== true) {
+                return { sent: false, error: 'Container is not running.' };
+            }
+            if (inspect.data?.Config?.OpenStdin !== true) {
+                return { sent: false, error: 'The proxy has no console input (stdin_open: true is off).' };
+            }
+        } catch (error) {
+            return { sent: false, error: error instanceof Error ? error.message : 'Could not inspect container' };
+        }
+
+        try {
+            const sentDirect = await sendDirectContainerInput(environmentId, containerId, command, async () => {
+                const info = await this.axiosInstance.get<{ ID?: string }>(`/api/endpoints/${environmentId}/docker/info`, { timeout: 4_000 });
+                return info.data?.ID;
+            });
+            if (sentDirect) return { sent: true };
+        } catch {
+            // Fall through to Portainer HTTP attach
+        }
+
+        try {
+            if (!this.apiKey && !this.authToken && this.username && this.password) {
+                await this.authenticate();
+            }
+            const parsed = new URL(`${this.portainerUrl}/api/endpoints/${environmentId}/docker/containers/${encodeURIComponent(containerId)}/attach?stdin=1&stream=1`);
+            const isHttps = parsed.protocol === 'https:';
+            const rejectUnauthorized = process.env.PORTAINER_REJECT_UNAUTHORIZED === 'false'
+                ? false
+                : (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) ? false : true;
+            const payload = command.endsWith('\n') ? command : `${command}\n`;
+            const headers: Record<string, string> = {
+                Connection: 'Upgrade',
+                Upgrade: 'tcp',
+            };
+            if (this.apiKey) headers['X-API-Key'] = this.apiKey;
+            else if (this.authToken) headers['Authorization'] = `Bearer ${this.authToken}`;
+
+            await new Promise<void>((resolve, reject) => {
+                let settled = false;
+                const done = (error?: Error) => {
+                    if (settled) return;
+                    settled = true;
+                    if (error) reject(error);
+                    else resolve();
+                };
+                const transport = isHttps ? https : http;
+                const req = transport.request({
+                    hostname: parsed.hostname,
+                    port: parsed.port || (isHttps ? 443 : 80),
+                    path: `${parsed.pathname}${parsed.search}`,
+                    method: 'POST',
+                    headers,
+                    timeout: 4_000,
+                    ...(isHttps ? { rejectUnauthorized } : {}),
+                });
+                req.on('upgrade', (_res, socket) => {
+                    socket.setTimeout(4_000, () => { socket.destroy(); done(new Error('Portainer attach timed out')); });
+                    socket.on('error', err => done(err));
+                    socket.write(payload, err => {
+                        if (err) {
+                            socket.destroy();
+                            return done(err);
+                        }
+                        setTimeout(() => { socket.end(); done(); }, 50);
+                    });
+                });
+                req.on('response', response => {
+                    response.resume();
+                    done(new Error(`Portainer attach returned status ${response.statusCode ?? 0}`));
+                });
+                req.on('timeout', () => req.destroy(new Error('Portainer attach timed out')));
+                req.on('error', err => done(err));
+                req.end();
+            });
+            return { sent: true };
+        } catch (error) {
+            return { sent: false, error: error instanceof Error ? error.message : 'Container attach failed' };
         }
     }
 
