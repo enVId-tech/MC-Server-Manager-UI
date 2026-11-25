@@ -1,22 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizeFile, isDenied } from '@/lib/server/fileAccess';
-import { canUseFiles } from '@/lib/server/accessPolicy';
+import { canUseFiles, isHiddenFromUsers } from '@/lib/server/accessPolicy';
 import {
-    addonsOf, AddonError, applyStagedAddons, capabilitiesOf, installFromLink, installUpload, removeAddon, setAutoUpdate, updateAddons,
+    addonsOf, AddonError, applyStagedAddons, capabilitiesOf, checkAddonUpdates, installFromLink, installUpload, removeAddon, setAutoUpdate, syncDiscoveredServerAddons, updateAddons,
 } from '@/lib/server/addons/manager';
 import { identifyLink } from '@/lib/server/addons/sources';
 import type { IServer } from '@/lib/objects/Server';
+import type { IUser } from '@/lib/objects/User';
 
 const MAX_BULK = 50;
 const MAX_JAR_MB = 200;
 
-/** What a user may see of an add-on record: never the managed-file bookkeeping or who added it */
-function publicView(server: IServer) {
-    return addonsOf(server).map(record => ({
-        id: record.id, kind: record.kind, source: record.source, url: record.url, name: record.name, icon: record.icon,
-        file: record.file, version: record.version, auto: record.auto, updatePending: Boolean(record.staged),
-        checkedAt: record.checkedAt,
-    }));
+/** What a user may see of an add-on record: never hidden secret jars, managed-file bookkeeping or who added it */
+function publicView(server: IServer, user: Pick<IUser, 'isAdmin'>) {
+    return addonsOf(server)
+        .filter(record => user.isAdmin || !isHiddenFromUsers(record.file))
+        .map(record => ({
+            id: record.id,
+            kind: record.kind,
+            source: record.source,
+            url: record.url,
+            name: record.name,
+            icon: record.icon,
+            file: record.file,
+            version: record.version,
+            auto: record.auto,
+            installedByServer: Boolean(record.installedByServer),
+            compatibilityWarning: record.compatibilityWarning,
+            availableUpdate: record.availableUpdate
+                ? { version: record.availableUpdate.version, checkedAt: record.availableUpdate.checkedAt }
+                : undefined,
+            updatable: record.source !== 'upload' && record.source !== 'other',
+            updatePending: Boolean(record.staged),
+            checkedAt: record.checkedAt,
+        }));
 }
 
 function fail(error: unknown) {
@@ -29,9 +46,10 @@ function fail(error: unknown) {
 export async function GET(request: NextRequest) {
     const access = await authorizeFile(request, request.nextUrl.searchParams.get('server'), 'read', '/');
     if (isDenied(access)) return access.response;
+    await syncDiscoveredServerAddons(access.server).catch(() => undefined);
     const caps = capabilitiesOf(access.server);
     return NextResponse.json({
-        success: true, addons: publicView(access.server), capabilities: caps,
+        success: true, addons: publicView(access.server, access.user), capabilities: caps,
         // Other links and jar uploads follow the uploads toggle of the server
         canUploadFiles: canUseFiles(access.user, access.server, 'upload'),
     });
@@ -61,7 +79,7 @@ export async function POST(request: NextRequest) {
                     results.push({ file: file.name, ok: false, message: error instanceof Error ? error.message : 'Failed.' });
                 }
             }
-            return NextResponse.json({ success: results.some(r => r.ok), results, addons: publicView(access.server) });
+            return NextResponse.json({ success: results.some(r => r.ok), results, addons: publicView(access.server, access.user) });
         }
 
         const body = await request.json().catch(() => ({})) as { server?: string; link?: string; links?: string[]; auto?: boolean; kind?: 'plugin' | 'mod' };
@@ -73,17 +91,17 @@ export async function POST(request: NextRequest) {
         if (links.length > 1 && !access.user.isAdmin && !allowOther && links.some(l => identifyLink(l)?.source === 'other')) {
             // Mixed lists still work: the "other" ones are reported as refused below
         }
-        const results: Array<{ link: string; ok: boolean; name?: string; message?: string }> = [];
+        const results: Array<{ link: string; ok: boolean; name?: string; message?: string; warning?: string }> = [];
         for (const link of links.slice(0, MAX_BULK)) {
             try {
                 const record = await installFromLink(access.server, link, { auto: body.auto, kind: body.kind, addedBy: access.user.email, allowOther });
-                results.push({ link, ok: true, name: record.name });
+                results.push({ link, ok: true, name: record.name, ...(record.compatibilityWarning ? { warning: record.compatibilityWarning } : {}) });
             } catch (error) {
                 results.push({ link, ok: false, message: error instanceof Error ? error.message : 'Failed.' });
             }
         }
         const anyOk = results.some(r => r.ok);
-        return NextResponse.json({ success: anyOk, results, addons: publicView(access.server) }, { status: anyOk ? 200 : (links.length === 1 ? 422 : 207) });
+        return NextResponse.json({ success: anyOk, results, addons: publicView(access.server, access.user) }, { status: anyOk ? 200 : (links.length === 1 ? 422 : 207) });
     } catch (error) {
         return fail(error);
     }
@@ -101,28 +119,32 @@ export async function DELETE(request: NextRequest) {
         const managed = (access.server.managedFiles ?? []).some(entry => entry.path.replace(/^\/+/, '').toLowerCase() === record?.file.toLowerCase());
         if (managed && !access.user.isAdmin) return NextResponse.json({ message: 'This is managed by the server and cannot be removed.' }, { status: 403 });
         await removeAddon(access.server, id);
-        return NextResponse.json({ success: true, addons: publicView(access.server) });
+        return NextResponse.json({ success: true, addons: publicView(access.server, access.user) });
     } catch (error) {
         return fail(error);
     }
 }
 
-/** PATCH {server, id, auto} toggles automatic updates. {server, update: true, id?} checks for updates now. {server, apply: true} applies staged mods */
+/** PATCH {server, id, auto} toggles automatic updates. {server, checkUpdates: true, id?} checks for available updates. {server, update: true, id?} updates/stages. {server, apply: true} applies staged mods */
 export async function PATCH(request: NextRequest) {
     try {
-        const body = await request.json().catch(() => ({})) as { server?: string; id?: string; auto?: boolean; update?: boolean; apply?: boolean };
+        const body = await request.json().catch(() => ({})) as { server?: string; id?: string; auto?: boolean; checkUpdates?: boolean; update?: boolean; apply?: boolean };
         const access = await authorizeFile(request, body.server, 'read', '/');
         if (isDenied(access)) return access.response;
         if (body.apply) {
-            return NextResponse.json({ success: true, applied: await applyStagedAddons(access.server), addons: publicView(access.server) });
+            return NextResponse.json({ success: true, applied: await applyStagedAddons(access.server), addons: publicView(access.server, access.user) });
+        }
+        if (body.checkUpdates) {
+            const checkOutcomes = await checkAddonUpdates(access.server, { id: body.id });
+            return NextResponse.json({ success: true, checkOutcomes, addons: publicView(access.server, access.user) });
         }
         if (body.update) {
             const outcomes = await updateAddons(access.server, { id: body.id });
-            return NextResponse.json({ success: true, outcomes, addons: publicView(access.server) });
+            return NextResponse.json({ success: true, outcomes, addons: publicView(access.server, access.user) });
         }
         if (!body.id || typeof body.auto !== 'boolean') return NextResponse.json({ message: 'An id and auto are required.' }, { status: 400 });
         await setAutoUpdate(access.server, body.id, body.auto);
-        return NextResponse.json({ success: true, addons: publicView(access.server) });
+        return NextResponse.json({ success: true, addons: publicView(access.server, access.user) });
     } catch (error) {
         return fail(error);
     }

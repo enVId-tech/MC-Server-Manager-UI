@@ -171,11 +171,13 @@ export async function download(url: string): Promise<Buffer> {
 }
 
 interface ModrinthVersion {
+    id?: string;
+    version_number?: string;
     files?: Array<{ url: string; filename: string; primary?: boolean }>;
 }
 
 /** Newest release of a Modrinth plugin that works on this Minecraft version, or on any version when none matches */
-export async function modrinthJar(slug: string, version?: string, loaderNames: string[] = ['paper', 'spigot', 'bukkit']): Promise<{ url: string; filename: string } | null> {
+export async function modrinthJar(slug: string, version?: string, loaderNames: string[] = ['paper', 'spigot', 'bukkit']): Promise<{ url: string; filename: string; versionId?: string; version?: string } | null> {
     const loaders = encodeURIComponent(JSON.stringify(loaderNames));
     const attempts = version && compareMinecraftVersions(version, '1.0') > 0 && !/^(LATEST|SNAPSHOT)$/i.test(version)
         ? [`&game_versions=${encodeURIComponent(JSON.stringify([version]))}`, '']
@@ -188,8 +190,9 @@ export async function modrinthJar(slug: string, version?: string, loaderNames: s
             });
             if (!response.ok) continue;
             const versions = (await response.json()) as ModrinthVersion[];
-            const file = versions[0]?.files?.find(candidate => candidate.primary) ?? versions[0]?.files?.[0];
-            if (file) return { url: file.url, filename: file.filename };
+            const first = versions[0];
+            const file = first?.files?.find(candidate => candidate.primary) ?? first?.files?.[0];
+            if (file) return { url: file.url, filename: file.filename, versionId: first?.id, version: first?.version_number };
         } catch {
             // try the next filter
         }

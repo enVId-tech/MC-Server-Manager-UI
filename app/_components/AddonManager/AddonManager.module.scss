@@ -6,6 +6,8 @@
 .muted { color: $text-secondary; font-size: 0.85rem; }
 .notice { padding: 0.7rem 0.9rem; border: 1px solid $border-color; border-radius: 8px; font-size: 0.85rem; color: $text-secondary; }
 .notice.error { border-color: rgba($accent-red, 0.6); color: $error-red; }
+.notice.warning { border-color: rgba($warning-yellow, 0.65); background-color: rgba($warning-yellow, 0.08); color: $warning-yellow; }
+.noticeRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
 
 .drop {
   padding: 1.4rem; border: 2px dashed $border-color; border-radius: 12px; text-align: center; color: $text-secondary; font-size: 0.9rem; cursor: pointer;
@@ -47,5 +49,9 @@
 .itemMeta { color: $text-secondary; font-size: 0.78rem; }
 .pill { padding: 0.1rem 0.5rem; border-radius: 999px; background-color: rgba($border-color, 0.5); font-size: 0.7rem; margin-left: 0.4rem; text-transform: uppercase; letter-spacing: 0.03em; }
 .pill.pending { background-color: rgba($accent-blue, 0.25); }
+.pill.updateAvailable { background-color: rgba($success-green, 0.2); color: $success-green; border: 1px solid rgba($success-green, 0.4); }
+.pill.serverAdded { background-color: rgba($accent-blue, 0.18); color: $text-primary; }
+.pill.warningPill { background-color: rgba($warning-yellow, 0.18); color: $warning-yellow; border: 1px solid rgba($warning-yellow, 0.4); }
+.warnText { display: block; color: $warning-yellow; font-size: 0.78rem; margin-top: 0.15rem; }
 .switch { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; color: $text-secondary; cursor: pointer; }
-.results { margin: 0; padding-left: 1.1rem; font-size: 0.82rem; li.fail { color: $error-red; } li.ok { color: $text-secondary; } }
+.results { margin: 0; padding-left: 1.1rem; font-size: 0.82rem; li.fail { color: $error-red; } li.ok { color: $text-secondary; } li.warn { color: $warning-yellow; } }

@@ -537,6 +537,9 @@ export async function syncServerNetwork(server: IServer, options: SyncOptions = 
             ...(managedFiles ? { managedFiles } : {}),
         },
     });
+    if (managedFiles) server.managedFiles = managedFiles;
+    const { syncDiscoveredServerAddons } = await import('@/lib/server/addons/manager');
+    await syncDiscoveredServerAddons(server).catch(() => undefined);
 
     if (restartNeeded && options.restart) {
         try {
