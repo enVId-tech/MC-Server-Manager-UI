@@ -20,6 +20,7 @@ const { inspectJar } = await import('../lib/server/addons/jar');
 const { assertPublicUrl, isPrivateAddress } = await import('../lib/server/addons/net');
 const { checkAddonCompatibility } = await import('../lib/server/addons/compatibility');
 const {
+    applyStagedAddons,
     extractVersionFromFilename,
     isNewerVersionAvailable,
     syncDiscoveredServerAddons,
@@ -131,6 +132,37 @@ async function main() {
             assert.equal(discovered[0].source, 'modrinth');
             assert.equal(discovered[0].installedByServer, true);
             assert.equal(discovered[0].version, '5.2.0');
+
+            // Staged plugin update creates new versioned file and deletes old plugin version cleanly on applyStagedAddons
+            const stagedJar = jar({ 'plugin.yml': 'name: ViaVersion\nversion: 5.3.0\nmain: com.viaversion.ViaVersionPlugin\n' });
+            await serverStorage.createDirectory(`${folder}/.mms/staged`);
+            await serverStorage.uploadFile(`${folder}/.mms/staged/ViaVersion-5.3.0.jar`, stagedJar, true);
+
+            const stagedServer = {
+                _id: 'srv-1',
+                uniqueId: 'srv-1',
+                email: 'tester@example.com',
+                folderPath: folder,
+                addons: [{
+                    ...discovered[0],
+                    staged: {
+                        versionId: 'v530',
+                        version: '5.3.0',
+                        file: '.mms/staged/ViaVersion-5.3.0.jar',
+                        targetFile: 'plugins/ViaVersion-5.3.0.jar',
+                    },
+                }],
+                serverConfig: { serverType: 'PAPER', version: '1.21.4' },
+            } as unknown as Parameters<typeof applyStagedAddons>[0];
+
+            const appliedCount = await applyStagedAddons(stagedServer);
+            assert.equal(appliedCount, 1);
+            assert.equal(await serverStorage.exists(`${folder}/plugins/ViaVersion-5.3.0.jar`), true);
+            assert.equal(await serverStorage.exists(`${folder}/plugins/ViaVersion-5.2.0.jar`), false);
+            assert.equal(await serverStorage.exists(`${folder}/.mms/staged/ViaVersion-5.3.0.jar`), false);
+            assert.equal((stagedServer.addons as Array<{ file: string; version?: string; staged?: unknown }>)[0].file, 'plugins/ViaVersion-5.3.0.jar');
+            assert.equal((stagedServer.addons as Array<{ file: string; version?: string; staged?: unknown }>)[0].version, '5.3.0');
+            assert.equal((stagedServer.addons as Array<{ staged?: unknown }>)[0].staged, undefined);
         } finally {
             (Server as unknown as { updateOne: unknown }).updateOne = origUpdateOne;
         }

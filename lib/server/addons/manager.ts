@@ -57,8 +57,8 @@ export interface AddonRecord {
     sourceLoaders?: string[];
     /** Set when an update check found a newer remote release */
     availableUpdate?: { versionId: string; version?: string; checkedAt: Date };
-    /** A newer release that is downloaded and waits for the next start */
-    staged?: { versionId: string; version?: string; file: string };
+    /** A newer release that is downloaded and waits for the next start/restart */
+    staged?: { versionId: string; version?: string; file: string; targetFile?: string };
 }
 
 interface KnownServerAddonSpec {
@@ -174,31 +174,14 @@ function matchKnownServerAddon(dir: 'plugins' | 'mods', filename: string, manage
 
 /**
  * Reconciles `server.addons` with server-added jars on disk (ViaVersion, ViaBackwards, ViaRewind, etc.)
- * and promotes completed `plugins/update/` staged plugin updates once Bukkit consumes them on restart.
+ * and backfills missing icons for known-source addons.
  */
 async function reconcileServerAddonsLocked(server: IServer): Promise<AddonRecord[]> {
     const folder = await folderOf(server);
     const current = [...addonsOf(server)];
     let changed = false;
 
-    // 1. Promote plugin updates if Bukkit has already consumed `plugins/update/<jar>`
-    for (let i = 0; i < current.length; i++) {
-        const entry = current[i];
-        if (!entry.staged || entry.kind !== 'plugin') continue;
-        const stagedExists = await serverStorage.exists(`${folder}/${entry.staged.file}`).catch(() => true);
-        if (!stagedExists) {
-            current[i] = {
-                ...entry,
-                version: entry.staged.version ?? entry.version,
-                versionId: entry.staged.versionId,
-                availableUpdate: undefined,
-                staged: undefined,
-            };
-            changed = true;
-        }
-    }
-
-    // 2. Discover known server-added plugins & mods installed in `plugins/` or `mods/`
+    // 1. Discover known server-added plugins & mods installed in `plugins/` or `mods/`
     const knownByRef = new Set(
         current
             .filter(entry => entry.source !== 'upload' && entry.source !== 'other')
@@ -250,6 +233,29 @@ async function reconcileServerAddonsLocked(server: IServer): Promise<AddonRecord
             knownByFile.add(relFile.toLowerCase());
             changed = true;
         }
+    }
+
+    // 2. Backfill icons (and missing URLs) for known-source addons so UI rows display their project logos
+    const missingIconIndices = current
+        .map((entry, index) => ({ entry, index }))
+        .filter(({ entry }) => entry.source !== 'upload' && entry.source !== 'other' && (!entry.icon || !entry.url));
+
+    if (missingIconIndices.length > 0) {
+        await Promise.all(missingIconIndices.map(async ({ entry, index }) => {
+            try {
+                const looked = await lookupAddon({ source: entry.source as AddonSource, ref: entry.ref, url: entry.url ?? '' });
+                if (looked.icon || (!entry.url && looked.url)) {
+                    current[index] = {
+                        ...current[index],
+                        icon: entry.icon ?? looked.icon,
+                        url: entry.url || looked.url,
+                    };
+                    changed = true;
+                }
+            } catch {
+                // Non-fatal: keep record without icon if the remote API is unreachable
+            }
+        }));
     }
 
     if (changed) {
@@ -461,8 +467,9 @@ export function setAutoUpdate(server: IServer, id: string, auto: boolean): Promi
 
 async function isRunning(server: IServer): Promise<boolean> {
     try {
-        const container = await portainer.getContainerByIdentifier(getContainerName(server));
-        return container?.State === 'running';
+        const environmentId = await portainer.getValidEnvironmentId(server.environmentId ?? null).catch(() => undefined);
+        const container = await portainer.getContainerByIdentifier(getContainerName(server), environmentId);
+        return container?.State === 'running' || container?.State === 'restarting' || container?.State === 'paused';
     } catch {
         return false;
     }
@@ -582,14 +589,16 @@ async function updateRecord(server: IServer, record: AddonRecord, running: boole
 
     const folder = await folderOf(server);
     const currentFolderKind: AddonKind = record.file.startsWith('plugins/') ? 'plugin' : 'mod';
-    const newName = currentFolderKind === 'plugin'
-        ? (record.file.split('/').pop() as string)
-        : safeJarName(downloaded.filename ?? resolved.filename);
+    const currentDir = currentFolderKind === 'plugin' ? 'plugins' : 'mods';
+    const oldBaseName = record.file.split('/').pop() as string;
+    const newName = safeJarName(resolved.filename || downloaded.filename || oldBaseName);
+    const newFile = `${currentDir}/${newName}`;
 
     if (!running) {
-        if (currentFolderKind === 'mod' && `mods/${newName}` !== record.file) await removeFile(server, record.file);
         const file = await placeJar(server, currentFolderKind, newName, downloaded.data);
+        if (file !== record.file) await removeFile(server, record.file);
         if (record.staged) await removeFile(server, record.staged.file);
+        await removeFile(server, `plugins/update/${oldBaseName}`);
         return {
             record: {
                 ...checked,
@@ -603,16 +612,22 @@ async function updateRecord(server: IServer, record: AddonRecord, running: boole
         };
     }
 
-    // Running: plugins go to Bukkit's update folder under the same name, mods wait outside the mods folder
-    const stagedFile = currentFolderKind === 'plugin' ? `plugins/update/${newName}` : `.mms/staged/${newName}`;
-    try { await serverStorage.createDirectory(`${folder}/${currentFolderKind === 'plugin' ? 'plugins/update' : '.mms'}`); } catch { /* exists */ }
-    if (currentFolderKind === 'mod') { try { await serverStorage.createDirectory(`${folder}/.mms/staged`); } catch { /* exists */ } }
+    // Running: stage the new versioned jar under .mms/staged/ rather than Paper's plugins/update/
+    // so Paper does not crash trying to delete WebDAV-uploaded files, then swap & remove the old file on restart.
+    if (record.staged && record.staged.file !== `.mms/staged/${newName}`) {
+        await removeFile(server, record.staged.file);
+    }
+    await removeFile(server, `plugins/update/${oldBaseName}`);
+
+    const stagedFile = `.mms/staged/${newName}`;
+    try { await serverStorage.createDirectory(`${folder}/.mms`); } catch { /* exists */ }
+    try { await serverStorage.createDirectory(`${folder}/.mms/staged`); } catch { /* exists */ }
     await serverStorage.uploadFile(`${folder}/${stagedFile}`, downloaded.data, true);
     return {
         record: {
             ...checked,
             availableUpdate: undefined,
-            staged: { versionId: resolved.versionId, version: resolved.version ?? jar.version, file: stagedFile },
+            staged: { versionId: resolved.versionId, version: resolved.version ?? jar.version, file: stagedFile, targetFile: newFile },
         },
         outcome: { ...base, status: 'staged', version: resolved.version ?? jar.version },
     };
@@ -641,7 +656,7 @@ export function updateAddons(server: IServer, options: { id?: string; onlyAuto?:
     });
 }
 
-/** Puts staged mods in place. Run while the server is stopped, right before it starts */
+/** Applies staged plugin and mod updates while the server is stopped: writes the new file, deletes the old version, and removes the staged copy. */
 export function applyStagedAddons(server: IServer): Promise<number> {
     return exclusive(server.uniqueId, async () => {
         const folder = await folderOf(server);
@@ -652,14 +667,10 @@ export function applyStagedAddons(server: IServer): Promise<number> {
             const staged = record.staged;
             try {
                 const data = await serverStorage.getFileContents(`${folder}/${staged.file}`);
-                if (record.kind === 'plugin') {
-                    // Bukkit moves plugins/update itself at the next start
-                    next.push(record);
-                    continue;
-                }
-                const name = staged.file.split('/').pop() as string;
-                if (`mods/${name}` !== record.file) await removeFile(server, record.file);
-                const file = await placeJar(server, 'mod', name, data);
+                const folderKind: AddonKind = record.file.startsWith('plugins/') ? 'plugin' : 'mod';
+                const targetName = safeJarName((staged.targetFile ?? staged.file).split('/').pop() as string);
+                const file = await placeJar(server, folderKind, targetName, data);
+                if (file !== record.file) await removeFile(server, record.file);
                 await removeFile(server, staged.file);
                 next.push({ ...record, file, version: staged.version, versionId: staged.versionId, availableUpdate: undefined, staged: undefined });
                 applied++;
