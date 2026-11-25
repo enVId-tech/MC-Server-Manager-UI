@@ -46,6 +46,8 @@ export interface RoutableProxy {
     id: string;
     enabled: boolean;
     forwarding: ForwardingMode;
+    /** Proxy software (Velocity is the only kind that has modern forwarding) */
+    kind?: ProxyKind;
     /** Servers that are linked to it already, used to spread new servers */
     linkedServers?: number;
     /** Higher goes first when the strategy is `priority` */
@@ -115,20 +117,28 @@ export interface VersionAllowance {
 }
 
 /**
- * Which versions a new server may use. With no proxy at all every version is allowed (the server then gets a
- * warning); with proxies, a version has to be supported by at least one of them. A network that only has a
- * modern forwarding Velocity therefore stops at 1.13, while one with BungeeGuard or legacy forwarding takes everything.
+ * Which versions a new server may use.
+ *
+ * When there is exactly 1 enabled proxy and it uses Velocity modern forwarding, Minecraft versions below 1.13
+ * are unsupported and disallowed. Otherwise (no proxies, non-modern forwarding, or multiple proxies available),
+ * any version is allowed.
  */
 export function versionAllowance(proxies: RoutableProxy[], version: string | undefined | null): VersionAllowance {
     const enabled = proxies.filter(proxy => proxy.enabled);
-    if (enabled.length === 0) return { allowed: true, minVersion: null };
+    const singleVelocityModern = enabled.length === 1
+        && enabled[0].forwarding === 'modern'
+        && (!enabled[0].kind || enabled[0].kind === 'velocity');
 
-    const minVersion = enabled.some(proxy => forwardingMinVersion(proxy.forwarding) === null) ? null : MODERN_FORWARDING_MIN_VERSION;
-    const allowed = proxiesForVersion(enabled, version).length > 0;
+    if (!singleVelocityModern) {
+        return { allowed: true, minVersion: null };
+    }
+
+    const minVersion = MODERN_FORWARDING_MIN_VERSION;
+    const allowed = forwardingSupportsVersion('modern', version);
     return {
         allowed,
         minVersion,
-        reason: allowed ? undefined : `The proxy network only accepts servers from ${minVersion} on. Ask an administrator to add a BungeeGuard or legacy forwarding proxy for older versions.`,
+        reason: allowed ? undefined : `The single Velocity proxy uses modern forwarding, which only accepts servers from ${minVersion} on.`,
     };
 }
 

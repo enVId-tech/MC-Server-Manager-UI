@@ -26,9 +26,8 @@ export async function GET(request: NextRequest) {
         isAdmin,
         hasProxy: enabled.length > 0,
         minVersion: allowance.minVersion,
-        // Administrators may create servers that no proxy takes, they get the warning
-        allowed: allowance.allowed || isAdmin,
-        // What is true for regular users, so administrators can see the warning
+        // Single Velocity modern proxy blocks versions < 1.13 for everyone; otherwise allowed
+        allowed: allowance.allowed,
         wouldBeAllowed: allowance.allowed,
         reason: allowance.reason,
         bedrock: decision ? decision.proxies.some(proxy => proxy.plugins.geyser) : false,

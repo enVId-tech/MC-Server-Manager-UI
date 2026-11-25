@@ -26,11 +26,14 @@ assert.equal(forwardingSupportsVersion('modern', '26.1'), true);
 assert.equal(forwardingSupportsVersion('legacy', '1.8.8'), true);
 assert.equal(forwardingSupportsVersion('bungeeguard', '1.7.10'), true);
 
-// only a modern proxy: nothing older than 1.13
-const onlyModern = [proxy('v1', 'modern')];
+// only 1 proxy using velocity modern: nothing older than 1.13
+const onlyModern = [proxy('v1', 'modern', { kind: 'velocity' })];
 assert.equal(versionAllowance(onlyModern, '1.12.2').allowed, false);
 assert.equal(versionAllowance(onlyModern, '1.12.2').minVersion, '1.13');
 assert.equal(versionAllowance(onlyModern, '1.20.4').allowed, true);
+// multiple proxies (including multiple modern or mixed): older versions are allowed
+assert.equal(versionAllowance([proxy('v1', 'modern', { kind: 'velocity' }), proxy('v2', 'modern', { kind: 'velocity' })], '1.12.2').allowed, true);
+assert.equal(versionAllowance([proxy('v1', 'modern', { kind: 'velocity' }), proxy('v2', 'bungeeguard', { kind: 'bungeecord' })], '1.8.8').allowed, true);
 // a bungeeguard or legacy proxy takes any version
 assert.equal(versionAllowance([proxy('v1', 'bungeeguard')], '1.8.8').allowed, true);
 assert.equal(versionAllowance([proxy('v1', 'legacy')], '1.8.8').minVersion, null);

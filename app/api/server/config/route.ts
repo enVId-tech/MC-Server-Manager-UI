@@ -126,8 +126,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Server type and version are required." }, { status: 400 });
         }
 
-        // Behind a modern forwarding proxy only Minecraft 1.13 and newer can join; administrators may go below it
-        if (!user.isAdmin && !serverTypeDefinition.versionFromPack && config.version) {
+        // If there is only 1 proxy and it uses Velocity modern forwarding, versions under 1.13 are unsupported
+        if (!serverTypeDefinition.versionFromPack && config.version) {
             const proxies = (await listProxies()).filter(proxy => proxy.enabled);
             const allowance = versionAllowance(proxies, String(config.version));
             if (!allowance.allowed) {

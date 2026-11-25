@@ -68,9 +68,14 @@ export default function NetworkPanel({ version, onPlan }: Props) {
                     Joins {plan.proxyCount === 1 ? 'the proxy' : `${plan.proxyCount} proxies`} with {FORWARDING[plan.forwarding] ?? plan.forwarding}. Players connect through the proxy address of this server, online mode is handled by the proxy and cannot be changed.
                 </p>
             )}
-            {plan.hasProxy && (plan.isAdmin ? !plan.forwarding : !plan.allowed) && (
+            {plan.hasProxy && (plan.isAdmin ? (!plan.forwarding && plan.allowed) : !plan.allowed) && (
                 <p className={styles.networkWarning}>
                     {plan.reason ?? 'No proxy supports this version.'} {plan.isAdmin ? `You can still create it as an administrator. ${exposure}` : ''}
+                </p>
+            )}
+            {plan.hasProxy && !plan.allowed && plan.isAdmin && (
+                <p className={styles.networkWarning}>
+                    {plan.reason ?? 'This version is not supported by the single Velocity modern proxy.'}
                 </p>
             )}
             {plan.minVersion && plan.hasProxy && (
