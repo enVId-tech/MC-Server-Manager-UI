@@ -20,7 +20,7 @@ interface DockerData {
     status: { config: UpdateConfig; isUpdating: boolean; queueSize: number };
     updateCheck: {
         updatesAvailable: boolean;
-        containers: Array<{ serverId: string; serverName: string; containerName: string; currentImage: string; targetImage: string; status: string }>;
+        containers: Array<{ serverId: string; serverName: string; kind?: 'server' | 'proxy'; containerName: string; currentImage: string; targetImage: string; status: string }>;
     };
 }
 
@@ -74,6 +74,15 @@ export default function DockerSection() {
         if (ok) await docker.reload();
     };
 
+    const checkNow = async () => {
+        const { ok, body } = await post('check-updates');
+        if (ok) {
+            const count = (body as { updateCheck?: { containers?: unknown[] } })?.updateCheck?.containers?.length ?? 0;
+            showNotification({ type: 'success', title: 'Docker updates', message: count === 0 ? 'All server and proxy images are up to date.' : `Found ${count} update${count === 1 ? '' : 's'} available.` });
+            await docker.reload();
+        }
+    };
+
     const allSelected = containers.length > 0 && selected.size === containers.length;
     const toggle = (id: string) => setSelected(previous => {
         const next = new Set(previous);
@@ -87,10 +96,10 @@ export default function DockerSection() {
             <div className={styles.pageHeader}>
                 <div>
                     <h1>Docker updates</h1>
-                    <p>Keep the server images up to date, by hand or on a schedule. Imported servers keep their own containers and are not touched.</p>
+                    <p>Keep server and proxy images up to date, by hand or on a schedule.</p>
                 </div>
                 <div className={styles.headerActions}>
-                    <button className={styles.btn} onClick={() => void docker.reload()} disabled={docker.loading}>{docker.loading ? 'Checking…' : 'Check for updates'}</button>
+                    <button className={styles.btn} onClick={() => void checkNow()} disabled={docker.loading || busy}>{busy || docker.loading ? 'Checking…' : 'Check for updates'}</button>
                 </div>
             </div>
 
@@ -113,7 +122,7 @@ export default function DockerSection() {
                         <div className={`${styles.stat} ${containers.length > 0 ? styles.warn : styles.good}`}>
                             <span className={styles.statLabel}>Updates available</span>
                             <span className={styles.statValue}>{containers.length}</span>
-                            <span className={styles.statNote}>{containers.length === 0 ? 'everything is current' : 'servers can be updated'}</span>
+                            <span className={styles.statNote}>{containers.length === 0 ? 'everything is current' : 'containers can be updated'}</span>
                         </div>
                         <div className={styles.stat}>
                             <span className={styles.statLabel}>Maintenance window</span>
@@ -144,21 +153,21 @@ export default function DockerSection() {
                             </div>
                         </div>
                         {containers.length === 0 ? (
-                            <div className={styles.empty}>All server images are up to date.</div>
+                            <div className={styles.empty}>All server and proxy images are up to date.</div>
                         ) : (
                             <div className={styles.tableWrap}>
                                 <table className={styles.table}>
                                     <thead>
                                         <tr>
                                             <th className={styles.checkCell}><input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(containers.map(container => container.serverId)))} aria-label="Select all" /></th>
-                                            <th>Server</th><th>Current image</th><th>New image</th><th>Status</th><th />
+                                            <th>Server / Proxy</th><th>Current image</th><th>New image</th><th>Status</th><th />
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {containers.map(container => (
                                             <tr key={container.serverId}>
                                                 <td className={styles.checkCell}><input type="checkbox" checked={selected.has(container.serverId)} onChange={() => toggle(container.serverId)} aria-label={`Select ${container.serverName}`} /></td>
-                                                <td className={styles.primaryText}>{container.serverName}</td>
+                                                <td className={styles.primaryText}>{container.serverName} {container.kind === 'proxy' && <span className={`${styles.badge} ${styles.info}`}>proxy</span>}</td>
                                                 <td className={styles.mono}>{container.currentImage}</td>
                                                 <td className={styles.mono}>{container.targetImage}</td>
                                                 <td><span className={styles.badge}>{container.status}</span></td>

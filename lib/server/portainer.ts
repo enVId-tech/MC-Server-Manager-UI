@@ -2425,6 +2425,45 @@ export class PortainerApiClient {
     }
 
     /**
+     * Metadata (RepoTags, RepoDigests) of a local image by id or tag, or null when missing.
+     */
+    async getImageDetails(
+        imageIdOrName: string,
+        environmentId: number | null = this.defaultEnvironmentId
+    ): Promise<{ Id?: string; RepoTags?: string[]; RepoDigests?: string[] } | null> {
+        if (environmentId === null) return null;
+        try {
+            const response = await this.axiosInstance.get<{ Id?: string; RepoTags?: string[]; RepoDigests?: string[] }>(
+                `/api/endpoints/${environmentId}/docker/images/${encodeURIComponent(imageIdOrName)}/json`
+            );
+            return response.data ?? null;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Manifest digest reported by the remote registry for an image tag without downloading layers,
+     * or null when the registry could not be queried.
+     */
+    async getDistributionDigest(
+        imageName: string,
+        environmentId: number | null = this.defaultEnvironmentId
+    ): Promise<string | null> {
+        if (environmentId === null) return null;
+        try {
+            const imagePath = imageName.split('/').map(segment => encodeURIComponent(segment)).join('/');
+            const response = await this.axiosInstance.get<{ Descriptor?: { digest?: string } }>(
+                `/api/endpoints/${environmentId}/docker/distribution/${imagePath}/json`,
+                { timeout: 10_000 }
+            );
+            return response.data?.Descriptor?.digest ?? null;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
      * Id of a local image (for example `itzg/minecraft-server:java21`), or null when it is not on the host.
      */
     async getImageId(imageName: string, environmentId: number | null = this.defaultEnvironmentId): Promise<string | null> {

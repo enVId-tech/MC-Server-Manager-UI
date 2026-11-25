@@ -11,9 +11,30 @@
 
 import portainer from './portainer';
 import { PortainerContainer, PortainerImage } from './portainer';
-import Server from '@/lib/objects/Server';
+import Server, { type IServer, type ProxySettings } from '@/lib/objects/Server';
 import User, { IUser } from '@/lib/objects/User';
 import dbConnect from '@/lib/db/dbConnect';
+import { getContainerName } from '@/lib/server/containerNames';
+import { defaultProxyImage } from '@/lib/server/network/proxyTemplates';
+import { getImageTag, getServerType } from '@/lib/data/itzg';
+
+/** Ensures an image reference includes an explicit tag when neither tag nor digest is present. */
+export function normalizeImageRef(image: string): string {
+    const trimmed = image.trim();
+    if (!trimmed || trimmed.includes('@') || trimmed.startsWith('sha256:')) return trimmed;
+    const lastSlash = trimmed.lastIndexOf('/');
+    const tail = trimmed.slice(lastSlash + 1);
+    return tail.includes(':') ? trimmed : `${trimmed}:latest`;
+}
+
+/** True when a local image's RepoDigests does not match the remote registry digest. */
+export function isDigestOutdated(repoDigests: string[] | undefined, remoteDigest: string | null): boolean {
+    if (!remoteDigest || !repoDigests || repoDigests.length === 0) return false;
+    return !repoDigests.some(entry => {
+        const at = entry.indexOf('@');
+        return (at >= 0 ? entry.slice(at + 1) : entry) === remoteDigest;
+    });
+}
 
 export interface ImageUpdateConfig {
     enabled: boolean;
@@ -43,7 +64,11 @@ export interface UpdateResult {
 export interface ServerUpdateStatus {
     serverId: string;
     serverName: string;
+    kind: 'server' | 'proxy';
     containerName: string;
+    environmentId: number;
+    stackName?: string;
+    imported?: boolean;
     currentImage: string;
     targetImage: string;
     status: 'pending' | 'updating' | 'completed' | 'failed' | 'rolled-back';
@@ -135,15 +160,15 @@ export class DockerImageUpdater {
                 const containers = await portainer.getContainers(env.Id);
                 const images = await portainer.getImages(env.Id);
 
-                // Filter for Minecraft containers (those with minecraft labels or itzg image)
+                // Filter for managed and imported Minecraft game and proxy containers
                 const minecraftContainers = containers.filter(container =>
-                    container.Image.includes('itzg/minecraft-server') ||
-                    (container.Names && container.Names.some(name => name.includes('mc-')))
+                    /minecraft-server|mc-proxy|velocity/i.test(container.Image) ||
+                    (container.Names && container.Names.some(name => /mc-|velocity/i.test(name)))
                 );
 
-                // Filter for Minecraft images
+                // Filter for Minecraft/proxy images
                 const minecraftImages = images.filter(image =>
-                    image.RepoTags && image.RepoTags.some(tag => tag.includes('itzg/minecraft-server'))
+                    image.RepoTags && image.RepoTags.some(tag => /minecraft-server|mc-proxy|velocity/i.test(tag))
                 );
 
                 allContainers = [...allContainers, ...minecraftContainers];
@@ -157,41 +182,118 @@ export class DockerImageUpdater {
         }
     }
 
+    private resolveTargetImage(server: IServer, container: PortainerContainer, detailsImage?: string): string {
+        const raw = (!container.Image.startsWith('sha256:') ? container.Image : undefined) ?? detailsImage;
+        if (raw && !raw.startsWith('sha256:')) return normalizeImageRef(raw);
+        if (server.kind === 'proxy') {
+            const proxy = server.proxy as ProxySettings | undefined;
+            return normalizeImageRef(proxy?.image || defaultProxyImage(proxy?.type ?? 'velocity'));
+        }
+        const definition = getServerType(server.serverConfig?.serverType);
+        return `itzg/minecraft-server:${definition?.versionFromPack ? 'latest' : getImageTag(server.serverConfig?.version)}`;
+    }
+
     /**
-     * Check for available image updates
+     * Check for available image updates across servers and proxies by comparing container images
+     * against locally pulled image IDs and remote registry digests.
      */
-    async checkForUpdates(): Promise<{
+    async checkForUpdates(options: { refresh?: boolean } = {}): Promise<{
         updatesAvailable: boolean;
         containers: ServerUpdateStatus[];
     }> {
         try {
-            const { containers } = await this.getMinecraftContainers();
+            await dbConnect();
+            const servers = await Server.find({});
+            const environments = await portainer.getEnvironments();
+            const containersByEnv = new Map<number, PortainerContainer[]>();
+            for (const env of environments) {
+                try {
+                    containersByEnv.set(env.Id, await portainer.getContainers(env.Id, true));
+                } catch {
+                    containersByEnv.set(env.Id, []);
+                }
+            }
+
+            const distributionCache = new Map<string, string | null>();
+            const localIdCache = new Map<string, string | null>();
+            const imageDetailsCache = new Map<string, { Id?: string; RepoTags?: string[]; RepoDigests?: string[] } | null>();
+            const pulledCache = new Set<string>();
             const updateStatuses: ServerUpdateStatus[] = [];
 
-            for (const container of containers) {
-                // Extract server ID from container name (format: mc-{uniqueId})
-                const serverIdMatch = container.Names[0]?.match(/mc-([a-zA-Z0-9-]+)/);
-                if (!serverIdMatch) continue;
+            for (const server of servers) {
+                const candidateNames = new Set([getContainerName(server), `mc-${server.uniqueId}`]);
+                let matchedEnvId: number | null = null;
+                let matchedContainer: PortainerContainer | undefined;
 
-                const serverId = serverIdMatch[1];
-                
-                // Get server info from database
-                await dbConnect();
-                const server = await Server.findOne({ uniqueId: serverId });
-                if (!server) continue;
+                const preferredEnv = server.environmentId && containersByEnv.has(server.environmentId)
+                    ? [server.environmentId, ...[...containersByEnv.keys()].filter(id => id !== server.environmentId)]
+                    : [...containersByEnv.keys()];
 
-                const currentImage = container.Image;
-                const targetImage = 'itzg/minecraft-server:latest'; // Or version-specific logic
+                for (const envId of preferredEnv) {
+                    const list = containersByEnv.get(envId) ?? [];
+                    const found = list.find(c =>
+                        c.Names?.some(n => candidateNames.has(n.replace(/^\//, '')))
+                    );
+                    if (found) {
+                        matchedEnvId = envId;
+                        matchedContainer = found;
+                        break;
+                    }
+                }
 
-                // Check if update is needed (simplified - could be more sophisticated)
-                const needsUpdate = !currentImage.includes(':latest') || 
-                                   await this.isImageOutdated();
+                if (!matchedContainer || matchedEnvId === null) continue;
+
+                let detailsImage: string | undefined;
+                if (matchedContainer.Image.startsWith('sha256:')) {
+                    const details = await portainer.getContainerDetails(matchedContainer.Id, matchedEnvId).catch(() => null);
+                    detailsImage = details?.Config?.Image;
+                }
+
+                const targetImage = this.resolveTargetImage(server, matchedContainer, detailsImage);
+                const currentImage = normalizeImageRef(detailsImage || matchedContainer.Image);
+                const cacheKey = `${matchedEnvId}:${targetImage}`;
+
+                if (!localIdCache.has(cacheKey)) {
+                    localIdCache.set(cacheKey, await portainer.getImageId(targetImage, matchedEnvId));
+                }
+                const localTagId = localIdCache.get(cacheKey) ?? null;
+
+                let needsUpdate = Boolean(localTagId && matchedContainer.ImageID && localTagId !== matchedContainer.ImageID);
+
+                if (!needsUpdate) {
+                    if (!distributionCache.has(cacheKey)) {
+                        distributionCache.set(cacheKey, await portainer.getDistributionDigest(targetImage, matchedEnvId));
+                    }
+                    const remoteDigest = distributionCache.get(cacheKey) ?? null;
+
+                    if (remoteDigest) {
+                        const imgLookup = matchedContainer.ImageID || targetImage;
+                        const imgKey = `${matchedEnvId}:${imgLookup}`;
+                        if (!imageDetailsCache.has(imgKey)) {
+                            imageDetailsCache.set(imgKey, await portainer.getImageDetails(imgLookup, matchedEnvId));
+                        }
+                        const imgDetails = imageDetailsCache.get(imgKey);
+                        needsUpdate = isDigestOutdated(imgDetails?.RepoDigests, remoteDigest);
+                    } else if (options.refresh && !pulledCache.has(cacheKey)) {
+                        pulledCache.add(cacheKey);
+                        await portainer.pullImage(targetImage, matchedEnvId).catch(() => undefined);
+                        const pulledId = await portainer.getImageId(targetImage, matchedEnvId);
+                        localIdCache.set(cacheKey, pulledId);
+                        needsUpdate = Boolean(pulledId && matchedContainer.ImageID && pulledId !== matchedContainer.ImageID);
+                    }
+                }
 
                 if (needsUpdate) {
+                    const stackName = matchedContainer.Labels?.['com.docker.compose.project']
+                        || (server.kind === 'proxy' ? (server.proxy as ProxySettings | undefined)?.stackName : !server.imported ? `minecraft-${server.uniqueId}` : undefined);
                     updateStatuses.push({
-                        serverId,
+                        serverId: server.uniqueId,
                         serverName: server.serverName,
-                        containerName: container.Names[0],
+                        kind: server.kind === 'proxy' ? 'proxy' : 'server',
+                        containerName: matchedContainer.Names[0]?.replace(/^\//, '') || getContainerName(server),
+                        environmentId: matchedEnvId,
+                        stackName,
+                        imported: Boolean(server.imported),
                         currentImage,
                         targetImage,
                         status: 'pending',
@@ -207,20 +309,6 @@ export class DockerImageUpdater {
         } catch (error) {
             console.error('Error checking for updates:', error);
             throw error;
-        }
-    }
-
-    /**
-     * Check if an image is outdated
-     */
-    private async isImageOutdated(): Promise<boolean> {
-        try {
-            // This would typically check against registry or compare creation dates
-            // For now, implement simple logic
-            return false; // Placeholder
-        } catch (error) {
-            console.error('Error checking image age:', error);
-            return false;
         }
     }
 
@@ -368,47 +456,66 @@ export class DockerImageUpdater {
     }
 
     /**
-     * Update a single container
+     * Update a single server or proxy container (managed or Portainer-stack imported)
      */
     private async updateContainer(containerStatus: ServerUpdateStatus): Promise<void> {
         try {
             containerStatus.status = 'updating';
             containerStatus.startTime = new Date();
 
-            const environments = await portainer.getEnvironments();
-            const environment = environments[0]; // Use first available environment
+            const environmentId = await portainer.getValidEnvironmentId(containerStatus.environmentId ?? null);
+            await dbConnect();
+            const server = await Server.findOne({ uniqueId: containerStatus.serverId });
+            if (!server) {
+                throw new Error('Server or proxy not found in database');
+            }
+
+            if (server.kind === 'proxy' && !server.imported && (server.proxy as ProxySettings | undefined)?.stackName) {
+                const { updateProxy } = await import('@/lib/server/network/proxyManagement');
+                await updateProxy(server.uniqueId, { pullImage: true });
+                containerStatus.status = 'completed';
+                containerStatus.endTime = new Date();
+                return;
+            }
+
+            const stackCandidate = containerStatus.stackName
+                || (server.kind === 'proxy' ? (server.proxy as ProxySettings | undefined)?.stackName : `minecraft-${server.uniqueId}`);
+            const stack = stackCandidate ? await portainer.getStackByName(stackCandidate) : null;
+
+            if (stack) {
+                const composeContent = !server.imported && server.kind !== 'proxy'
+                    ? (await import('./minecraft')).createMinecraftServerFromRecord(server, environmentId, server.email).generateDockerComposeYaml()
+                    : await portainer.getStackFileContent(stack.Id);
+                await portainer.updateStack(stack.Id, composeContent, environmentId, true);
+                if (server.kind !== 'proxy') {
+                    await Server.updateOne({ _id: server._id }, { $unset: { startGuard: '' } });
+                }
+                containerStatus.status = 'completed';
+                containerStatus.endTime = new Date();
+                return;
+            }
+
+            if (server.imported) {
+                throw new Error(`No Portainer stack found for imported container "${containerStatus.containerName}"; recreate it where its container is defined.`);
+            }
 
             // Pull latest image
-            await this.pullLatestImage(environment.Id, containerStatus.targetImage);
+            await this.pullLatestImage(environmentId, containerStatus.targetImage);
 
-            // Stop container
-            const container = await portainer.getContainerByName(
-                containerStatus.containerName,
-                environment.Id
-            );
-
+            // Stop and remove old container before redeploying
+            const container = await portainer.getContainerByIdentifier(containerStatus.containerName, environmentId);
             if (!container) {
                 throw new Error('Container not found');
             }
-
             if (container.State === 'running') {
-                await portainer.stopContainer(container.Id, environment.Id);
+                await portainer.stopContainer(container.Id, environmentId);
             }
+            await portainer.removeContainer(container.Id, environmentId, false, false);
+            await this.recreateContainer(containerStatus, environmentId);
 
-            // Remove old container
-            await portainer.removeContainer(container.Id, environment.Id, false, false);
-
-            // Recreate container with new image
-            await this.recreateContainer(containerStatus, environment.Id);
-
-            // Start new container
-            const newContainer = await portainer.getContainerByName(
-                containerStatus.containerName,
-                environment.Id
-            );
-
-            if (newContainer) {
-                await portainer.startContainer(newContainer.Id, environment.Id);
+            const newContainer = await portainer.getContainerByIdentifier(containerStatus.containerName, environmentId);
+            if (newContainer && newContainer.State !== 'running') {
+                await portainer.startContainer(newContainer.Id, environmentId);
             }
 
             containerStatus.status = 'completed';

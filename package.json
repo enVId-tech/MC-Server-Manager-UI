@@ -32,7 +32,8 @@
     "test:addons": "tsx scripts/test-addons.ts",
     "test:backups": "tsx scripts/test-backups.ts",
     "test:live": "tsx scripts/test-live.ts",
-    "test:console": "tsx scripts/test-console.ts"
+    "test:console": "tsx scripts/test-console.ts",
+    "test:docker-updates": "tsx scripts/test-docker-updates.ts"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",

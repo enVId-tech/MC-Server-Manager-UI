@@ -18,9 +18,10 @@ export async function GET(request: NextRequest) {
 
         // Get current status and configuration
         const status = dockerImageUpdater.getStatus();
+        const refresh = new URL(request.url).searchParams.get('refresh') === '1';
 
         // Check for available updates
-        const updateCheck = await dockerImageUpdater.checkForUpdates();
+        const updateCheck = await dockerImageUpdater.checkForUpdates({ refresh });
 
         return NextResponse.json({
             success: true,
@@ -91,8 +92,8 @@ export async function POST(request: NextRequest) {
             });
 
         } else if (action === 'check-updates') {
-            // Check for available updates
-            const updateCheck = await dockerImageUpdater.checkForUpdates();
+            // Force a fresh registry/image check when triggered manually
+            const updateCheck = await dockerImageUpdater.checkForUpdates({ refresh: true });
 
             return NextResponse.json({
                 success: true,
