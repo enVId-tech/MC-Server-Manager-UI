@@ -2053,6 +2053,12 @@ export default function ServerGenerator() {
                   onChange={links => setServerConfig(previous => ({ ...previous, addons: links }))}
                   allowOther={plan?.isAdmin === true}
                   noun={supportsPlugins(serverConfig.serverType) && supportsMods(serverConfig.serverType) ? 'plugins and mods' : supportsPlugins(serverConfig.serverType) ? 'plugins' : 'mods'}
+                  serverCapabilities={{
+                    plugins: supportsPlugins(serverConfig.serverType),
+                    mods: supportsMods(serverConfig.serverType),
+                    type: serverConfig.serverType,
+                    typeName: getServerType(serverConfig.serverType)?.name,
+                  }}
                 />
               )}
 

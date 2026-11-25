@@ -27,6 +27,8 @@ export interface AddonLookup {
     author?: string;
     /** What the project is for, as far as the site says */
     kinds: AddonKind[];
+    /** Mod/plugin loaders listed by the source (when provided, e.g. Modrinth) */
+    loaders?: string[];
     /** Whether the manager can download it (some Spigot resources and CurseForge files are not offered for download) */
     downloadable: boolean;
     /** The site confirmed that the project exists */
@@ -99,7 +101,7 @@ async function lookupModrinth(link: LinkRef): Promise<AddonLookup> {
     const downloadable = ['mod', 'plugin'].includes(project.project_type);
     return {
         source: 'modrinth', ref: project.slug, url: link.url, name: project.title, description: project.description, icon: project.icon_url ?? undefined,
-        kinds: kinds.length > 0 ? kinds : ['mod'], downloadable, verified: true,
+        kinds: kinds.length > 0 ? kinds : ['mod'], loaders, downloadable, verified: true,
         note: downloadable ? undefined : `This is a ${project.project_type}, not a plugin or a mod.`,
     };
 }
