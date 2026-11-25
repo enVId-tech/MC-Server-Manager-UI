@@ -510,15 +510,28 @@ class VelocityService {
         containerId: string,
         environmentId: number,
         maxWaitTime: number = 180000, // 3 minutes
-        requiredFiles: string[] = ['server.properties']
+        requiredFiles: string[] = ['server.properties'],
+        options?: {
+            pollIntervalMs?: number;
+            onProgress?: (info: {
+                elapsedMs: number;
+                maxWaitMs: number;
+                foundFiles: string[];
+                missingFiles: string[];
+                latestLogLine?: string;
+            }) => Promise<void> | void;
+        }
     ): Promise<{ success: boolean; error?: string }> {
         const startTime = Date.now();
+        const pollIntervalMs = options?.pollIntervalMs ?? 3000;
+        const { extractLatestStartupLogLine } = await import('@/lib/server/deployProgress');
         const checkCmd = requiredFiles
-            .map(entry => {
-                const options = entry.split('|').map(path => `test -f '/data/${path.replace(/'/g, `'\\''`)}'`);
-                return options.length > 1 ? `( ${options.join(' || ')} )` : options[0];
+            .map((entry, idx) => {
+                const optionsList = entry.split('|').map(path => `test -f '/data/${path.replace(/'/g, `'\\''`)}'`);
+                const testExpr = optionsList.length > 1 ? `( ${optionsList.join(' || ')} )` : optionsList[0];
+                return `${testExpr} && echo "FOUND:${idx}" || true`;
             })
-            .join(' && ');
+            .join('; ');
         console.log(`[Velocity] Waiting for server files (${requiredFiles.join(', ')}) in container ${containerId} (env: ${environmentId})`);
         
         // First, verify the container exists
@@ -541,21 +554,47 @@ class VelocityService {
         
         while (Date.now() - startTime < maxWaitTime) {
             try {
-                // Check if all required config files exist inside /data
+                // Check which required config files exist inside /data
                 const result = await portainer.executeCommand(
                     containerId,
                     checkCmd,
                     environmentId
                 );
-                
-                if (result.exitCode === 0) {
+
+                const foundIndices = new Set(
+                    result.output
+                        .split(/\r?\n/)
+                        .map(line => line.match(/^FOUND:(\d+)/)?.[1])
+                        .filter((v): v is string => v !== undefined)
+                        .map(v => parseInt(v, 10))
+                );
+                const foundFiles = requiredFiles.filter((_, idx) => foundIndices.has(idx));
+                const missingFiles = requiredFiles.filter((_, idx) => !foundIndices.has(idx));
+
+                if (missingFiles.length === 0 && result.exitCode === 0) {
                     console.log(`[Velocity] Server files are ready in container ${containerId.slice(0, 12)}`);
                     return { success: true };
                 }
-                
-                console.log(`[Velocity] Server files not yet ready (exit code: ${result.exitCode}), waiting...`);
-                // Wait 5 seconds before checking again
-                await new Promise(resolve => setTimeout(resolve, 5000));
+
+                if (options?.onProgress) {
+                    let latestLogLine: string | undefined;
+                    try {
+                        const logs = await portainer.getContainerLogs(containerId, environmentId, 20);
+                        latestLogLine = extractLatestStartupLogLine(logs);
+                    } catch {
+                        // Logs are optional for progress text
+                    }
+                    await options.onProgress({
+                        elapsedMs: Date.now() - startTime,
+                        maxWaitMs: maxWaitTime,
+                        foundFiles,
+                        missingFiles,
+                        latestLogLine,
+                    });
+                }
+
+                console.log(`[Velocity] Server files not yet ready (${foundFiles.length}/${requiredFiles.length} ready), waiting...`);
+                await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
                 
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);

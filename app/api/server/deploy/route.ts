@@ -20,6 +20,7 @@ import { extractWorldZip, installWorld } from '@/lib/server/world/install';
 import { installFromLink } from '@/lib/server/addons/manager';
 import { subdomainLabel } from '@/lib/server/subdomain';
 import { isRestrictedPort } from '@/lib/config/portConfig';
+import { calculateDeploymentProgress, calculateStartupWaitStepProgress } from '@/lib/server/deployProgress';
 
 // Interface for server config as stored in database (with FileInfo instead of AnalyzedFile)
 interface DatabaseServerConfig {
@@ -83,6 +84,8 @@ export interface DeploymentStatus {
     progress: number;
     currentStep: string;
     steps: DeploymentStep[];
+    startedAt?: number;
+    updatedAt?: number;
     error?: string;
 }
 
@@ -248,12 +251,15 @@ export async function POST(request: NextRequest) {
             { id: 'finalize', name: 'Finalizing deployment', status: 'pending', progress: 0 }
         );
 
+        const now = Date.now();
         const initialStatus: DeploymentStatus = {
             serverId: serverId,
             status: 'running',
-            progress: 0,
+            progress: 2,
             currentStep: 'Initializing deployment...',
-            steps: steps
+            steps: steps,
+            startedAt: now,
+            updatedAt: now,
         };
 
         deploymentStatuses.set(serverId, initialStatus);
@@ -324,16 +330,12 @@ async function updateStep(serverId: string, stepId: string, status: 'running' | 
         if (error) step.error = error;
     }
 
-    // Update overall progress
-    const completedSteps = deploymentStatus.steps.filter(s => s.status === 'completed').length;
-    const runningSteps = deploymentStatus.steps.filter(s => s.status === 'running').length;
-    const totalSteps = deploymentStatus.steps.length;
-
-    // Calculate progress more accurately
-    const runningProgress = runningSteps > 0 ? 0.5 : 0; // Give 50% credit for running steps
-    deploymentStatus.progress = Math.round(((completedSteps + runningProgress) / totalSteps) * 100);
+    deploymentStatus.progress = calculateDeploymentProgress(deploymentStatus.steps);
+    deploymentStatus.updatedAt = Date.now();
 
     // Update current step
+    const completedSteps = deploymentStatus.steps.filter(s => s.status === 'completed').length;
+    const totalSteps = deploymentStatus.steps.length;
     const currentRunningStep = deploymentStatus.steps.find(s => s.status === 'running');
     if (currentRunningStep) {
         deploymentStatus.currentStep = message || currentRunningStep.name;
@@ -344,7 +346,7 @@ async function updateStep(serverId: string, stepId: string, status: 'running' | 
     deploymentStatuses.set(serverId, deploymentStatus);
 
     // Log progress for debugging
-    console.log(`[${serverId}] Step ${stepId}: ${status} (${progress}%) - ${message || ''}`);
+    console.log(`[${serverId}] Step ${stepId}: ${status} (${progress}% | total ${deploymentStatus.progress}%) - ${message || ''}`);
 }
 
 async function deployServer(serverId: string, server: IServer, user: IUser) {
@@ -912,10 +914,10 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
             let filesReady = false;
             if (serverContainer) {
                 if (serverContainer.State === 'created' || serverContainer.State === 'exited') {
-                    await updateStep(serverId, 'velocity', 'running', 20, 'Starting the server so it creates its files...');
+                    await updateStep(serverId, 'velocity', 'running', 10, 'Starting container so Minecraft creates initial files...');
                     await portainer.axiosInstance.post(`/api/endpoints/${portainerEnvironmentId}/docker/containers/${serverContainer.Id}/start`);
                 }
-                await updateStep(serverId, 'velocity', 'running', 30, 'Waiting for the server files...');
+                await updateStep(serverId, 'velocity', 'running', 15, 'Initializing Minecraft server (first launch downloads and builds jar)...');
                 const serverTypeLower = String(serverConfig.serverType ?? '').toLowerCase();
                 const requiredFiles = ['server.properties'];
                 if (['spigot', 'bukkit', 'craftbukkit', 'paper', 'purpur', 'folia', 'pufferfish', 'leaf'].includes(serverTypeLower)) {
@@ -924,12 +926,27 @@ async function deployServer(serverId: string, server: IServer, user: IUser) {
                 if (['paper', 'purpur', 'folia', 'pufferfish', 'leaf'].includes(serverTypeLower)) {
                     requiredFiles.push('config/paper-global.yml|paper.yml');
                 }
-                const ready = await velocityService.waitForServerFilesToBeCreated(serverContainer.Id, portainerEnvironmentId, 180000, requiredFiles);
+                const ready = await velocityService.waitForServerFilesToBeCreated(
+                    serverContainer.Id,
+                    portainerEnvironmentId,
+                    180000,
+                    requiredFiles,
+                    {
+                        pollIntervalMs: 3000,
+                        onProgress: async ({ elapsedMs, foundFiles, latestLogLine }) => {
+                            const secs = Math.max(1, Math.round(elapsedMs / 1000));
+                            const stepPct = calculateStartupWaitStepProgress(elapsedMs, foundFiles.length, requiredFiles.length);
+                            const fileStatus = `${foundFiles.length}/${requiredFiles.length} config files ready (${secs}s)`;
+                            const detail = latestLogLine ? `${fileStatus} — ${latestLogLine}` : fileStatus;
+                            await updateStep(serverId, 'velocity', 'running', stepPct, detail);
+                        },
+                    }
+                );
                 filesReady = ready.success;
                 if (!ready.success) console.warn(`[Deploy] Server files not ready: ${ready.error}`);
             }
 
-            await updateStep(serverId, 'velocity', 'running', 60, 'Adding the server to its proxies...');
+            await updateStep(serverId, 'velocity', 'running', 90, 'Adding the server to its proxies...');
             await adoptExistingProxies(user.email).catch(() => []);
             const result = await syncServerNetwork(freshServer, { restart: filesReady, environmentId: portainerEnvironmentId });
             const message = result.linked.length > 0

@@ -234,6 +234,7 @@ export default function ServerGenerator() {
   const [creationSuccess, setCreationSuccess] = useState(false);
   const [creationProgress, setCreationProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [deploymentSteps, setDeploymentSteps] = useState<Array<{
     id: string;
     name: string;
@@ -1342,9 +1343,29 @@ export default function ServerGenerator() {
     }
   };
 
+  // Keep an active elapsed timer running during server creation so long container waits clearly show liveness
+  useEffect(() => {
+    if (!isCreating || creationSuccess) return;
+    const startedAt = Date.now();
+    const resetTimer = setTimeout(() => setElapsedSeconds(0), 0);
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => {
+      clearTimeout(resetTimer);
+      clearInterval(interval);
+    };
+  }, [isCreating, creationSuccess]);
+
+  const formatElapsed = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${String(secs).padStart(2, '0')}`;
+  };
+
   // Poll deployment status for real-time updates
   const pollDeploymentStatus = async (serverId: string) => {
-    const maxAttempts = 60; // 5 minutes at 5-second intervals
+    const maxAttempts = 240; // 6 minutes at 1.5-second intervals
     let attempts = 0;
 
     const poll = async () => {
@@ -1357,8 +1378,8 @@ export default function ServerGenerator() {
 
         const status = await statusResponse.json();
 
-        // Update UI with real deployment status
-        setCreationProgress(status.progress);
+        // Update UI with real deployment status (never jump backwards)
+        setCreationProgress(prev => Math.max(prev, Number(status.progress) || 0));
         setCurrentStep(status.currentStep);
         setDeploymentSteps(status.steps || []);
 
@@ -1366,6 +1387,7 @@ export default function ServerGenerator() {
           // Step 4: Upload files after deployment completes
           await uploadFilesToServer(serverId);
 
+          setCreationProgress(100);
           setCreationSuccess(true);
 
           // Redirect after 5 seconds
@@ -1389,7 +1411,7 @@ export default function ServerGenerator() {
         // Continue polling if still running
         if (status.status === 'running' && attempts < maxAttempts) {
           attempts++;
-          setTimeout(poll, 5000); // Poll every 5 seconds
+          setTimeout(poll, 1500);
         } else if (attempts >= maxAttempts) {
           setIsCreating(false);
           setError({
@@ -1403,7 +1425,7 @@ export default function ServerGenerator() {
         console.error('Error polling deployment status:', error);
         attempts++;
         if (attempts < maxAttempts) {
-          setTimeout(poll, 5000); // Retry after 5 seconds
+          setTimeout(poll, 2500);
         } else {
           setIsCreating(false);
           setError({
@@ -1415,8 +1437,8 @@ export default function ServerGenerator() {
       }
     };
 
-    // Start polling
-    setTimeout(poll, 2000); // Start after 2 seconds
+    // Start polling quickly so early steps are visible
+    setTimeout(poll, 600);
   };
 
   // Upload files to server after deployment completes
@@ -1455,7 +1477,7 @@ export default function ServerGenerator() {
         return; // No files to upload
       }
 
-      setCreationProgress(85);
+      setCreationProgress(prev => Math.max(prev, 92));
       setCurrentStep('Uploading files to server...');
 
       // Upload files sequentially to avoid overwhelming the server
@@ -1463,7 +1485,7 @@ export default function ServerGenerator() {
         const { file, type, name } = filesToUpload[i];
 
         setCurrentStep(`Uploading ${name}...`);
-        setCreationProgress(85 + (i / filesToUpload.length) * 10);
+        setCreationProgress(prev => Math.max(prev, Math.round(92 + (i / filesToUpload.length) * 6)));
 
         const formData = new FormData();
         formData.append('serverId', serverId);
@@ -1566,14 +1588,14 @@ export default function ServerGenerator() {
     }
   };
 
-  // Behind a modern forwarding proxy only 1.13 and newer can join; regular users do not get older versions to pick
+  // When the single proxy uses Velocity modern forwarding, versions under 1.13 are unsupported and excluded
   const lockedToProxy = Boolean(plan && plan.hasProxy && plan.forwarding && !plan.isAdmin);
-  const selectableVersions = plan && plan.minVersion && !plan.isAdmin
+  const selectableVersions = plan && plan.minVersion
     ? versions.filter(version => version === 'LATEST' || version === 'SNAPSHOT' || compareMinecraftVersions(version, plan.minVersion as string) >= 0)
     : versions;
 
   useEffect(() => {
-    if (!plan || plan.isAdmin || plan.allowed || selectableVersions.length === 0) return;
+    if (!plan || plan.allowed || selectableVersions.length === 0) return;
     // The chosen version cannot join the proxy network: move to the newest one that can
     setServerConfig(previous => ({ ...previous, version: selectableVersions[0] }));
   }, [plan, selectableVersions]);
@@ -1596,6 +1618,13 @@ export default function ServerGenerator() {
                 <p className={styles.creationMessage}>
                   Please wait while we set up your Minecraft server...
                 </p>
+                <div className={styles.liveActivityBar} role="status" aria-live="polite">
+                  <span className={styles.liveActivityLeft}>
+                    <span className={styles.livePulseDot} aria-hidden="true" />
+                    Still working
+                  </span>
+                  <span className={styles.liveElapsed}>Elapsed: {formatElapsed(elapsedSeconds)}</span>
+                </div>
                 <div className={styles.progressBar}>
                   <div
                     className={styles.progressFill}
@@ -1604,6 +1633,11 @@ export default function ServerGenerator() {
                 </div>
                 <p className={styles.progressText}>{Math.round(creationProgress)}% Complete</p>
                 <p className={styles.currentStepText}>{currentStep}</p>
+                {elapsedSeconds >= 10 && (
+                  <p className={styles.longWaitHint}>
+                    First-time server initialization downloads Minecraft, applies patches, and generates world files — this can take 1–3 minutes.
+                  </p>
+                )}
                 <div className={styles.creationSteps}>
                   {deploymentSteps.length > 0 ? (
                     deploymentSteps.map((step) => (
