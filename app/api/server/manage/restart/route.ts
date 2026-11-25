@@ -6,6 +6,7 @@ import Server from "@/lib/objects/Server";
 import portainer from "@/lib/server/portainer";
 import verificationService from "@/lib/server/verify";
 import { getContainerName } from '@/lib/server/containerNames';
+import { addonsOf, applyStagedAddons } from '@/lib/server/addons/manager';
 
 export async function POST(request: NextRequest) {
     await dbConnect();
@@ -71,8 +72,17 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ message: 'Container not found for this server.' }, { status: 404 });
         }
 
-        // Restart the container with the proper environment ID
-        await portainer.restartContainer(container.Id, portainerEnvironmentId, timeout);
+        // If plugin/mod updates are staged, stop first so open jars unlock, swap to new versioned files (and delete old ones), then start
+        const hasStaged = addonsOf(server).some(entry => Boolean(entry.staged));
+        if (hasStaged) {
+            if (['running', 'restarting', 'paused'].includes(container.State)) {
+                await portainer.stopContainer(container.Id, portainerEnvironmentId, Math.max(timeout, 20));
+            }
+            await applyStagedAddons(server).catch(error => console.warn('Staged add-ons not applied:', error instanceof Error ? error.message : error));
+            await portainer.startContainer(container.Id, portainerEnvironmentId);
+        } else {
+            await portainer.restartContainer(container.Id, portainerEnvironmentId, timeout);
+        }
         
         // Update server status in database (use updateOne to avoid validation issues)
         await Server.updateOne(

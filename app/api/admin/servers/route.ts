@@ -8,6 +8,7 @@ import portainer from '@/lib/server/portainer';
 import { deleteServer } from '@/lib/server/deleteServer';
 import { getContainerName } from '@/lib/server/containerNames';
 import { publicSubdomain } from '@/lib/server/subdomain';
+import { addonsOf, applyStagedAddons } from '@/lib/server/addons/manager';
 
 // GET - Get all servers for admin management (admin only)
 function escapeRegExp(value: string): string {
@@ -232,7 +233,7 @@ export async function POST(request: NextRequest) {
                         continue;
                     }
 
-                    const containerName = `mc-${serverId}`;
+                    const containerName = getContainerName(server);
                     const container = await portainer.getContainerByIdentifier(containerName, environmentId);
                     
                     if (!container) {
@@ -240,6 +241,7 @@ export async function POST(request: NextRequest) {
                         continue;
                     }
 
+                    await applyStagedAddons(server).catch(() => undefined);
                     await portainer.startContainer(container.Id, environmentId);
                     
                     // Update database
@@ -314,7 +316,7 @@ export async function POST(request: NextRequest) {
                         continue;
                     }
 
-                    const containerName = `mc-${serverId}`;
+                    const containerName = getContainerName(server);
                     const container = await portainer.getContainerByIdentifier(containerName, environmentId);
                     
                     if (!container) {
@@ -322,7 +324,16 @@ export async function POST(request: NextRequest) {
                         continue;
                     }
 
-                    await portainer.restartContainer(container.Id, environmentId);
+                    const hasStaged = addonsOf(server).some(entry => Boolean(entry.staged));
+                    if (hasStaged) {
+                        if (['running', 'restarting', 'paused'].includes(container.State)) {
+                            await portainer.stopContainer(container.Id, environmentId, 20);
+                        }
+                        await applyStagedAddons(server).catch(() => undefined);
+                        await portainer.startContainer(container.Id, environmentId);
+                    } else {
+                        await portainer.restartContainer(container.Id, environmentId);
+                    }
                     
                     // Update database
                     await Server.updateOne({ uniqueId: serverId }, { $set: { isOnline: true } });
