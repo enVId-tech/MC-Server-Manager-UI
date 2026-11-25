@@ -7,6 +7,7 @@ import {
     FaArrowLeft,
     FaChartPie,
     FaCheck,
+    FaClone,
     FaDownload,
     FaFolderOpen,
     FaGlobe,
@@ -26,6 +27,7 @@ import {
     FaUsers,
 } from 'react-icons/fa';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
+import DuplicateServerModal from '@/app/_components/DuplicateServerModal/DuplicateServerModal';
 import ServerSettings from '@/app/_components/ServerSettings/ServerSettings';
 import styles from './dashboard.module.scss';
 import OverviewTab from './_components/OverviewTab';
@@ -79,6 +81,7 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
     const [renaming, setRenaming] = useState(false);
     const [nameDraft, setNameDraft] = useState('');
     const [savingName, setSavingName] = useState(false);
+    const [duplicateOpen, setDuplicateOpen] = useState(false);
 
     const isProxy = info?.kind === 'proxy';
 
@@ -345,6 +348,11 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
                                     <FaDownload aria-hidden="true" /> Backup
                                 </button>
                             )}
+                            {!isProxy && (
+                                <button className={styles.btn} onClick={() => setDuplicateOpen(true)}>
+                                    <FaClone aria-hidden="true" /> Duplicate
+                                </button>
+                            )}
                             <button className={`${styles.btn} ${styles.danger}`} onClick={remove}>
                                 <FaTrash aria-hidden="true" /> Delete
                             </button>
@@ -402,6 +410,17 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
                     {tab === 'admin' && info.isAdmin && <AdminTab info={info} onChanged={() => void loadStats()} />}
                 </main>
             </div>
+
+            {!isProxy && (
+                <DuplicateServerModal
+                    open={duplicateOpen}
+                    sourceId={info.uniqueId}
+                    sourceName={info.name}
+                    sourceAddress={info.subdomain}
+                    onClose={() => setDuplicateOpen(false)}
+                    onDuplicated={created => router.push(`/manager/servers/${encodeURIComponent(created.subdomainName || created.uniqueId)}`)}
+                />
+            )}
         </div>
     );
 }

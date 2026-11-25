@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
+import DuplicateServerModal from '@/app/_components/DuplicateServerModal/DuplicateServerModal';
 import styles from '../admin.module.scss';
 import ImportPanel from './ImportPanel';
 import { adminSend } from './shared';
@@ -59,6 +60,7 @@ export default function ServersSection() {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [selected, setSelected] = useState<Set<string>>(new Set());
+    const [duplicateTarget, setDuplicateTarget] = useState<AdminServer | null>(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -229,6 +231,7 @@ export default function ServersSection() {
                                                     <button className={`${styles.btn} ${styles.small}`} disabled={busy || !running} onClick={() => void run('stop', [server.uniqueId])}>Stop</button>
                                                     <button className={`${styles.btn} ${styles.small}`} disabled={busy} onClick={() => void run('restart', [server.uniqueId])}>Restart</button>
                                                     <Link className={`${styles.btn} ${styles.small}`} href={`/manager/servers/${encodeURIComponent(server.uniqueId)}`}>Open</Link>
+                                                    <button className={`${styles.btn} ${styles.small}`} disabled={busy} onClick={() => setDuplicateTarget(server)}>Duplicate</button>
                                                     <button className={`${styles.btn} ${styles.small} ${styles.danger}`} disabled={busy} onClick={() => confirmDelete([server.uniqueId])}>Delete</button>
                                                 </div>
                                             </td>
@@ -248,6 +251,15 @@ export default function ServersSection() {
                     </div>
                 )}
             </section>
+
+            <DuplicateServerModal
+                open={duplicateTarget !== null}
+                sourceId={duplicateTarget?.uniqueId ?? null}
+                sourceName={duplicateTarget?.serverName ?? ''}
+                sourceAddress={duplicateTarget?.subdomainName}
+                onClose={() => setDuplicateTarget(null)}
+                onDuplicated={() => void load()}
+            />
         </>
     );
 }

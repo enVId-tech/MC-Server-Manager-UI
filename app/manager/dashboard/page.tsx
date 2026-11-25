@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
     FaArrowRight,
     FaCheck,
+    FaClone,
     FaCog,
     FaCopy,
     FaDownload,
@@ -24,6 +25,7 @@ import {
     FaUsers,
 } from 'react-icons/fa';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
+import DuplicateServerModal from '@/app/_components/DuplicateServerModal/DuplicateServerModal';
 import dashboardBg from "@/public/dashboard-bg.png";
 
 // What a server is doing: starting and stopping are shown as such instead of offline
@@ -74,6 +76,7 @@ export default function Dashboard() {
     const [renamingServerId, setRenamingServerId] = useState<string | null>(null);
     const [renameDraft, setRenameDraft] = useState('');
     const [savingRenameId, setSavingRenameId] = useState<string | null>(null);
+    const [serverToDuplicate, setServerToDuplicate] = useState<MCServer | null>(null);
     const refreshServers = useRef<() => void>(() => undefined);
     const [proxies, setProxies] = useState<Array<{ id: string; name: string; kind: string; port: number; baseSubdomain?: string; running: boolean; linkedServers: number; issues: string[] }>>([]);
     const [busyServerIds, setBusyServerIds] = useState<Set<string>>(new Set());
@@ -871,6 +874,18 @@ export default function Dashboard() {
                                                 <FaCog aria-hidden="true" /> Manage
                                             </button>
                                             <button
+                                                type="button"
+                                                className={`${styles.button} ${styles.secondary}`}
+                                                aria-label={`Duplicate ${server.name}`}
+                                                title="Duplicate server"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setServerToDuplicate(server);
+                                                }}
+                                            >
+                                                <FaClone aria-hidden="true" /> Duplicate
+                                            </button>
+                                            <button
                                                 className={`${styles.button} ${styles.danger} ${styles.deletePush}`}
                                                 aria-label={`Delete ${server.name}`}
                                                 title="Delete server"
@@ -1037,6 +1052,15 @@ export default function Dashboard() {
                     </div>
                 </div>
             )}
+
+            <DuplicateServerModal
+                open={serverToDuplicate !== null}
+                sourceId={serverToDuplicate?.id ?? null}
+                sourceName={serverToDuplicate?.name ?? ''}
+                sourceAddress={serverToDuplicate?.subdomainName}
+                onClose={() => setServerToDuplicate(null)}
+                onDuplicated={() => refreshServers.current()}
+            />
         </main>
     );
 }
