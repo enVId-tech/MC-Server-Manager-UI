@@ -1319,19 +1319,21 @@ export class PortainerApiClient {
      * Get container logs from Portainer
      * @param containerId - The ID of the container
      * @param environmentId - The ID of the Portainer environment
-     * @param tail - Number of log lines to return (default: 1000)
+     * @param tail - Number of log lines to return, or `'all'` for all retained container logs (default: 1000)
      * @param timestamps - Whether Docker should prepend RFC3339Nano timestamps (default: true)
      * @returns Promise resolving to the container logs
      */
-    async getContainerLogs(containerId: string, environmentId: number | null = this.defaultEnvironmentId, tail: number = 1000, timestamps: boolean = true): Promise<string> {
+    async getContainerLogs(containerId: string, environmentId: number | null = this.defaultEnvironmentId, tail: number | 'all' = 1000, timestamps: boolean = true): Promise<string> {
         if (environmentId === null) {
             throw new Error('Environment ID is required to get container logs.');
         }
 
+        const tailQuery = tail === 'all' ? 'all' : String(Math.max(1, Math.floor(tail)));
+
         try {
             console.log(`📄 Getting logs for container ${containerId}...`);
             const response = await this.axiosInstance.get(
-                `/api/endpoints/${environmentId}/docker/containers/${containerId}/logs?stdout=1&stderr=1&tail=${tail}&timestamps=${timestamps ? 1 : 0}`
+                `/api/endpoints/${environmentId}/docker/containers/${containerId}/logs?stdout=1&stderr=1&tail=${tailQuery}&timestamps=${timestamps ? 1 : 0}`
             );
             return response.data;
         } catch (error) {
@@ -1345,7 +1347,7 @@ export class PortainerApiClient {
                     if (newEnvId !== null && newEnvId !== environmentId) {
                         console.log(`Found valid environment ${newEnvId}. Retrying getContainerLogs...`);
                         const response = await this.axiosInstance.get(
-                            `/api/endpoints/${newEnvId}/docker/containers/${containerId}/logs?stdout=1&stderr=1&tail=${tail}&timestamps=${timestamps ? 1 : 0}`
+                            `/api/endpoints/${newEnvId}/docker/containers/${containerId}/logs?stdout=1&stderr=1&tail=${tailQuery}&timestamps=${timestamps ? 1 : 0}`
                         );
                         
                         // If successful, update the defaultEnvironmentId for this instance if it was using the default

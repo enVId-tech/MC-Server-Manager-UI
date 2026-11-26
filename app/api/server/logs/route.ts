@@ -20,7 +20,11 @@ export async function GET(request: NextRequest) {
 
         const url = new URL(request.url);
         const uniqueId = url.searchParams.get('uniqueId');
-        const tail = parseInt(url.searchParams.get('tail') || '100');
+        const tailParam = url.searchParams.get('tail')?.trim().toLowerCase();
+        const parsedTail = Number.parseInt(tailParam || '500', 10);
+        const tail: number | 'all' = tailParam === 'all'
+            ? 'all'
+            : (Number.isFinite(parsedTail) && parsedTail > 0 ? parsedTail : 500);
 
         if (!uniqueId) {
             return NextResponse.json({ message: 'Server uniqueId is required.' }, { status: 400 });
@@ -47,10 +51,18 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ message: 'Server container not found.' }, { status: 404 });
         }
 
-        const rawLogs = await portainer.getContainerLogs(container.Id, environmentId, tail, false);
-        const logs = cleanContainerLogs(String(rawLogs ?? ''));
+        const numericTail = tail === 'all' ? null : tail;
+        const requestedTail = numericTail === null ? 'all' : numericTail + 1;
+        const rawText = String(await portainer.getContainerLogs(container.Id, environmentId, requestedTail, false) ?? '');
+        const normalizedRaw = rawText.replace(/\r\n/g, '\n');
+        const rawLines = normalizedRaw.endsWith('\n') ? normalizedRaw.slice(0, -1).split('\n') : normalizedRaw.split('\n');
+        const hasMore = numericTail !== null && rawLines.length > numericTail;
+        const slicedRaw = hasMore && numericTail !== null
+            ? rawLines.slice(rawLines.length - numericTail).join('\n')
+            : normalizedRaw;
+        const logs = cleanContainerLogs(slicedRaw);
 
-        return NextResponse.json({ logs });
+        return NextResponse.json({ logs, tail, hasMore });
 
     } catch (error) {
         console.error('Error fetching logs:', error);

@@ -776,6 +776,27 @@ $coral-accent: #ef4444;
     overflow: auto;
     padding: 1rem 1.1rem;
 
+    .historyBanner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      padding: 0.45rem 0.7rem;
+      border-radius: 0.45rem;
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid $border-subtle;
+      color: $text-secondary;
+      font-size: 0.78rem;
+    }
+
+    .historyActions {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
     pre {
       margin: 0;
       white-space: pre-wrap;

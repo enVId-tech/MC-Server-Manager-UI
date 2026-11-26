@@ -10,6 +10,8 @@ import { complete, namesInLog } from '@/lib/console/complete';
 import { parseColoredSegments, stripConsoleColors } from '@/lib/console/colors';
 
 const INTERVALS = [1, 5, 10] as const;
+const DEFAULT_LOG_LINES = 500;
+const LOG_LIMIT_STEPS: Array<number | 'all'> = [500, 2000, 5000, 'all'];
 const SETTINGS_KEY = 'console-refresh';
 const HISTORY_KEY = 'console-history';
 const HISTORY_SIZE = 100;
@@ -36,7 +38,7 @@ function loadRefresh(): { enabled: boolean; seconds: number } {
 }
 
 /** Renders ANSI / Minecraft §-colored text chunks cleanly as inline styled spans. */
-function ColoredText({ text }: { text: string }) {
+const ColoredText = React.memo(function ColoredText({ text }: { text: string }) {
     const segments = useMemo(() => parseColoredSegments(text), [text]);
     return (
         <>
@@ -58,7 +60,7 @@ function ColoredText({ text }: { text: string }) {
             })}
         </>
     );
-}
+});
 
 /** Live output of the container with a command line. Output refreshes at the chosen rate while the tab is open. */
 export default function ConsoleTab({ uniqueId, status, kind = 'server', serverType, version }: { uniqueId: string; status: ServerStatus; kind?: 'server' | 'proxy'; serverType?: string; version?: string }) {
@@ -85,12 +87,18 @@ export default function ConsoleTab({ uniqueId, status, kind = 'server', serverTy
     const [dismissed, setDismissed] = useState(false);
     const [onlinePlayers, setOnlinePlayers] = useState<string[]>([]);
     const [extraCommands, setExtraCommands] = useState<CommandDef[]>([]);
+    const [logLimit, setLogLimit] = useState<number | 'all'>(DEFAULT_LOG_LINES);
+    const [hasMoreLogs, setHasMoreLogs] = useState(false);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const pendingScrollBottomOffset = useRef<number | null>(null);
     const playersAskedAt = useRef(0);
 
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the saved choices once in the browser
         setRefresh(loadRefresh());
         setHistory(loadHistory(uniqueId));
+        setLogLimit(DEFAULT_LOG_LINES);
+        setHasMoreLogs(false);
     }, [uniqueId]);
 
     const changeRefresh = (next: { enabled: boolean; seconds: number }) => {
@@ -98,25 +106,40 @@ export default function ConsoleTab({ uniqueId, status, kind = 'server', serverTy
         try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next)); } catch { /* the choice just is not kept */ }
     };
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (requestedLimit?: number | 'all', preserveScroll = false) => {
+        const effectiveLimit = requestedLimit ?? logLimit;
+        if (preserveScroll && outputRef.current && !followingRef.current) {
+            pendingScrollBottomOffset.current = outputRef.current.scrollHeight - outputRef.current.scrollTop;
+        }
         try {
-            const response = await fetch(`/api/server/logs?uniqueId=${encodeURIComponent(uniqueId)}&tail=300`);
+            const response = await fetch(`/api/server/logs?uniqueId=${encodeURIComponent(uniqueId)}&tail=${effectiveLimit}`);
             if (!response.ok) return;
             const data = await response.json();
             // Every command opens and closes an RCON connection, which the server logs; that is not worth showing
             setLogs(String(data.logs ?? '').split('\n').filter(line => !/Thread RCON Client .* (started|shutting down)/.test(stripConsoleColors(line))).join('\n'));
+            setHasMoreLogs(Boolean(data.hasMore));
         } catch {
             // The next refresh tries again
+        } finally {
+            setLoadingHistory(false);
         }
-    }, [uniqueId]);
+    }, [uniqueId, logLimit]);
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- loads when the tab opens or the folder changes
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- loads when the tab opens, server changes, or limit changes
         void load();
         if (!refresh.enabled) return;
         const timer = setInterval(() => void load(), refresh.seconds * 1000);
         return () => clearInterval(timer);
     }, [load, refresh]);
+
+    const changeLogLimit = (nextLimit: number | 'all') => {
+        setLoadingHistory(true);
+        setLogLimit(nextLimit);
+        void load(nextLimit, true);
+    };
+
+    const nextLogLimit = LOG_LIMIT_STEPS[Math.min(LOG_LIMIT_STEPS.indexOf(logLimit) + 1, LOG_LIMIT_STEPS.length - 1)] ?? 'all';
 
     const scrollToEnd = useCallback(() => {
         const target = outputRef.current;
@@ -124,7 +147,13 @@ export default function ConsoleTab({ uniqueId, status, kind = 'server', serverTy
     }, []);
 
     useEffect(() => {
-        if (followingRef.current) scrollToEnd();
+        if (followingRef.current) {
+            pendingScrollBottomOffset.current = null;
+            scrollToEnd();
+        } else if (pendingScrollBottomOffset.current !== null && outputRef.current) {
+            outputRef.current.scrollTop = Math.max(0, outputRef.current.scrollHeight - pendingScrollBottomOffset.current);
+            pendingScrollBottomOffset.current = null;
+        }
     }, [logs, sent, scrollToEnd]);
 
     const onScroll = () => {
@@ -288,6 +317,20 @@ export default function ConsoleTab({ uniqueId, status, kind = 'server', serverTy
                 >
                     {INTERVALS.map(seconds => <option key={seconds} value={seconds}>every {seconds}s</option>)}
                 </select>
+                <select
+                    className={styles.input}
+                    value={String(logLimit)}
+                    onChange={event => {
+                        const value = event.target.value === 'all' ? 'all' : Number(event.target.value);
+                        changeLogLimit(value);
+                    }}
+                    aria-label="Log history limit"
+                >
+                    <option value="500">Last 500 lines</option>
+                    <option value="2000">Last 2,000 lines</option>
+                    <option value="5000">Last 5,000 lines</option>
+                    <option value="all">All available</option>
+                </select>
                 <div className={styles.consoleActions}>
                     {!refresh.enabled && (
                         <button type="button" className={`${styles.btn} ${styles.small}`} onClick={() => void load()}>
@@ -302,6 +345,31 @@ export default function ConsoleTab({ uniqueId, status, kind = 'server', serverTy
                 </div>
             </div>
             <div className={styles.output} ref={outputRef} onScroll={onScroll}>
+                {hasMoreLogs && (
+                    <div className={styles.historyBanner}>
+                        <span>Showing the last {typeof logLimit === 'number' ? logLimit.toLocaleString() : '500'} lines of server history.</span>
+                        <div className={styles.historyActions}>
+                            {nextLogLimit !== 'all' && (
+                                <button
+                                    type="button"
+                                    className={`${styles.btn} ${styles.small}`}
+                                    disabled={loadingHistory}
+                                    onClick={() => changeLogLimit(nextLogLimit)}
+                                >
+                                    {loadingHistory ? 'Loading...' : `Load last ${Number(nextLogLimit).toLocaleString()}`}
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                className={`${styles.btn} ${styles.small}`}
+                                disabled={loadingHistory}
+                                onClick={() => changeLogLimit('all')}
+                            >
+                                {loadingHistory ? 'Loading...' : 'Load all available'}
+                            </button>
+                        </div>
+                    </div>
+                )}
                 <pre>{logs ? <ColoredText text={logs} /> : 'No output yet.'}</pre>
                 {sent.length > 0 && (
                     <div className={styles.sentLog} aria-label="Commands you sent">
