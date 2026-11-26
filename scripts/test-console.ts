@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { complete, namesInLog, type Context } from '../lib/console/complete';
 import { existsIn, flavorOf } from '../lib/console/commands';
+import { cleanConsoleText, parseColoredSegments, stripConsoleColors } from '../lib/console/colors';
 
 const paper: Context = { version: '1.21.4', flavor: 'paper', players: ['Alex', 'Steve'] };
 const texts = (input: string, ctx: Context = paper) => complete(input, ctx).suggestions.map(suggestion => suggestion.text);
@@ -94,5 +95,19 @@ assert.equal(complete('say hello wor', paper).hint, '<message>');
 
 // Players are found in a log
 assert.deepEqual(namesInLog('[10:01:00] [Server thread/INFO]: Alex joined the game\n[10:02:00] [Server thread/INFO]: Steve left the game\n[10:03:00] [Server thread/INFO]: <Notch> hi'), ['Alex', 'Steve', 'Notch']);
+
+// ANSI, Minecraft § codes, and rcon-cli hex color sequences
+const ansi = '\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0010\u001b[32mGreen \u001b[1mBold\u001b[0m Plain §cRed §lBold§r §x\u001b[31m\u001b[31m\u001b[32m\u001b[32m\u001b[33m\u001b[33mHex';
+const cleaned = cleanConsoleText(ansi);
+assert.equal(stripConsoleColors(cleaned), 'Green Bold Plain Red Bold Hex');
+const segments = parseColoredSegments(cleaned);
+assert.equal(segments[0].text, 'Green ');
+assert.equal(segments[0].color, '#4ade80');
+assert.equal(segments[1].text, 'Bold');
+assert.equal(segments[1].bold, true);
+assert.equal(segments[3].color, '#f87171');
+assert.equal(segments[4].color, '#f87171');
+assert.equal(segments[4].bold, true);
+assert.equal(segments[6].color, '#ccaaee');
 
 console.log('console tests passed');

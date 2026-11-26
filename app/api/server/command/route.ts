@@ -8,7 +8,7 @@ import verificationService from "@/lib/server/verify";
 import { isSingleLineCommand, shellQuote } from '@/lib/server/shell';
 import { consoleInputScript, getBlockServerSwitching, isServerSwitchCommand } from '@/lib/server/consoleCommands';
 import { getContainerName } from '@/lib/server/containerNames';
-import { cleanExecOutput } from '@/lib/server/liveStats';
+import { cleanConsoleText } from '@/lib/console/colors';
 
 export async function POST(request: NextRequest) {
     await dbConnect();
@@ -64,12 +64,10 @@ export async function POST(request: NextRequest) {
         // single literal argument, otherwise `$(...)`, backticks or a backslash could run other commands.
         const rconCommand = `rcon-cli ${shellQuote(command)}`;
 
-        const clean = cleanExecOutput;
-
         const result = await portainer.executeCommand(container.Id, rconCommand, environmentId);
         // The answer of the server is not in its log (the log only notes that an RCON client came and went), so it
-        // is sent back for the console to show. Colour codes and the framing bytes of the exec stream are removed.
-        const output = clean(String(result.output ?? ''));
+        // is sent back for the console to show. Framing bytes are stripped while ANSI / § color codes are preserved.
+        const output = cleanConsoleText(String(result.output ?? ''));
 
         if (result.exitCode !== 0 && /refused|failed to connect|connect:|no such file|not found/i.test(output)) {
             // RCON is off or listens elsewhere (common for imported servers): type the command into the console instead

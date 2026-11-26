@@ -7,6 +7,7 @@ import styles from '../dashboard.module.scss';
 import { postJson, type ServerStatus } from './types';
 import { flavorOf } from '@/lib/console/commands';
 import { complete, namesInLog } from '@/lib/console/complete';
+import { parseColoredSegments, stripConsoleColors } from '@/lib/console/colors';
 
 const INTERVALS = [1, 5, 10] as const;
 const SETTINGS_KEY = 'console-refresh';
@@ -32,6 +33,31 @@ function loadRefresh(): { enabled: boolean; seconds: number } {
     } catch {
         return { enabled: true, seconds: 5 };
     }
+}
+
+/** Renders ANSI / Minecraft §-colored text chunks cleanly as inline styled spans. */
+function ColoredText({ text }: { text: string }) {
+    const segments = useMemo(() => parseColoredSegments(text), [text]);
+    return (
+        <>
+            {segments.map((segment, index) => {
+                const decorations: string[] = [];
+                if (segment.underline) decorations.push('underline');
+                if (segment.strikethrough) decorations.push('line-through');
+                const style: React.CSSProperties = {
+                    ...(segment.color ? { color: segment.color } : {}),
+                    ...(segment.backgroundColor ? { backgroundColor: segment.backgroundColor } : {}),
+                    ...(segment.bold ? { fontWeight: 700 } : {}),
+                    ...(segment.dim ? { opacity: 0.72 } : {}),
+                    ...(segment.italic ? { fontStyle: 'italic' } : {}),
+                    ...(decorations.length ? { textDecoration: decorations.join(' ') } : {}),
+                };
+                return Object.keys(style).length > 0
+                    ? <span key={index} style={style}>{segment.text}</span>
+                    : <React.Fragment key={index}>{segment.text}</React.Fragment>;
+            })}
+        </>
+    );
 }
 
 /** Live output of the container with a command line. Output refreshes at the chosen rate while the tab is open. */
@@ -77,7 +103,7 @@ export default function ConsoleTab({ uniqueId, status, kind = 'server', serverTy
             if (!response.ok) return;
             const data = await response.json();
             // Every command opens and closes an RCON connection, which the server logs; that is not worth showing
-            setLogs(String(data.logs ?? '').split('\n').filter(line => !/Thread RCON Client .* (started|shutting down)/.test(line)).join('\n'));
+            setLogs(String(data.logs ?? '').split('\n').filter(line => !/Thread RCON Client .* (started|shutting down)/.test(stripConsoleColors(line))).join('\n'));
         } catch {
             // The next refresh tries again
         }
@@ -109,7 +135,7 @@ export default function ConsoleTab({ uniqueId, status, kind = 'server', serverTy
     };
 
     // Players for the arguments that take one: those on the server now, then those seen in the log
-    const players = useMemo(() => [...onlinePlayers, ...namesInLog(logs).filter(name => !onlinePlayers.includes(name))], [onlinePlayers, logs]);
+    const players = useMemo(() => [...onlinePlayers, ...namesInLog(stripConsoleColors(logs)).filter(name => !onlinePlayers.includes(name))], [onlinePlayers, logs]);
     const context = useMemo(() => ({ version, flavor: flavorOf(serverType, kind), players }), [version, serverType, kind, players]);
     /** The suggestions are for the words as they were typed, also while one of them is filled in */
     const source = cycle ? cycle.base : command;
@@ -241,14 +267,16 @@ export default function ConsoleTab({ uniqueId, status, kind = 'server', serverTy
                 </div>
             </div>
             <div className={styles.output} ref={outputRef} onScroll={onScroll}>
-                <pre>{logs || 'No output yet.'}</pre>
+                <pre>{logs ? <ColoredText text={logs} /> : 'No output yet.'}</pre>
                 {sent.length > 0 && (
                     <div className={styles.sentLog} aria-label="Commands you sent">
                         {sent.map((entry, index) => (
                             <div key={index}>
                                 <div className={styles.sentCmd}>{`> ${entry.command}`}</div>
                                 <div className={entry.failed ? styles.sentFail : styles.sentReply}>
-                                    {entry.failed ? `Failed: ${entry.output || 'the server did not answer'}` : (entry.output || '(the server sent no reply; if the command prints to the log, look above)')}
+                                    {entry.failed
+                                        ? <ColoredText text={`Failed: ${entry.output || 'the server did not answer'}`} />
+                                        : (entry.output ? <ColoredText text={entry.output} /> : '(the server sent no reply; if the command prints to the log, look above)')}
                                 </div>
                             </div>
                         ))}
