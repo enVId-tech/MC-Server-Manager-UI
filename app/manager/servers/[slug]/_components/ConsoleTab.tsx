@@ -5,7 +5,7 @@ import { FaArrowDown, FaPaperPlane, FaSyncAlt } from 'react-icons/fa';
 import { useNotifications } from '@/lib/contexts/NotificationContext';
 import styles from '../dashboard.module.scss';
 import { postJson, type ServerStatus } from './types';
-import { flavorOf } from '@/lib/console/commands';
+import { flavorOf, type CommandDef } from '@/lib/console/commands';
 import { complete, namesInLog } from '@/lib/console/complete';
 import { parseColoredSegments, stripConsoleColors } from '@/lib/console/colors';
 
@@ -84,6 +84,7 @@ export default function ConsoleTab({ uniqueId, status, kind = 'server', serverTy
     const [focused, setFocused] = useState(false);
     const [dismissed, setDismissed] = useState(false);
     const [onlinePlayers, setOnlinePlayers] = useState<string[]>([]);
+    const [extraCommands, setExtraCommands] = useState<CommandDef[]>([]);
     const playersAskedAt = useRef(0);
 
     useEffect(() => {
@@ -134,9 +135,40 @@ export default function ConsoleTab({ uniqueId, status, kind = 'server', serverTy
         setFollowing(atEnd);
     };
 
+    const loadCommands = useCallback(async (force = false): Promise<'live' | 'jar' | 'none' | null> => {
+        try {
+            const response = await fetch(`/api/server/commands?uniqueId=${encodeURIComponent(uniqueId)}${force ? '&refresh=1' : ''}`);
+            if (!response.ok) return null;
+            const data = await response.json();
+            if (Array.isArray(data.commands)) {
+                setExtraCommands(data.commands as CommandDef[]);
+            }
+            return (data.source ?? null) as 'live' | 'jar' | 'none' | null;
+        } catch {
+            return null;
+        }
+    }, [uniqueId]);
+
+    useEffect(() => {
+        let cancelled = false;
+        let retryTimer: ReturnType<typeof setTimeout> | undefined;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- loads live plugin/server commands on mount or status change
+        void loadCommands().then(source => {
+            if (!cancelled && status === 'online' && source !== 'live') {
+                retryTimer = setTimeout(() => {
+                    if (!cancelled) void loadCommands(true);
+                }, 8000);
+            }
+        });
+        return () => {
+            cancelled = true;
+            if (retryTimer) clearTimeout(retryTimer);
+        };
+    }, [loadCommands, status]);
+
     // Players for the arguments that take one: those on the server now, then those seen in the log
     const players = useMemo(() => [...onlinePlayers, ...namesInLog(stripConsoleColors(logs)).filter(name => !onlinePlayers.includes(name))], [onlinePlayers, logs]);
-    const context = useMemo(() => ({ version, flavor: flavorOf(serverType, kind), players }), [version, serverType, kind, players]);
+    const context = useMemo(() => ({ version, flavor: flavorOf(serverType, kind), players, extraCommands }), [version, serverType, kind, players, extraCommands]);
     /** The suggestions are for the words as they were typed, also while one of them is filled in */
     const source = cycle ? cycle.base : command;
     const completion = useMemo(() => complete(source, context), [source, context]);
@@ -231,6 +263,9 @@ export default function ConsoleTab({ uniqueId, status, kind = 'server', serverTy
         followingRef.current = true;
         setFollowing(true);
         setTimeout(() => void load(), 800);
+        if (/^\/?(?:[a-z0-9_.-]+:)?(?:reload|rl|plugman)\b/i.test(text)) {
+            setTimeout(() => void loadCommands(true), 1200);
+        }
     };
 
     const online = status === 'online';

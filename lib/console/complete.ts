@@ -28,6 +28,8 @@ export interface Context {
     flavor: ServerFlavor;
     /** players that are known: online first */
     players: string[];
+    /** additional commands fetched dynamically from the server and its enabled plugins/mods */
+    extraCommands?: CommandDef[];
 }
 
 type Kind = 'literal' | 'targets' | 'player' | 'item' | 'block' | 'entity' | 'effect' | 'enchantment' | 'boolrule' | 'introle' | 'biome' | 'dimension' | 'coord' | 'color' | 'any';
@@ -261,17 +263,40 @@ function runWords(definitions: Map<string, CommandDef>, done: string[], typed: s
 }
 
 function nameWords(definitions: Map<string, CommandDef>, typed: string): Words {
-    const names = [...definitions.keys()].sort();
+    const names = [...definitions.keys()].sort((a, b) => {
+        const aNs = a.includes(':') && !a.startsWith('/') ? 1 : 0;
+        const bNs = b.includes(':') && !b.startsWith('/') ? 1 : 0;
+        return aNs !== bNs ? aNs - bNs : a.localeCompare(b);
+    });
     const found = matching(names, typed);
     return { suggestions: found.map(text => ({ text, detail: definitions.get(text)?.summary })) };
 }
 
-/** Name and alias to definition for a server */
+/** Name and alias to definition for a server (built-in grammar merged with live server/plugin commands) */
 export function definitionTable(ctx: Context): Map<string, CommandDef> {
     const table = new Map<string, CommandDef>();
-    for (const command of commandsFor(ctx.flavor, ctx.version)) {
+    const builtins = commandsFor(ctx.flavor, ctx.version);
+    const builtinNames = new Set(builtins.map(command => command.name));
+
+    for (const command of builtins) {
         table.set(command.name, command);
         for (const alias of command.aliases ?? []) if (!table.has(alias)) table.set(alias, { ...command, name: command.name });
+    }
+
+    for (const extra of ctx.extraCommands ?? []) {
+        const key = extra.name.toLowerCase();
+        const existing = table.get(key);
+        if (!existing) {
+            table.set(key, extra);
+        } else if (!builtinNames.has(key) && existing.syntax.length <= 1 && extra.syntax.length > 0 && extra.syntax[0].includes(' ')) {
+            table.set(key, { ...extra, summary: existing.summary ?? extra.summary });
+        } else if (existing && !existing.summary && extra.summary) {
+            table.set(key, { ...existing, summary: extra.summary });
+        }
+        for (const alias of extra.aliases ?? []) {
+            const aliasKey = alias.toLowerCase();
+            if (!table.has(aliasKey)) table.set(aliasKey, { ...extra, name: key });
+        }
     }
     return table;
 }

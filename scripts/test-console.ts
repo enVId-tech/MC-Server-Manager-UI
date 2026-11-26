@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { complete, namesInLog, type Context } from '../lib/console/complete';
 import { existsIn, flavorOf } from '../lib/console/commands';
 import { cleanConsoleText, parseColoredSegments, stripConsoleColors } from '../lib/console/colors';
+import { parseBrigadierHelp, parseBukkitHelpOutput, parsePluginDescriptorCommands } from '../lib/console/liveParse';
 
 const paper: Context = { version: '1.21.4', flavor: 'paper', players: ['Alex', 'Steve'] };
 const texts = (input: string, ctx: Context = paper) => complete(input, ctx).suggestions.map(suggestion => suggestion.text);
@@ -95,6 +96,40 @@ assert.equal(complete('say hello wor', paper).hint, '<message>');
 
 // Players are found in a log
 assert.deepEqual(namesInLog('[10:01:00] [Server thread/INFO]: Alex joined the game\n[10:02:00] [Server thread/INFO]: Steve left the game\n[10:03:00] [Server thread/INFO]: <Notch> hi'), ['Alex', 'Steve', 'Notch']);
+
+// Live Brigadier, Bukkit /help, and plugin.yml command parsing
+const brigadierSample = '/bluemap [unfreeze|freeze|reload|purge] //set <pattern> /worldedit:set -> //set /veinminer (help|toggle|reload) /tp -> teleport';
+const liveCommands = parseBrigadierHelp(brigadierSample);
+assert.ok(liveCommands.some(c => c.name === 'bluemap' && c.syntax[0].includes('unfreeze|freeze|reload|purge')));
+assert.ok(liveCommands.some(c => c.name === '/set'));
+assert.ok(liveCommands.some(c => c.name === 'worldedit:set' && c.syntax.includes('worldedit:set <pattern>')));
+assert.ok(liveCommands.some(c => c.name === 'veinminer' && c.syntax[0].includes('help|toggle|reload')));
+assert.ok(liveCommands.some(c => c.name === 'tp' && c.summary === 'Alias for /teleport'));
+
+const paperWithLive: Context = { ...paper, extraCommands: liveCommands };
+assert.ok(texts('blue', paperWithLive).includes('bluemap'));
+assert.deepEqual(texts('bluemap ', paperWithLive), ['unfreeze', 'freeze', 'reload', 'purge']);
+assert.deepEqual(texts('veinminer r', paperWithLive), ['reload']);
+assert.ok(texts('/', paperWithLive).indexOf('bluemap') < texts('/', paperWithLive).indexOf('worldedit:set'), 'bare commands sort before plugin:cmd');
+
+const bukkitSample = `--- Help: Index (1/2) ---\n/bluemap: Manage BlueMap\n/rg: WorldGuard region command\nWorldEdit: All commands for WorldEdit`;
+const bukkitParsed = parseBukkitHelpOutput(bukkitSample);
+assert.equal(bukkitParsed.totalPages, 2);
+assert.deepEqual(bukkitParsed.commands.map(c => c.name), ['bluemap', 'rg']);
+assert.deepEqual(bukkitParsed.topics, ['WorldEdit']);
+
+const yamlParsed = parsePluginDescriptorCommands(`
+name: ExamplePlugin
+commands:
+  warp:
+    description: Teleport to a warp
+    aliases: [w, warps]
+    usage: /<command> <name>
+`);
+assert.equal(yamlParsed.length, 1);
+assert.equal(yamlParsed[0].name, 'warp');
+assert.deepEqual(yamlParsed[0].aliases, ['w', 'warps']);
+assert.equal(yamlParsed[0].syntax[0], 'warp <name>');
 
 // ANSI, Minecraft § codes, and rcon-cli hex color sequences
 const ansi = '\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0010\u001b[32mGreen \u001b[1mBold\u001b[0m Plain §cRed §lBold§r §x\u001b[31m\u001b[31m\u001b[32m\u001b[32m\u001b[33m\u001b[33mHex';
