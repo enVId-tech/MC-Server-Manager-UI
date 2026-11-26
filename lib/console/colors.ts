@@ -109,20 +109,83 @@ function xterm256ToHex(n: number): string | undefined {
     return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
-/** Strips Docker multiplexed exec/log 8-byte headers and non-SGR control bytes while preserving ANSI/Minecraft colors */
+/**
+ * Strips Docker multiplexed exec/log 8-byte headers, resolves terminal `\r` / `ESC[K` line redraws (such as
+ * JLine `>....\rESC[K` prompts), strips non-SGR CSI control bytes, and preserves ANSI/Minecraft colors.
+ */
 export function cleanConsoleText(raw: string): string {
-    return raw
+    const normalized = raw
         .replace(/[\u0001\u0002]\u0000{3}[\s\S]{4}/g, '')
         .replace(/^\ufffd+/, '')
         .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001a\u001c-\u001f]/g, '')
-        .trimEnd();
+        .replace(/\r\n/g, '\n');
+
+    const lines: string[] = [];
+    for (const rawLine of normalized.split('\n')) {
+        const parts = rawLine.replace(/\r+$/, '').split('\r');
+        let resolved = parts[0];
+        for (let i = 1; i < parts.length; i++) {
+            const next = parts[i];
+            const withoutErase = next.replace(/^(?:\u001b\[[012]?K)+/, '');
+            if (withoutErase.length > 0 || /^\u001b\[[012]?K/.test(next)) {
+                resolved = withoutErase;
+            }
+        }
+
+        // Remove non-SGR CSI sequences (erase-in-line, cursor visibility/movement, etc.) so `[K` never prints raw
+        resolved = resolved.replace(/\u001b\[[0-9;?]*[A-Za-ln-z]/g, '');
+
+        const visible = stripConsoleColors(resolved).trim();
+        if (visible === '>' || /^>\.{2,}$/.test(visible)) continue;
+
+        lines.push(resolved);
+    }
+
+    return lines.join('\n').trimEnd();
+}
+
+/**
+ * Cleans container log output for display: removes Docker's redundant leading RFC3339Nano timestamp, resolves
+ * JLine `\rESC[K` redraw prompts, removes RCON connection churn, and collapses consecutive duplicate log lines.
+ */
+export function cleanContainerLogs(raw: string): string {
+    const withoutDockerTimestamps = raw
+        .replace(/[\u0001\u0002]\u0000{3}[\s\S]{4}/g, '')
+        .replace(/\r\n/g, '\n')
+        .split('\n')
+        .map(line => line.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\s?/, ''))
+        .join('\n');
+
+    const cleaned = cleanConsoleText(withoutDockerTimestamps);
+    if (!cleaned) return '';
+
+    const deduplicated: Array<{ line: string; key: string; count: number }> = [];
+    for (const line of cleaned.split('\n')) {
+        const plain = stripConsoleColors(line).trim();
+        // Strip leading Minecraft/Velocity `[HH:mm:ss ...]: ` prefix when checking consecutive duplicate lines
+        const bodyKey = plain
+            .replace(/^\[\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:\s+[A-Za-z]+)?(?:\/[^\]]+)?\]:?\s*/i, '')
+            .trim();
+
+        const prev = deduplicated[deduplicated.length - 1];
+        if (bodyKey && prev && prev.key === bodyKey) {
+            prev.line = line;
+            prev.count += 1;
+            continue;
+        }
+        deduplicated.push({ line, key: bodyKey, count: 1 });
+    }
+
+    return deduplicated
+        .map(entry => (entry.count > 1 ? `${entry.line}\u001b[0m \u001b[90m(x${entry.count})\u001b[0m` : entry.line))
+        .join('\n');
 }
 
 export function stripConsoleColors(text: string): string {
     return text
         .replace(/§x(?:\u001b\[[0-9;]*m){6}/gi, '')
         .replace(/§x(?:§[0-9a-f]){6}/gi, '')
-        .replace(/\u001b\[[0-9;]*[A-Za-z]/g, '')
+        .replace(/\u001b\[[0-9;?]*[A-Za-z]/g, '')
         .replace(/§[0-9a-fk-orx]/gi, '');
 }
 

@@ -6,7 +6,7 @@ import Server from "@/lib/objects/Server";
 import portainer from "@/lib/server/portainer";
 import verificationService from "@/lib/server/verify";
 import { getContainerName } from '@/lib/server/containerNames';
-import { cleanConsoleText } from '@/lib/console/colors';
+import { cleanContainerLogs } from '@/lib/console/colors';
 
 export async function GET(request: NextRequest) {
     await dbConnect();
@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ message: 'Server container not found.' }, { status: 404 });
         }
 
-        const rawLogs = await portainer.getContainerLogs(container.Id, environmentId, tail);
-        const logs = cleanConsoleText(String(rawLogs ?? ''));
+        const rawLogs = await portainer.getContainerLogs(container.Id, environmentId, tail, false);
+        const logs = cleanContainerLogs(String(rawLogs ?? ''));
 
         return NextResponse.json({ logs });
 

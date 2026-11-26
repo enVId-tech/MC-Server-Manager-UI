@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { complete, namesInLog, type Context } from '../lib/console/complete';
 import { existsIn, flavorOf } from '../lib/console/commands';
-import { cleanConsoleText, parseColoredSegments, stripConsoleColors } from '../lib/console/colors';
+import { cleanConsoleText, cleanContainerLogs, parseColoredSegments, stripConsoleColors } from '../lib/console/colors';
 import { parseBrigadierHelp, parseBukkitHelpOutput, parsePluginDescriptorCommands } from '../lib/console/liveParse';
 
 const paper: Context = { version: '1.21.4', flavor: 'paper', players: ['Alex', 'Steve'] };
@@ -144,5 +144,17 @@ assert.equal(segments[3].color, '#f87171');
 assert.equal(segments[4].color, '#f87171');
 assert.equal(segments[4].bold, true);
 assert.equal(segments[6].color, '#ccaaee');
+
+// Docker timestamps, JLine `>....\rESC[K` prompt overwrites, and consecutive duplicate log lines
+const jlineRaw = [
+    '2026-11-26T03:49:32.658851526Z \u001b[m>....\r\u001b[K\u001b[33;1m[03:49:32 WARN]: Repeated warning\r',
+    '2026-11-26T03:49:37.658851526Z \u001b[m>....\r\u001b[K\u001b[33;1m[03:49:37 WARN]: Repeated warning\r',
+    '2026-11-26T03:49:38.000000000Z \u001b[m>....\r',
+].join('\n');
+const cleanedLog = cleanContainerLogs(jlineRaw);
+assert.equal(stripConsoleColors(cleanedLog), '[03:49:37 WARN]: Repeated warning (x2)');
+const cleanedLogSegs = parseColoredSegments(cleanedLog);
+assert.equal(cleanedLogSegs[0].color, '#facc15');
+assert.equal(cleanedLogSegs[0].bold, true);
 
 console.log('console tests passed');
