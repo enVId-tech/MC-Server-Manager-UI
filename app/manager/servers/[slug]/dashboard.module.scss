@@ -1147,3 +1147,201 @@ $coral-accent: #ef4444;
     line-height: 1.2;
   }
 }
+
+// Player management tab -------------------------------------------------------
+.playersWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.playersLead {
+  margin: 0.2rem 0 0;
+  color: $text-secondary;
+  font-size: 0.83rem;
+}
+
+.playersHeaderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.playersSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 0.9rem;
+}
+
+.playersToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+.playerSearchBox {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1 1 240px;
+  color: $text-secondary;
+
+  .input {
+    width: 100%;
+  }
+}
+
+.playerFilterGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.playerManualForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  background: $surface-inset;
+  border: 1px solid $border-subtle;
+
+  .input {
+    flex: 1 1 200px;
+  }
+}
+
+.playerList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.playerCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.8rem 0.95rem;
+  border-radius: 12px;
+  background: $surface-inset;
+  border: 1px solid $border-subtle;
+}
+
+.playerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.playerIdentity {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1 1 260px;
+}
+
+.playerAvatar,
+.playerAvatarFallback {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  flex: none;
+}
+
+.playerAvatar {
+  image-rendering: pixelated;
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.playerAvatarFallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: $white;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.playerInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.playerNameLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.playerMetaLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: $text-secondary;
+}
+
+.uuidToggleBtn,
+.uuidCopyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.14rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid $border-subtle;
+  background: rgba(148, 163, 184, 0.1);
+  color: $text-primary;
+  font-size: 0.72rem;
+  cursor: pointer;
+
+  &:hover {
+    border-color: $sky-accent;
+  }
+}
+
+.uuidReveal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.playerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.playerActionForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed $border-subtle;
+
+  .input {
+    flex: 1 1 220px;
+  }
+}
+
+.playerTeleportInputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  flex: 1 1 280px;
+}

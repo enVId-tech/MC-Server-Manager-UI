@@ -424,6 +424,7 @@ export default function ProxiesSection() {
                                             )}
                                         </div>
                                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                            <Link className={`${styles.btn} ${styles.small}`} href={`/manager/servers/${proxy.id}?tab=players`}>Players</Link>
                                             <Link className={`${styles.btn} ${styles.small}`} href={`/manager/servers/${proxy.id}`}>Console and files</Link>
                                             <button className={`${styles.btn} ${styles.small}`} disabled={busy !== null} onClick={() => void patch(proxy, { enabled: !proxy.enabled })}>{proxy.enabled ? 'Disable' : 'Enable'}</button>
                                             <button className={`${styles.btn} ${styles.small}`} onClick={() => setOpen(expanded ? null : proxy.id)}>{expanded ? 'Close' : 'Settings'}</button>

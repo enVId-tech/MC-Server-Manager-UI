@@ -31,6 +31,7 @@ import DuplicateServerModal from '@/app/_components/DuplicateServerModal/Duplica
 import ServerSettings from '@/app/_components/ServerSettings/ServerSettings';
 import styles from './dashboard.module.scss';
 import OverviewTab from './_components/OverviewTab';
+import PlayersTab from './_components/PlayersTab';
 import BackupsTab from './_components/BackupsTab';
 import ConsoleTab from './_components/ConsoleTab';
 import FilesTab from './_components/FilesTab';
@@ -57,6 +58,7 @@ const STATUS_BADGE: Record<ServerStatus, { label: string; tone: string }> = {
 
 const TAB_ICONS: Record<TabId, React.ReactNode> = {
     overview: <FaChartPie aria-hidden="true" />,
+    players: <FaUsers aria-hidden="true" />,
     console: <FaTerminal aria-hidden="true" />,
     files: <FaFolderOpen aria-hidden="true" />,
     backups: <FaArchive aria-hidden="true" />,
@@ -84,6 +86,14 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
     const [duplicateOpen, setDuplicateOpen] = useState(false);
 
     const isProxy = info?.kind === 'proxy';
+
+    useEffect(() => {
+        const requested = new URLSearchParams(window.location.search).get('tab') as TabId | null;
+        if (requested && requested in TAB_ICONS) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- selects initial tab requested via query string
+            setTab(requested);
+        }
+    }, []);
 
     // What the server is. A missing or foreign server ends here with a message instead of an empty dashboard
     useEffect(() => {
@@ -225,6 +235,7 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
     const tabs = useMemo(() => {
         const list: Array<{ id: TabId; label: string; dot?: boolean }> = [
             { id: 'overview', label: 'Overview' },
+            { id: 'players', label: 'Players' },
             { id: 'console', label: 'Console' },
             { id: 'files', label: 'Files' },
         ];
@@ -393,6 +404,7 @@ export default function ServerDashboard({ params }: { params: Promise<{ slug: st
 
                 <main>
                     {tab === 'overview' && <OverviewTab info={info} stats={stats} network={network} onOpenNetwork={() => setTab('network')} />}
+                    {tab === 'players' && <PlayersTab info={info} running={running} onChanged={() => void loadStats()} />}
                     {tab === 'console' && <ConsoleTab uniqueId={info.uniqueId} status={stats.status} kind={info.kind} serverType={info.serverType} version={info.version} />}
                     {tab === 'files' && <FilesTab slug={slug} uniqueId={info.uniqueId} version={info.version} />}
                     {tab === 'backups' && !isProxy && <BackupsTab uniqueId={info.uniqueId} />}
