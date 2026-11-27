@@ -2,9 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authorizeFile, isDenied } from '@/lib/server/fileAccess';
 import { canUseFiles, isHiddenFromUsers } from '@/lib/server/accessPolicy';
 import {
-    addonsOf, AddonError, applyStagedAddons, capabilitiesOf, checkAddonUpdates, installFromLink, installUpload, removeAddon, setAutoUpdate, syncDiscoveredServerAddons, updateAddons,
+    addonsOf,
+    AddonError,
+    applyStagedAddons,
+    capabilitiesOf,
+    checkAddonUpdates,
+    installFromLink,
+    installUpload,
+    isTrackableSource,
+    removeAddon,
+    scanAndMatchAddonSources,
+    setAutoUpdate,
+    switchAddonSource,
+    switchAddonVersion,
+    syncDiscoveredServerAddons,
+    updateAddons,
 } from '@/lib/server/addons/manager';
-import { identifyLink } from '@/lib/server/addons/sources';
+import { identifyLink, type AddonSource } from '@/lib/server/addons/sources';
 import type { IServer } from '@/lib/objects/Server';
 import type { IUser } from '@/lib/objects/User';
 
@@ -19,18 +33,23 @@ function publicView(server: IServer, user: Pick<IUser, 'isAdmin'>) {
             id: record.id,
             kind: record.kind,
             source: record.source,
+            origin: record.origin,
+            ref: record.ref,
             url: record.url,
             name: record.name,
             icon: record.icon,
             file: record.file,
             version: record.version,
+            versionId: record.versionId,
             auto: record.auto,
+            pinnedVersion: Boolean(record.pinnedVersion),
             installedByServer: Boolean(record.installedByServer),
+            matchedSources: record.matchedSources,
             compatibilityWarning: record.compatibilityWarning,
             availableUpdate: record.availableUpdate
                 ? { version: record.availableUpdate.version, checkedAt: record.availableUpdate.checkedAt }
                 : undefined,
-            updatable: record.source !== 'upload' && record.source !== 'other',
+            updatable: isTrackableSource(record.source),
             updatePending: Boolean(record.staged),
             checkedAt: record.checkedAt,
         }));
@@ -82,7 +101,15 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: results.some(r => r.ok), results, addons: publicView(access.server, access.user) });
         }
 
-        const body = await request.json().catch(() => ({})) as { server?: string; link?: string; links?: string[]; auto?: boolean; kind?: 'plugin' | 'mod' };
+        const body = await request.json().catch(() => ({})) as {
+            server?: string;
+            link?: string;
+            links?: string[];
+            auto?: boolean;
+            kind?: 'plugin' | 'mod';
+            versionId?: string;
+            allowIncompatibleVersion?: boolean;
+        };
         const access = await authorizeFile(request, body.server, 'read', '/');
         if (isDenied(access)) return access.response;
         const allowOther = canUseFiles(access.user, access.server, 'upload');
@@ -92,9 +119,17 @@ export async function POST(request: NextRequest) {
             // Mixed lists still work: the "other" ones are reported as refused below
         }
         const results: Array<{ link: string; ok: boolean; name?: string; message?: string; warning?: string }> = [];
+        const singleVersionId = links.length === 1 ? body.versionId : undefined;
         for (const link of links.slice(0, MAX_BULK)) {
             try {
-                const record = await installFromLink(access.server, link, { auto: body.auto, kind: body.kind, addedBy: access.user.email, allowOther });
+                const record = await installFromLink(access.server, link, {
+                    auto: body.auto,
+                    kind: body.kind,
+                    versionId: singleVersionId,
+                    allowIncompatibleVersion: links.length === 1 ? body.allowIncompatibleVersion : undefined,
+                    addedBy: access.user.email,
+                    allowOther,
+                });
                 results.push({ link, ok: true, name: record.name, ...(record.compatibilityWarning ? { warning: record.compatibilityWarning } : {}) });
             } catch (error) {
                 results.push({ link, ok: false, message: error instanceof Error ? error.message : 'Failed.' });
@@ -125,14 +160,39 @@ export async function DELETE(request: NextRequest) {
     }
 }
 
-/** PATCH {server, id, auto} toggles automatic updates. {server, checkUpdates: true, id?} checks for available updates. {server, update: true, id?} updates/stages. {server, apply: true} applies staged mods */
+/** PATCH {server, id, auto} | {checkUpdates} | {update} | {apply} | {matchSources} | {id, selectSource} | {id, versionId} */
 export async function PATCH(request: NextRequest) {
     try {
-        const body = await request.json().catch(() => ({})) as { server?: string; id?: string; auto?: boolean; checkUpdates?: boolean; update?: boolean; apply?: boolean };
+        const body = await request.json().catch(() => ({})) as {
+            server?: string;
+            id?: string;
+            auto?: boolean;
+            checkUpdates?: boolean;
+            update?: boolean;
+            apply?: boolean;
+            matchSources?: boolean;
+            selectSource?: { source?: AddonSource | 'local'; ref?: string; link?: string };
+            versionId?: string;
+            allowIncompatibleVersion?: boolean;
+        };
         const access = await authorizeFile(request, body.server, 'read', '/');
         if (isDenied(access)) return access.response;
         if (body.apply) {
             return NextResponse.json({ success: true, applied: await applyStagedAddons(access.server), addons: publicView(access.server, access.user) });
+        }
+        if (body.matchSources) {
+            await scanAndMatchAddonSources(access.server, { id: body.id });
+            return NextResponse.json({ success: true, addons: publicView(access.server, access.user) });
+        }
+        if (body.selectSource && body.id) {
+            await switchAddonSource(access.server, body.id, body.selectSource);
+            return NextResponse.json({ success: true, addons: publicView(access.server, access.user) });
+        }
+        if (body.versionId && body.id) {
+            const outcome = await switchAddonVersion(access.server, body.id, body.versionId, {
+                allowIncompatibleVersion: body.allowIncompatibleVersion,
+            });
+            return NextResponse.json({ success: true, outcomes: [outcome], addons: publicView(access.server, access.user) });
         }
         if (body.checkUpdates) {
             const checkOutcomes = await checkAddonUpdates(access.server, { id: body.id });

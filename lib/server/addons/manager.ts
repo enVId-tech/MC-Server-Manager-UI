@@ -21,21 +21,29 @@ import { downloadFile } from './net';
 import { inspectJar, type AddonKind, type JarInfo } from './jar';
 import { checkAddonCompatibility } from './compatibility';
 import {
+    findMatchingSources,
     identifyLink,
+    listAddonVersions,
     loadersFor,
     lookupAddon,
+    matchModrinthHashes,
     resolveDownload,
     type AddonLookup,
     type AddonSource,
+    type AddonVersionOption,
+    type HashMatchInfo,
     type LinkRef,
+    type MatchedSource,
     type ResolvedDownload,
 } from './sources';
 
 export interface AddonRecord {
     id: string;
     kind: AddonKind;
-    source: AddonSource | 'upload';
-    /** Slug, resource id or URL it was installed from. Empty for uploads */
+    source: AddonSource | 'upload' | 'discovered';
+    /** Where the jar originally came from (link, manual upload, pre-existing disk jar, or server setup) */
+    origin?: 'link' | 'upload' | 'existing' | 'server';
+    /** Slug, resource id or URL it was installed from. Empty for unlinked local jars */
     ref: string;
     url?: string;
     name: string;
@@ -46,6 +54,11 @@ export interface AddonRecord {
     versionId?: string;
     /** Newer releases are installed automatically */
     auto: boolean;
+    /** True when the user deliberately pinned an older/specific release */
+    pinnedVersion?: boolean;
+    /** Matching known repositories discovered for this plugin/mod */
+    matchedSources?: MatchedSource[];
+    sourcesCheckedAt?: Date;
     addedAt: Date;
     addedBy?: string;
     checkedAt?: Date;
@@ -158,6 +171,54 @@ export function isNewerVersionAvailable(
     return false;
 }
 
+export function isTrackableSource(source: AddonRecord['source']): source is Exclude<AddonSource, 'other'> {
+    return source !== 'upload' && source !== 'discovered' && source !== 'other';
+}
+
+function mergeMatchedSources(primary: MatchedSource[], secondary?: MatchedSource[]): MatchedSource[] {
+    const out: MatchedSource[] = [];
+    const seen = new Set<string>();
+    for (const item of [...primary, ...(secondary ?? [])]) {
+        const key = `${item.source}:${item.ref.toLowerCase()}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(item);
+    }
+    return out;
+}
+
+function specToMatchedSource(spec: KnownServerAddonSpec): MatchedSource {
+    return {
+        source: spec.source,
+        ref: spec.ref,
+        url: spec.url,
+        name: spec.name,
+        downloadable: true,
+        kinds: [spec.kind],
+    };
+}
+
+function lookupToMatchedSource(lookup: AddonLookup): MatchedSource | null {
+    if (lookup.source === 'other') return null;
+    return {
+        source: lookup.source,
+        ref: lookup.ref,
+        url: lookup.url,
+        name: lookup.name,
+        description: lookup.description,
+        icon: lookup.icon,
+        author: lookup.author,
+        downloadable: lookup.downloadable,
+        kinds: lookup.kinds,
+        loaders: lookup.loaders,
+        note: lookup.note,
+    };
+}
+
+function sha512Hex(data: Buffer): string {
+    return crypto.createHash('sha512').update(data).digest('hex');
+}
+
 function matchKnownServerAddon(dir: 'plugins' | 'mods', filename: string, managedFiles?: Array<{ path: string; slug: string }>): KnownServerAddonSpec | null {
     const lowerName = filename.toLowerCase();
     const relPath = `${dir}/${lowerName}`;
@@ -172,83 +233,293 @@ function matchKnownServerAddon(dir: 'plugins' | 'mods', filename: string, manage
     ) ?? null;
 }
 
+const MAX_DISCOVER_JARS = 60;
+
+interface DiscoveredJarCandidate {
+    dir: 'plugins' | 'mods';
+    relFile: string;
+    basename: string;
+    spec: KnownServerAddonSpec | null;
+    jar: JarInfo | null;
+    raw?: Buffer;
+    hash?: string;
+    version?: string;
+}
+
 /**
- * Reconciles `server.addons` with server-added jars on disk (ViaVersion, ViaBackwards, ViaRewind, etc.)
- * and backfills missing icons for known-source addons.
+ * Reconciles `server.addons` with all plugin/mod jars on disk (existing server jars, manually added jars,
+ * and server-added plugins), removes records for jars deleted on disk, matches newly discovered jars against
+ * Modrinth/SpigotMC/CurseForge, and backfills missing project icons.
  */
-async function reconcileServerAddonsLocked(server: IServer): Promise<AddonRecord[]> {
+async function reconcileServerAddonsLocked(
+    server: IServer,
+    options: { skipRemoteMatch?: boolean; forceRematch?: boolean; targetId?: string } = {}
+): Promise<AddonRecord[]> {
     const folder = await folderOf(server);
-    const current = [...addonsOf(server)];
+    const caps = capabilitiesOf(server);
+    let current = [...addonsOf(server)];
     let changed = false;
 
-    // 1. Discover known server-added plugins & mods installed in `plugins/` or `mods/`
-    const knownByRef = new Set(
-        current
-            .filter(entry => entry.source !== 'upload' && entry.source !== 'other')
-            .map(entry => `${entry.source}:${entry.ref.toLowerCase()}`)
-    );
-    const knownByFile = new Set(current.map(entry => entry.file.toLowerCase()));
+    const listedDirs = new Set<'plugins' | 'mods'>();
+    const filesOnDisk = new Set<string>();
+    const diskEntries: Array<{ dir: 'plugins' | 'mods'; basename: string; relFile: string; size?: number }> = [];
 
     for (const dir of ['plugins', 'mods'] as const) {
-        let entries;
         try {
-            entries = await serverStorage.getDirectoryContents(`${folder}/${dir}`);
-        } catch {
-            continue;
-        }
-
-        for (const item of entries) {
-            if (item.type !== 'file' || !/\.jar$/i.test(item.basename)) continue;
-            const relFile = `${dir}/${item.basename}`;
-            if (knownByFile.has(relFile.toLowerCase())) continue;
-
-            const spec = matchKnownServerAddon(dir, item.basename, server.managedFiles);
-            if (!spec) continue;
-            const sourceKey = `${spec.source}:${spec.ref.toLowerCase()}`;
-            if (knownByRef.has(sourceKey)) continue;
-
-            let version = extractVersionFromFilename(item.basename);
-            try {
-                const raw = await serverStorage.getFileContents(`${folder}/${relFile}`);
-                const jar = inspectJar(raw);
-                if (jar?.version) version = jar.version;
-            } catch {
-                // Keep filename version fallback
+            const entries = await serverStorage.getDirectoryContents(`${folder}/${dir}`);
+            listedDirs.add(dir);
+            for (const item of entries) {
+                if (item.type !== 'file' || !/\.jar$/i.test(item.basename)) continue;
+                const relFile = `${dir}/${item.basename}`;
+                filesOnDisk.add(relFile.toLowerCase());
+                diskEntries.push({ dir, basename: item.basename, relFile, size: item.size });
             }
-
-            current.push({
-                id: crypto.randomUUID(),
-                kind: spec.kind,
-                source: spec.source,
-                ref: spec.ref,
-                url: spec.url,
-                name: spec.name,
-                file: relFile,
-                version,
-                auto: true,
-                installedByServer: true,
-                addedAt: new Date(),
-            });
-            knownByRef.add(sourceKey);
-            knownByFile.add(relFile.toLowerCase());
-            changed = true;
+        } catch {
+            // Directory does not exist yet or cannot be read
         }
     }
 
-    // 2. Backfill icons (and missing URLs) for known-source addons so UI rows display their project logos
+    // Remove records whose jar disappeared from a readable plugins/ or mods/ directory and has no staged swap waiting
+    const pruned = current.filter(entry => {
+        if (entry.staged) return true;
+        const dir = entry.file.startsWith('plugins/') ? 'plugins' : entry.file.startsWith('mods/') ? 'mods' : null;
+        if (!dir || !listedDirs.has(dir)) return true;
+        return filesOnDisk.has(entry.file.toLowerCase());
+    });
+    if (pruned.length !== current.length) {
+        current = pruned;
+        changed = true;
+    }
+
+    const knownByFile = new Set(current.map(entry => entry.file.toLowerCase()));
+    const undiscoveredEntries = diskEntries
+        .filter(item => !knownByFile.has(item.relFile.toLowerCase()))
+        .slice(0, MAX_DISCOVER_JARS);
+
+    if (undiscoveredEntries.length > 0) {
+        const candidates: DiscoveredJarCandidate[] = [];
+        for (let i = 0; i < undiscoveredEntries.length; i += 4) {
+            const chunk = undiscoveredEntries.slice(i, i + 4);
+            const loaded = await Promise.all(chunk.map(async item => {
+                const spec = matchKnownServerAddon(item.dir, item.basename, server.managedFiles);
+                let version = extractVersionFromFilename(item.basename);
+                let jar: JarInfo | null = null;
+                let raw: Buffer | undefined;
+                let hash: string | undefined;
+                try {
+                    if (item.size === undefined || item.size <= 150 * 1024 * 1024) {
+                        raw = await serverStorage.getFileContents(`${folder}/${item.relFile}`);
+                        jar = inspectJar(raw);
+                        if (jar?.version) version = jar.version;
+                        hash = sha512Hex(raw);
+                    }
+                } catch {
+                    // Keep filename fallback when jar cannot be read
+                }
+                return { dir: item.dir, relFile: item.relFile, basename: item.basename, spec, jar, raw, hash, version };
+            }));
+            candidates.push(...loaded);
+        }
+
+        const hashMatches: Record<string, HashMatchInfo> = options.skipRemoteMatch
+            ? {}
+            : await matchModrinthHashes(candidates.map(c => c.hash).filter((h): h is string => Boolean(h)));
+
+        const serverModLoaders = caps.mods ? await modLoaders(server, caps).catch(() => []) : [];
+
+        for (let i = 0; i < candidates.length; i += 3) {
+            const batch = candidates.slice(i, i + 3);
+            await Promise.all(batch.map(async item => {
+                const kind: AddonKind = item.spec?.kind ?? item.jar?.kind ?? (item.dir === 'plugins' ? 'plugin' : 'mod');
+                const stemName = item.basename.replace(/\.jar$/i, '');
+                const displayName = item.spec?.name || (item.jar?.name && item.jar.name.trim()) || stemName;
+                const hashMatch = item.hash ? hashMatches[item.hash] : undefined;
+
+                let matchedSources: MatchedSource[] = item.spec ? [specToMatchedSource(item.spec)] : [];
+                let sourcesCheckedAt: Date | undefined;
+
+                if (!options.skipRemoteMatch) {
+                    const found = await findMatchingSources({
+                        name: displayName,
+                        id: item.jar?.id,
+                        filename: item.basename,
+                        kind,
+                        loaders: kind === 'mod' ? serverModLoaders : undefined,
+                        exactModrinth: hashMatch?.matchedSource,
+                    }).catch(() => []);
+                    matchedSources = mergeMatchedSources(matchedSources, found);
+                    sourcesCheckedAt = new Date();
+                }
+
+                const firstDownloadable = matchedSources.find(m => m.downloadable);
+                if (item.spec) {
+                    const specIcon = matchedSources.find(m => m.source === item.spec!.source && m.ref === item.spec!.ref)?.icon;
+                    current.push({
+                        id: crypto.randomUUID(),
+                        kind: item.spec.kind,
+                        origin: 'server',
+                        source: item.spec.source,
+                        ref: item.spec.ref,
+                        url: item.spec.url,
+                        name: item.spec.name,
+                        icon: specIcon,
+                        file: item.relFile,
+                        version: hashMatch?.version ?? item.version,
+                        versionId: hashMatch?.versionId,
+                        auto: true,
+                        installedByServer: true,
+                        matchedSources: matchedSources.length > 0 ? matchedSources : undefined,
+                        sourcesCheckedAt,
+                        addedAt: new Date(),
+                    });
+                } else if (firstDownloadable) {
+                    const exactForChosen = hashMatch && firstDownloadable.source === 'modrinth' && firstDownloadable.ref === hashMatch.matchedSource.ref;
+                    current.push({
+                        id: crypto.randomUUID(),
+                        kind,
+                        origin: 'existing',
+                        source: firstDownloadable.source,
+                        ref: firstDownloadable.ref,
+                        url: firstDownloadable.url,
+                        name: firstDownloadable.name || displayName,
+                        icon: firstDownloadable.icon,
+                        file: item.relFile,
+                        version: exactForChosen ? (hashMatch.version ?? item.version) : item.version,
+                        versionId: exactForChosen ? hashMatch.versionId : undefined,
+                        auto: false,
+                        matchedSources,
+                        sourcesCheckedAt,
+                        addedAt: new Date(),
+                    });
+                } else {
+                    current.push({
+                        id: crypto.randomUUID(),
+                        kind,
+                        origin: 'existing',
+                        source: 'discovered',
+                        ref: '',
+                        name: displayName,
+                        icon: matchedSources[0]?.icon,
+                        file: item.relFile,
+                        version: item.version,
+                        auto: false,
+                        matchedSources: matchedSources.length > 0 ? matchedSources : undefined,
+                        sourcesCheckedAt,
+                        addedAt: new Date(),
+                    });
+                }
+                changed = true;
+            }));
+        }
+    }
+
+    // When explicit source rematch is requested, re-match existing/uploaded/tracked jars so all available sources appear
+    if (options.forceRematch) {
+        const serverModLoaders = caps.mods ? await modLoaders(server, caps).catch(() => []) : [];
+        const targets = current
+            .map((entry, index) => ({ entry, index }))
+            .filter(({ entry }) => !options.targetId || entry.id === options.targetId);
+
+        const hashToIndex = new Map<string, number>();
+        const hashes: string[] = [];
+
+        for (let i = 0; i < targets.length; i += 4) {
+            const chunk = targets.slice(i, i + 4);
+            await Promise.all(chunk.map(async ({ entry, index }) => {
+                try {
+                    const raw = await serverStorage.getFileContents(`${folder}/${entry.file}`);
+                    const hash = sha512Hex(raw);
+                    hashToIndex.set(hash, index);
+                    hashes.push(hash);
+                } catch {
+                    // Non-fatal
+                }
+            }));
+        }
+
+        const hashMatches = await matchModrinthHashes(hashes);
+        const hashMatchByIdx = new Map<number, HashMatchInfo>();
+        for (const [hash, info] of Object.entries(hashMatches)) {
+            const idx = hashToIndex.get(hash);
+            if (idx !== undefined) hashMatchByIdx.set(idx, info);
+        }
+
+        for (let i = 0; i < targets.length; i += 3) {
+            const batch = targets.slice(i, i + 3);
+            await Promise.all(batch.map(async ({ entry, index }) => {
+                const hashMatch = hashMatchByIdx.get(index);
+                const filename = entry.file.split('/').pop() ?? entry.name;
+                const found = await findMatchingSources({
+                    name: entry.name,
+                    filename,
+                    kind: entry.kind,
+                    loaders: entry.kind === 'mod' ? serverModLoaders : undefined,
+                    exactModrinth: hashMatch?.matchedSource,
+                }).catch(() => []);
+
+                const currentAsMatch: MatchedSource[] = isTrackableSource(entry.source)
+                    ? [{
+                        source: entry.source,
+                        ref: entry.ref,
+                        url: entry.url ?? '',
+                        name: entry.name,
+                        icon: entry.icon,
+                        downloadable: true,
+                        kinds: [entry.kind],
+                    }]
+                    : [];
+
+                const merged = mergeMatchedSources(
+                    entry.matchedSources ?? [],
+                    [...found, ...currentAsMatch]
+                );
+                const bestDownloadable = merged.find(m => m.downloadable);
+                const shouldAttachLocal = (entry.source === 'upload' || entry.source === 'discovered') && Boolean(bestDownloadable);
+
+                current[index] = {
+                    ...entry,
+                    matchedSources: merged.length > 0 ? merged : undefined,
+                    sourcesCheckedAt: new Date(),
+                    ...(shouldAttachLocal && bestDownloadable
+                        ? {
+                            source: bestDownloadable.source,
+                            ref: bestDownloadable.ref,
+                            url: bestDownloadable.url,
+                            icon: entry.icon ?? bestDownloadable.icon,
+                        }
+                        : {
+                            icon: entry.icon ?? merged[0]?.icon,
+                        }),
+                    ...(hashMatch && (!isTrackableSource(entry.source) || (entry.source === 'modrinth' && entry.ref === hashMatch.matchedSource.ref))
+                        ? {
+                            versionId: entry.versionId ?? hashMatch.versionId,
+                            version: entry.version ?? hashMatch.version,
+                        }
+                        : {}),
+                };
+                changed = true;
+            }));
+        }
+    }
+
+    // Backfill icons (and missing URLs) for tracked known-source addons so UI rows display their project logos
     const missingIconIndices = current
         .map((entry, index) => ({ entry, index }))
-        .filter(({ entry }) => entry.source !== 'upload' && entry.source !== 'other' && (!entry.icon || !entry.url));
+        .filter(({ entry }) => isTrackableSource(entry.source) && (!entry.icon || !entry.url));
 
     if (missingIconIndices.length > 0) {
         await Promise.all(missingIconIndices.map(async ({ entry, index }) => {
             try {
                 const looked = await lookupAddon({ source: entry.source as AddonSource, ref: entry.ref, url: entry.url ?? '' });
                 if (looked.icon || (!entry.url && looked.url)) {
+                    const asMatched = lookupToMatchedSource(looked);
                     current[index] = {
                         ...current[index],
                         icon: entry.icon ?? looked.icon,
                         url: entry.url || looked.url,
+                        matchedSources: asMatched
+                            ? mergeMatchedSources(current[index].matchedSources ?? [], [asMatched])
+                            : current[index].matchedSources,
                     };
                     changed = true;
                 }
@@ -264,8 +535,12 @@ async function reconcileServerAddonsLocked(server: IServer): Promise<AddonRecord
     return current;
 }
 
-export function syncDiscoveredServerAddons(server: IServer): Promise<AddonRecord[]> {
-    return exclusive(server.uniqueId, () => reconcileServerAddonsLocked(server));
+export function syncDiscoveredServerAddons(server: IServer, options: { skipRemoteMatch?: boolean } = {}): Promise<AddonRecord[]> {
+    return exclusive(server.uniqueId, () => reconcileServerAddonsLocked(server, options));
+}
+
+export function scanAndMatchAddonSources(server: IServer, options: { id?: string } = {}): Promise<AddonRecord[]> {
+    return exclusive(server.uniqueId, () => reconcileServerAddonsLocked(server, { forceRematch: true, targetId: options.id }));
 }
 
 function pickKind(options: { requested?: AddonKind; offered: AddonKind[]; caps: AddonCapabilities; jar?: JarInfo | null; allowIncompatible?: boolean }): AddonKind {
@@ -329,6 +604,9 @@ export interface InstallOptions {
     auto?: boolean;
     kind?: AddonKind;
     addedBy?: string;
+    /** Pin to a specific remote version instead of the latest compatible release */
+    versionId?: string;
+    allowIncompatibleVersion?: boolean;
     /** Known sources are always fine; other links only when this is true */
     allowOther?: boolean;
 }
@@ -342,7 +620,7 @@ export function installFromLink(server: IServer, input: string, options: Install
             throw new AddonError('Only links to Modrinth, SpigotMC, Bukkit and CurseForge can be used here. Turn on file uploads for this server to add other links.', 403);
         }
         const caps = capabilitiesOf(server);
-        const existing = await reconcileServerAddonsLocked(server);
+        const existing = await reconcileServerAddonsLocked(server, { skipRemoteMatch: true });
         if (existing.some(entry => entry.source === link.source && entry.ref.toLowerCase() === link.ref.toLowerCase())) throw new AddonError('This is installed already.');
 
         let lookup: AddonLookup;
@@ -379,6 +657,8 @@ export function installFromLink(server: IServer, input: string, options: Install
             kind,
             loaders: resolveLoaders,
             mcVersion: caps.version,
+            versionId: options.versionId,
+            allowIncompatibleVersion: options.allowIncompatibleVersion || allowIncompatible,
         }).catch(error => {
             throw new AddonError(error instanceof Error ? error.message : 'No release was found.', 422);
         });
@@ -388,7 +668,7 @@ export function installFromLink(server: IServer, input: string, options: Install
         const jar = inspectJar(downloaded.data);
         if (!jar) throw new AddonError('The downloaded file is not a plugin or mod jar.', 422);
         pickKind({ requested: kind, offered: [kind], caps, jar, allowIncompatible });
-        jarMatchesServer(jar, caps, resolveLoaders, allowIncompatible);
+        jarMatchesServer(jar, caps, resolveLoaders, allowIncompatible || options.allowIncompatibleVersion);
 
         // Place incompatible cross-kind addons in the server's active folder (plugins/ for plugin servers, mods/ for mod servers)
         const folderKind: AddonKind = caps.plugins && !caps.mods
@@ -397,11 +677,26 @@ export function installFromLink(server: IServer, input: string, options: Install
                 ? 'mod'
                 : kind;
 
-        const desiredName = folderKind === 'plugin' && jar.name ? `${jar.name}.jar` : (downloaded.filename ?? resolved.filename);
+        const desiredName = downloaded.filename || resolved.filename || (folderKind === 'plugin' && jar.name ? `${jar.name}.jar` : 'addon.jar');
         const file = await placeJar(server, folderKind, desiredName, downloaded.data);
+        const primaryMatch = lookupToMatchedSource(lookup);
+        const extraMatches = lookup.source !== 'other'
+            ? await findMatchingSources({
+                name: lookup.name || jar.name || desiredName,
+                id: jar.id,
+                filename: desiredName,
+                kind,
+                loaders: kind === 'mod' ? resolveLoaders : undefined,
+                exactModrinth: primaryMatch?.source === 'modrinth' ? primaryMatch : undefined,
+            }).catch(() => [])
+            : [];
+        const matchedSources = primaryMatch ? mergeMatchedSources([primaryMatch], extraMatches) : undefined;
+        const pinned = Boolean(options.versionId);
+
         const record: AddonRecord = {
             id: crypto.randomUUID(),
             kind,
+            origin: 'link',
             source: lookup.source,
             ref: lookup.ref,
             url: lookup.url,
@@ -410,7 +705,9 @@ export function installFromLink(server: IServer, input: string, options: Install
             file,
             version: resolved.version ?? jar.version,
             versionId: resolved.versionId === 'direct' ? (downloaded.etag ?? 'direct') : resolved.versionId,
-            auto: options.auto ?? lookup.source !== 'other',
+            auto: options.auto ?? (!pinned && lookup.source !== 'other'),
+            ...(pinned ? { pinnedVersion: true } : {}),
+            ...(matchedSources && matchedSources.length > 0 ? { matchedSources, sourcesCheckedAt: new Date() } : {}),
             addedAt: new Date(),
             addedBy: options.addedBy,
             ...(compatibilityWarning ? { compatibilityWarning, sourceLoaders: resolveLoaders } : {}),
@@ -421,7 +718,7 @@ export function installFromLink(server: IServer, input: string, options: Install
     });
 }
 
-/** Installs a jar the user uploaded */
+/** Installs a jar the user uploaded and attempts to match it with Modrinth/SpigotMC/CurseForge sources */
 export function installUpload(server: IServer, filename: string, data: Buffer, addedBy?: string): Promise<AddonRecord> {
     return exclusive(server.uniqueId, async () => {
         const caps = capabilitiesOf(server);
@@ -432,10 +729,39 @@ export function installUpload(server: IServer, filename: string, data: Buffer, a
         jarMatchesServer(jar, caps, loaders);
 
         const file = await placeJar(server, kind, filename, data);
-        const existing = (await reconcileServerAddonsLocked(server)).filter(entry => entry.file !== file);
+        const existing = (await reconcileServerAddonsLocked(server, { skipRemoteMatch: true })).filter(entry => entry.file !== file);
+
+        const hash = sha512Hex(data);
+        const hashMatches = await matchModrinthHashes([hash]).catch(() => ({} as Record<string, HashMatchInfo>));
+        const hashMatch = hashMatches[hash];
+        const matchedSources = await findMatchingSources({
+            name: jar.name || filename.replace(/\.jar$/i, ''),
+            id: jar.id,
+            filename,
+            kind,
+            loaders: kind === 'mod' ? loaders : undefined,
+            exactModrinth: hashMatch?.matchedSource,
+        }).catch(() => []);
+
+        const firstDownloadable = matchedSources.find(m => m.downloadable);
+        const exactForChosen = hashMatch && firstDownloadable?.source === 'modrinth' && firstDownloadable.ref === hashMatch.matchedSource.ref;
+
         const record: AddonRecord = {
-            id: crypto.randomUUID(), kind, source: 'upload', ref: '', name: jar.name || filename.replace(/\.jar$/i, ''), file,
-            version: jar.version, auto: false, addedAt: new Date(), addedBy,
+            id: crypto.randomUUID(),
+            kind,
+            origin: 'upload',
+            source: firstDownloadable ? firstDownloadable.source : 'upload',
+            ref: firstDownloadable ? firstDownloadable.ref : '',
+            url: firstDownloadable?.url,
+            name: firstDownloadable?.name || jar.name || filename.replace(/\.jar$/i, ''),
+            icon: firstDownloadable?.icon ?? matchedSources[0]?.icon,
+            file,
+            version: exactForChosen ? (hashMatch.version ?? jar.version) : (jar.version ?? extractVersionFromFilename(filename)),
+            versionId: exactForChosen ? hashMatch.versionId : undefined,
+            auto: false,
+            ...(matchedSources.length > 0 ? { matchedSources, sourcesCheckedAt: new Date() } : {}),
+            addedAt: new Date(),
+            addedBy,
         };
         await save(server, [...existing, record]);
         await refreshMemory(server);
@@ -457,12 +783,143 @@ export function removeAddon(server: IServer, id: string): Promise<void> {
 
 export function setAutoUpdate(server: IServer, id: string, auto: boolean): Promise<void> {
     return exclusive(server.uniqueId, async () => {
-        const existing = await reconcileServerAddonsLocked(server);
+        const existing = await reconcileServerAddonsLocked(server, { skipRemoteMatch: true });
         const record = existing.find(entry => entry.id === id);
         if (!record) throw new AddonError('This plugin or mod is not installed.', 404);
-        if (record.source === 'upload' || record.source === 'other') throw new AddonError('Only plugins and mods from Modrinth, SpigotMC, Bukkit and CurseForge can update themselves.');
-        await save(server, existing.map(entry => entry.id === id ? { ...entry, auto } : entry));
+        if (!isTrackableSource(record.source)) throw new AddonError('Only plugins and mods matched to Modrinth, SpigotMC, Bukkit or CurseForge can update automatically.');
+        await save(server, existing.map(entry => entry.id === id ? { ...entry, auto, ...(auto ? { pinnedVersion: false } : {}) } : entry));
     });
+}
+
+/** Switches which source repository a plugin/mod uses for version checks and automatic updates (or switches to local-only). */
+export function switchAddonSource(
+    server: IServer,
+    id: string,
+    options: { source?: AddonSource | 'local'; ref?: string; link?: string }
+): Promise<AddonRecord> {
+    return exclusive(server.uniqueId, async () => {
+        const existing = await reconcileServerAddonsLocked(server, { skipRemoteMatch: true });
+        const record = existing.find(entry => entry.id === id);
+        if (!record) throw new AddonError('This plugin or mod is not installed.', 404);
+
+        if (options.source === 'local') {
+            const localSource: AddonRecord['source'] = record.origin === 'upload' ? 'upload' : 'discovered';
+            const updated: AddonRecord = {
+                ...record,
+                source: localSource,
+                ref: '',
+                url: undefined,
+                auto: false,
+                versionId: undefined,
+                availableUpdate: undefined,
+                compatibilityWarning: undefined,
+                sourceLoaders: undefined,
+            };
+            await save(server, existing.map(entry => entry.id === id ? updated : entry));
+            return updated;
+        }
+
+        let chosenMatch: MatchedSource | undefined;
+        if (options.link) {
+            const parsed = identifyLink(options.link);
+            if (!parsed || parsed.source === 'other') {
+                throw new AddonError('Please enter a valid Modrinth, SpigotMC, Bukkit, or CurseForge URL.');
+            }
+            const lookup = await lookupAddon(parsed);
+            if (!lookup.downloadable) throw new AddonError(lookup.note ?? 'This source does not offer direct downloads.');
+            chosenMatch = lookupToMatchedSource(lookup) ?? undefined;
+        } else if (options.source) {
+            const targetRef = options.ref?.toLowerCase();
+            chosenMatch = (record.matchedSources ?? []).find(
+                m => m.source === options.source && (!targetRef || m.ref.toLowerCase() === targetRef)
+            );
+            if (!chosenMatch && options.ref) {
+                const url = options.source === 'modrinth'
+                    ? `https://modrinth.com/${record.kind}/${options.ref}`
+                    : options.source === 'spigot'
+                        ? `https://www.spigotmc.org/resources/${options.ref}/`
+                        : options.source === 'bukkit'
+                            ? `https://dev.bukkit.org/projects/${options.ref}`
+                            : `https://www.curseforge.com/minecraft/${record.kind === 'plugin' ? 'bukkit-plugins' : 'mc-mods'}/${options.ref}`;
+                const lookup = await lookupAddon({ source: options.source, ref: options.ref, url });
+                chosenMatch = lookupToMatchedSource(lookup) ?? undefined;
+            }
+        }
+
+        if (!chosenMatch) throw new AddonError('The chosen source match was not found.', 404);
+        if (!chosenMatch.downloadable) {
+            throw new AddonError(chosenMatch.note ?? `${chosenMatch.name} on ${chosenMatch.source} does not allow automatic downloads.`);
+        }
+
+        const caps = capabilitiesOf(server);
+        const serverModLoaders = caps.mods ? await modLoaders(server, caps).catch(() => []) : [];
+        const compatibilityWarning = checkAddonCompatibility(
+            { name: chosenMatch.name, source: chosenMatch.source, kinds: chosenMatch.kinds, loaders: chosenMatch.loaders },
+            { plugins: caps.plugins, mods: caps.mods, type: caps.type, typeName: caps.typeName, loaders: serverModLoaders }
+        );
+
+        const nextMatches = mergeMatchedSources([chosenMatch], record.matchedSources);
+        const updated: AddonRecord = {
+            ...record,
+            source: chosenMatch.source,
+            ref: chosenMatch.ref,
+            url: chosenMatch.url,
+            icon: record.icon ?? chosenMatch.icon,
+            matchedSources: nextMatches,
+            versionId: undefined,
+            availableUpdate: undefined,
+            compatibilityWarning: compatibilityWarning ?? undefined,
+            checkedAt: undefined,
+        };
+        await save(server, existing.map(entry => entry.id === id ? updated : entry));
+        return updated;
+    });
+}
+
+/** Lists selectable versions for an installed addon or a remote preview on a given server. */
+export async function getAddonVersionsForServer(
+    server: IServer,
+    query: { id?: string; source?: AddonSource; ref?: string; kind?: AddonKind }
+): Promise<{ versions: AddonVersionOption[]; strictModMatching: boolean; mcVersion: string; loaders: string[] }> {
+    const caps = capabilitiesOf(server);
+    let source = query.source;
+    let ref = query.ref;
+    let kind: AddonKind = query.kind ?? (caps.mods && !caps.plugins ? 'mod' : 'plugin');
+    let loadersOverride: string[] | undefined;
+
+    if (query.id) {
+        const record = addonsOf(server).find(entry => entry.id === query.id);
+        if (!record) throw new AddonError('This plugin or mod is not installed.', 404);
+        if (!isTrackableSource(record.source)) {
+            throw new AddonError('Match this plugin or mod to a known source first to browse versions.');
+        }
+        source = record.source;
+        ref = record.ref;
+        kind = record.kind;
+        loadersOverride = record.sourceLoaders;
+    }
+
+    if (!source || !ref || source === 'other') {
+        throw new AddonError('A known source and project id are required.');
+    }
+
+    const loaders = loadersOverride && loadersOverride.length > 0
+        ? loadersOverride
+        : (kind === 'mod'
+            ? (await modLoaders(server, caps).catch(() => []))
+            : loadersFor(caps.type, 'plugin'));
+
+    const versions = await listAddonVersions(
+        { source, ref, url: '' },
+        { kind, loaders, mcVersion: caps.version }
+    );
+
+    return {
+        versions,
+        strictModMatching: kind === 'mod',
+        mcVersion: caps.version,
+        loaders,
+    };
 }
 
 async function isRunning(server: IServer): Promise<boolean> {
@@ -514,7 +971,7 @@ export function checkAddonUpdates(server: IServer, options: { id?: string } = {}
                 next.push(record);
                 continue;
             }
-            if (record.source === 'upload' || record.source === 'other') {
+            if (!isTrackableSource(record.source)) {
                 next.push(record);
                 outcomes.push({ id: record.id, name: record.name, status: 'skipped', currentVersion: record.version });
                 continue;
@@ -563,10 +1020,80 @@ export function checkAddonUpdates(server: IServer, options: { id?: string } = {}
     });
 }
 
+/** Installs or stages a downloaded addon release cleanly (in-place when stopped; staged under .mms/staged when running). */
+async function applyOrStageDownload(
+    server: IServer,
+    record: AddonRecord,
+    resolved: ResolvedDownload,
+    running: boolean,
+    caps: AddonCapabilities,
+    loaders: string[],
+    options: { allowIncompatibleVersion?: boolean; pinnedVersion?: boolean; forceAutoOff?: boolean } = {}
+): Promise<{ record: AddonRecord; outcome: UpdateOutcome }> {
+    const base = { id: record.id, name: record.name };
+    const downloaded = await downloadFile(resolved.url);
+    const jar = inspectJar(downloaded.data);
+    if (!jar) throw new Error('The new file is not a plugin or mod jar.');
+    jarMatchesServer(jar, caps, loaders, Boolean(record.compatibilityWarning || options.allowIncompatibleVersion));
+
+    const folder = await folderOf(server);
+    const currentFolderKind: AddonKind = record.file.startsWith('plugins/') ? 'plugin' : 'mod';
+    const currentDir = currentFolderKind === 'plugin' ? 'plugins' : 'mods';
+    const oldBaseName = record.file.split('/').pop() as string;
+    const newName = safeJarName(resolved.filename || downloaded.filename || oldBaseName);
+    const newFile = `${currentDir}/${newName}`;
+    const checkedAt = new Date();
+    const version = resolved.version ?? jar.version;
+    const nextAuto = options.forceAutoOff ? false : record.auto;
+    const nextPinned = options.pinnedVersion ?? record.pinnedVersion;
+
+    if (!running) {
+        const file = await placeJar(server, currentFolderKind, newName, downloaded.data);
+        if (file !== record.file) await removeFile(server, record.file);
+        if (record.staged) await removeFile(server, record.staged.file);
+        await removeFile(server, `plugins/update/${oldBaseName}`);
+        return {
+            record: {
+                ...record,
+                checkedAt,
+                file,
+                version,
+                versionId: resolved.versionId,
+                auto: nextAuto,
+                ...(nextPinned !== undefined ? { pinnedVersion: nextPinned } : {}),
+                availableUpdate: undefined,
+                staged: undefined,
+            },
+            outcome: { ...base, status: 'updated', version },
+        };
+    }
+
+    if (record.staged && record.staged.file !== `.mms/staged/${newName}`) {
+        await removeFile(server, record.staged.file);
+    }
+    await removeFile(server, `plugins/update/${oldBaseName}`);
+
+    const stagedFile = `.mms/staged/${newName}`;
+    try { await serverStorage.createDirectory(`${folder}/.mms`); } catch { /* exists */ }
+    try { await serverStorage.createDirectory(`${folder}/.mms/staged`); } catch { /* exists */ }
+    await serverStorage.uploadFile(`${folder}/${stagedFile}`, downloaded.data, true);
+    return {
+        record: {
+            ...record,
+            checkedAt,
+            auto: nextAuto,
+            ...(nextPinned !== undefined ? { pinnedVersion: nextPinned } : {}),
+            availableUpdate: undefined,
+            staged: { versionId: resolved.versionId, version, file: stagedFile, targetFile: newFile },
+        },
+        outcome: { ...base, status: 'staged', version },
+    };
+}
+
 /** Looks for a newer release of one add-on and installs it (or stages it while the server runs) */
 async function updateRecord(server: IServer, record: AddonRecord, running: boolean): Promise<{ record: AddonRecord; outcome: UpdateOutcome }> {
     const base = { id: record.id, name: record.name };
-    if (record.source === 'upload' || record.source === 'other') return { record, outcome: { ...base, status: 'skipped' } };
+    if (!isTrackableSource(record.source)) return { record, outcome: { ...base, status: 'skipped' } };
     const caps = capabilitiesOf(server);
     const loaders = await resolveLoadersForRecord(server, record, caps);
     const link: LinkRef = { source: record.source, ref: record.ref, url: record.url ?? '' };
@@ -582,55 +1109,57 @@ async function updateRecord(server: IServer, record: AddonRecord, running: boole
         };
     }
 
-    const downloaded = await downloadFile(resolved.url);
-    const jar = inspectJar(downloaded.data);
-    if (!jar) throw new Error('The new file is not a plugin or mod jar.');
-    jarMatchesServer(jar, caps, loaders, Boolean(record.compatibilityWarning));
+    return applyOrStageDownload(server, checked, resolved, running, caps, loaders, { pinnedVersion: false });
+}
 
-    const folder = await folderOf(server);
-    const currentFolderKind: AddonKind = record.file.startsWith('plugins/') ? 'plugin' : 'mod';
-    const currentDir = currentFolderKind === 'plugin' ? 'plugins' : 'mods';
-    const oldBaseName = record.file.split('/').pop() as string;
-    const newName = safeJarName(resolved.filename || downloaded.filename || oldBaseName);
-    const newFile = `${currentDir}/${newName}`;
+/** Switches an installed plugin or mod to a specific remote version (staged on running servers, immediate when stopped). */
+export function switchAddonVersion(
+    server: IServer,
+    id: string,
+    versionId: string,
+    options: { allowIncompatibleVersion?: boolean } = {}
+): Promise<UpdateOutcome> {
+    return exclusive(server.uniqueId, async () => {
+        const existing = await reconcileServerAddonsLocked(server, { skipRemoteMatch: true });
+        const index = existing.findIndex(entry => entry.id === id);
+        if (index === -1) throw new AddonError('This plugin or mod is not installed.', 404);
 
-    if (!running) {
-        const file = await placeJar(server, currentFolderKind, newName, downloaded.data);
-        if (file !== record.file) await removeFile(server, record.file);
-        if (record.staged) await removeFile(server, record.staged.file);
-        await removeFile(server, `plugins/update/${oldBaseName}`);
-        return {
-            record: {
-                ...checked,
-                file,
-                version: resolved.version ?? jar.version,
-                versionId: resolved.versionId,
-                availableUpdate: undefined,
-                staged: undefined,
-            },
-            outcome: { ...base, status: 'updated', version: resolved.version ?? jar.version },
-        };
-    }
+        const record = existing[index];
+        if (!isTrackableSource(record.source)) {
+            throw new AddonError('Match this plugin or mod to a known source first to change its version.');
+        }
 
-    // Running: stage the new versioned jar under .mms/staged/ rather than Paper's plugins/update/
-    // so Paper does not crash trying to delete WebDAV-uploaded files, then swap & remove the old file on restart.
-    if (record.staged && record.staged.file !== `.mms/staged/${newName}`) {
-        await removeFile(server, record.staged.file);
-    }
-    await removeFile(server, `plugins/update/${oldBaseName}`);
+        const caps = capabilitiesOf(server);
+        const loaders = await resolveLoadersForRecord(server, record, caps);
+        const link: LinkRef = { source: record.source, ref: record.ref, url: record.url ?? '' };
+        const resolved = await resolveDownload(link, {
+            kind: record.kind,
+            loaders,
+            mcVersion: caps.version,
+            versionId,
+            allowIncompatibleVersion: options.allowIncompatibleVersion || Boolean(record.compatibilityWarning),
+        });
 
-    const stagedFile = `.mms/staged/${newName}`;
-    try { await serverStorage.createDirectory(`${folder}/.mms`); } catch { /* exists */ }
-    try { await serverStorage.createDirectory(`${folder}/.mms/staged`); } catch { /* exists */ }
-    await serverStorage.uploadFile(`${folder}/${stagedFile}`, downloaded.data, true);
-    return {
-        record: {
-            ...checked,
-            availableUpdate: undefined,
-            staged: { versionId: resolved.versionId, version: resolved.version ?? jar.version, file: stagedFile, targetFile: newFile },
-        },
-        outcome: { ...base, status: 'staged', version: resolved.version ?? jar.version },
-    };
+        // Determine if user selected an older/custom version rather than newest compatible release
+        let isLatestCompatible = false;
+        try {
+            const latest = await resolveDownload(link, { kind: record.kind, loaders, mcVersion: caps.version });
+            isLatestCompatible = latest.versionId === resolved.versionId;
+        } catch {
+            isLatestCompatible = false;
+        }
+
+        const running = await isRunning(server);
+        const applied = await applyOrStageDownload(server, record, resolved, running, caps, loaders, {
+            allowIncompatibleVersion: options.allowIncompatibleVersion,
+            pinnedVersion: !isLatestCompatible,
+            forceAutoOff: !isLatestCompatible,
+        });
+
+        existing[index] = applied.record;
+        await save(server, existing);
+        return applied.outcome;
+    });
 }
 
 /** Updates one add-on, or every add-on with automatic updates when `id` is missing */

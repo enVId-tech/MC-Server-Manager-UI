@@ -15,7 +15,14 @@ const tempStorageRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'mc-addons-test-
 process.env.STORAGE_BACKEND = 'local';
 process.env.LOCAL_STORAGE_PATH = tempStorageRoot;
 
-const { identifyLink, loadersFor } = await import('../lib/server/addons/sources');
+const {
+    buildSearchQueries,
+    evaluateVersionCompatibility,
+    identifyLink,
+    isExactMcVersionMatch,
+    loadersFor,
+    normalizeMcVersionTag,
+} = await import('../lib/server/addons/sources');
 const { inspectJar } = await import('../lib/server/addons/jar');
 const { assertPublicUrl, isPrivateAddress } = await import('../lib/server/addons/net');
 const { checkAddonCompatibility } = await import('../lib/server/addons/compatibility');
@@ -23,6 +30,7 @@ const {
     applyStagedAddons,
     extractVersionFromFilename,
     isNewerVersionAvailable,
+    switchAddonSource,
     syncDiscoveredServerAddons,
 } = await import('../lib/server/addons/manager');
 const { default: serverStorage } = await import('../lib/server/storage');
@@ -126,12 +134,73 @@ async function main() {
                 serverConfig: { serverType: 'PAPER', version: '1.21.4' },
             } as unknown as Parameters<typeof syncDiscoveredServerAddons>[0];
 
-            const discovered = await syncDiscoveredServerAddons(fakeServer);
+            const discovered = await syncDiscoveredServerAddons(fakeServer, { skipRemoteMatch: true });
             assert.equal(discovered.length, 1);
             assert.equal(discovered[0].ref, 'viaversion');
             assert.equal(discovered[0].source, 'modrinth');
             assert.equal(discovered[0].installedByServer, true);
             assert.equal(discovered[0].version, '5.2.0');
+
+            // Arbitrary pre-existing/manual plugins and mods are discovered too (not only KNOWN_SERVER_ADDONS)
+            await serverStorage.uploadFile(
+                `${folder}/plugins/CustomClaimer-2.4.1.jar`,
+                jar({ 'plugin.yml': 'name: CustomClaimer\nversion: 2.4.1\nmain: com.example.CustomClaimer\n' }),
+                true
+            );
+            await serverStorage.createDirectory(`${folder}/mods`);
+            await serverStorage.uploadFile(
+                `${folder}/mods/CustomSodium-0.6.0.jar`,
+                jar({ 'fabric.mod.json': JSON.stringify({ id: 'sodium', name: 'Sodium', version: '0.6.0' }) }),
+                true
+            );
+            const allDiscovered = await syncDiscoveredServerAddons(fakeServer, { skipRemoteMatch: true });
+            assert.equal(allDiscovered.length, 3);
+            const customPlugin = allDiscovered.find(a => a.name === 'CustomClaimer');
+            const customMod = allDiscovered.find(a => a.name === 'Sodium');
+            assert.ok(customPlugin && customPlugin.source === 'discovered' && customPlugin.version === '2.4.1');
+            assert.ok(customMod && customMod.kind === 'mod' && customMod.source === 'discovered' && customMod.version === '0.6.0');
+
+            // Removing a jar from disk prunes its stale non-staged record cleanly
+            await serverStorage.deleteFile(`${folder}/plugins/CustomClaimer-2.4.1.jar`);
+            const afterPrune = await syncDiscoveredServerAddons(fakeServer, { skipRemoteMatch: true });
+            assert.equal(afterPrune.some(a => a.name === 'CustomClaimer'), false);
+
+            // Source switching between matched known sources and local-only
+            const multiSourceServer = {
+                _id: 'srv-src',
+                uniqueId: 'srv-src',
+                email: 'tester@example.com',
+                folderPath: folder,
+                addons: [{
+                    id: 'vv-id',
+                    kind: 'plugin',
+                    origin: 'existing',
+                    source: 'modrinth',
+                    ref: 'viaversion',
+                    url: 'https://modrinth.com/plugin/viaversion',
+                    name: 'ViaVersion',
+                    file: 'plugins/ViaVersion-5.2.0.jar',
+                    version: '5.2.0',
+                    versionId: 'mr-1',
+                    auto: true,
+                    matchedSources: [
+                        { source: 'modrinth', ref: 'viaversion', url: 'https://modrinth.com/plugin/viaversion', name: 'ViaVersion', downloadable: true, kinds: ['plugin'] },
+                        { source: 'spigot', ref: '19254', url: 'https://www.spigotmc.org/resources/19254/', name: 'ViaVersion', downloadable: true, kinds: ['plugin'] },
+                    ],
+                    addedAt: new Date(),
+                }],
+                serverConfig: { serverType: 'PAPER', version: '1.21.4' },
+            } as unknown as Parameters<typeof switchAddonSource>[0];
+
+            const switchedToSpigot = await switchAddonSource(multiSourceServer, 'vv-id', { source: 'spigot', ref: '19254' });
+            assert.equal(switchedToSpigot.source, 'spigot');
+            assert.equal(switchedToSpigot.ref, '19254');
+            assert.equal(switchedToSpigot.versionId, undefined);
+            assert.equal(switchedToSpigot.version, '5.2.0');
+
+            const switchedLocal = await switchAddonSource(multiSourceServer, 'vv-id', { source: 'local' });
+            assert.equal(switchedLocal.source, 'discovered');
+            assert.equal(switchedLocal.auto, false);
 
             // Staged plugin update creates new versioned file and deletes old plugin version cleanly on applyStagedAddons
             const stagedJar = jar({ 'plugin.yml': 'name: ViaVersion\nversion: 5.3.0\nmain: com.viaversion.ViaVersionPlugin\n' });
@@ -166,6 +235,45 @@ async function main() {
         } finally {
             (Server as unknown as { updateOne: unknown }).updateOne = origUpdateOne;
         }
+
+        // Strict 1:1 version checks for mods vs cross-version flexibility for plugins
+        assert.equal(normalizeMcVersionTag('1.21.0'), '1.21');
+        assert.equal(isExactMcVersionMatch('1.21.4', ['1.21.3', '1.21.4']), true);
+        assert.equal(isExactMcVersionMatch('1.21', ['1.21.0']), true);
+        assert.equal(isExactMcVersionMatch('1.21.4', ['1.21.1', '1.21.5']), false);
+
+        assert.equal(
+            evaluateVersionCompatibility(
+                { gameVersions: ['1.21.4'], loaders: ['fabric'] },
+                { kind: 'mod', loaders: ['fabric'], mcVersion: '1.21.4' }
+            ).compatible,
+            true
+        );
+        assert.equal(
+            evaluateVersionCompatibility(
+                { gameVersions: ['1.21.1'], loaders: ['fabric'] },
+                { kind: 'mod', loaders: ['fabric'], mcVersion: '1.21.4' }
+            ).compatible,
+            false
+        );
+        assert.equal(
+            evaluateVersionCompatibility(
+                { gameVersions: ['1.21.4'], loaders: ['forge'] },
+                { kind: 'mod', loaders: ['fabric'], mcVersion: '1.21.4' }
+            ).compatible,
+            false
+        );
+        // Plugins allow cross-version compatibility on Paper/Spigot
+        const crossPlugin = evaluateVersionCompatibility(
+            { gameVersions: ['1.20.4'], loaders: ['paper', 'spigot'] },
+            { kind: 'plugin', loaders: ['paper', 'spigot', 'bukkit'], mcVersion: '1.21.4' }
+        );
+        assert.equal(crossPlugin.compatible, true);
+        assert.ok(crossPlugin.note);
+
+        // Search query cleaning for jar filenames
+        assert.deepEqual(buildSearchQueries({ name: 'EssentialsX', filename: 'EssentialsX-2.20.1.jar' }), ['EssentialsX']);
+        assert.deepEqual(buildSearchQueries({ filename: 'BlueMap-5.29-paper.jar' }), ['BlueMap']);
 
         // Private hosts
         for (const address of ['127.0.0.1', '10.0.0.5', '192.168.1.1', '172.16.0.1', '169.254.169.254', '::1', 'fd00::1']) {

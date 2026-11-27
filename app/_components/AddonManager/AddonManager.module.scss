@@ -43,10 +43,24 @@
 .tab { padding: 0.35rem 0.8rem; border: 1px solid $border-color; border-radius: 999px; background: none; color: $text-secondary; font-size: 0.8rem; cursor: pointer; &.active { border-color: $accent-blue; color: $text-primary; background-color: rgba($accent-blue, 0.15); } }
 
 .list { display: flex; flex-direction: column; gap: 0.5rem; }
-.item { display: flex; align-items: center; gap: 0.8rem; padding: 0.65rem 0.8rem; border: 1px solid $border-color; border-radius: 10px; background-color: rgba($dark-card, 0.85); }
+.itemCard { display: flex; flex-direction: column; gap: 0.65rem; padding: 0.65rem 0.8rem; border: 1px solid $border-color; border-radius: 10px; background-color: rgba($dark-card, 0.85); }
+.item { display: flex; align-items: center; gap: 0.8rem; }
+.itemActions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .itemBody { flex: 1; min-width: 0; }
 .itemBody strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .itemMeta { color: $text-secondary; font-size: 0.78rem; }
+.sourceRow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; margin-top: 0.35rem; font-size: 0.78rem; color: $text-secondary; }
+.inlineSelect {
+  padding: 0.25rem 0.5rem; border: 1px solid $border-color; border-radius: 6px;
+  background-color: rgba($dark-bg, 0.75); color: $text-primary; font-size: 0.78rem;
+  &:focus { outline: none; border-color: $accent-blue; }
+}
+.versionPanel {
+  display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.6rem; border-top: 1px solid rgba($border-color, 0.55);
+  font-size: 0.8rem; color: $text-secondary;
+}
+.versionRow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.btn.small { padding: 0.32rem 0.65rem; font-size: 0.78rem; }
 .pill { padding: 0.1rem 0.5rem; border-radius: 999px; background-color: rgba($border-color, 0.5); font-size: 0.7rem; margin-left: 0.4rem; text-transform: uppercase; letter-spacing: 0.03em; }
 .pill.pending { background-color: rgba($accent-blue, 0.25); }
 .pill.updateAvailable { background-color: rgba($success-green, 0.2); color: $success-green; border: 1px solid rgba($success-green, 0.4); }
